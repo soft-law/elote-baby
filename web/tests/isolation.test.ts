@@ -48,6 +48,22 @@ describe("prerender isolation", () => {
   });
 });
 
+describe("build-time variables", () => {
+  test("the app entry passes only named VITE_* keys to the config reader", () => {
+    const source = readFileSync(join(root, "src/app/App.tsx"), "utf8");
+    expect(source).not.toMatch(/import\.meta\.env\s*[),]/);
+    expect(source).not.toContain("VITE_TEST_WALLET_SECRET");
+  });
+
+  test("the test wallet secret is read only by the test wallet module", () => {
+    const glob = new Bun.Glob("src/**/*.{ts,tsx}");
+    const readers = [...glob.scanSync({ cwd: root })].filter((file) =>
+      readFileSync(join(root, file), "utf8").includes("VITE_TEST_WALLET_SECRET"),
+    );
+    expect(readers).toEqual(["src/wallet/testWallet.ts"]);
+  });
+});
+
 describe("app route rewrite (dev and preview servers)", () => {
   test("app routes serve app.html and keep the query", () => {
     expect(rewriteAppUrl("/app")).toBe("/app.html");

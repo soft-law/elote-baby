@@ -11,6 +11,10 @@ import type { PoolOpKind } from "./ops";
 import type { EloteRpc } from "./rpc";
 
 export const TX_JOURNAL_KEY = "elote.tx.v1";
+/** Prefix of keys holding unreadable journal data set aside (one key per occurrence). */
+export const TX_JOURNAL_CORRUPT_PREFIX = "elote.tx.v1.corrupt.";
+/** Holds the key of the latest set-aside data until the person dismisses the notice; "" when none. */
+export const TX_JOURNAL_QUARANTINE_KEY = "elote.tx.v1.quarantine";
 
 export type JournalStatus = "signed" | "sent" | "confirmed" | "expired" | "failed";
 
@@ -56,7 +60,27 @@ export type TxJournal = {
   persistSigned(entry: Omit<JournalEntry, "status" | "id"> & { id?: string }): JournalEntry;
   /** Moves an entry forward. A backwards move (another tab settled it first) is ignored. */
   setStatus(signature: string, status: JournalStatus, extra?: { slot?: bigint }): JournalEntry | undefined;
+  /** Key of journal data set aside because it could not be read, until cleared; else null. */
+  quarantined(): string | null;
+  clearQuarantine(): void;
 };
+
+function isEntry(value: unknown, key: string): value is JournalEntry {
+  if (typeof value !== "object" || value === null) return false;
+  const e = value as Record<string, unknown>;
+  return (
+    e.signature === key &&
+    typeof e.status === "string" &&
+    e.status in RANK &&
+    typeof e.lastValidBlockHeight === "string" &&
+    /^\d+$/.test(e.lastValidBlockHeight) &&
+    typeof e.createdAt === "number" &&
+    typeof e.pool === "string" &&
+    typeof e.payer === "string" &&
+    typeof e.op === "string" &&
+    typeof e.signedBase64 === "string"
+  );
+}
 
 function newId(): string {
   const c = globalThis.crypto;
@@ -66,16 +90,41 @@ function newId(): string {
 export function createJournal(store: JournalStore): TxJournal {
   const listeners = new Set<() => void>();
 
+  /**
+   * Unreadable data is never silently dropped and never blocks new transactions: it is copied to
+   * its own key, the readable entries stay, and the notice asks the person to check the explorer
+   * before repeating anything. Only a store that refuses the copy is an error.
+   */
+  function quarantine(value: string, keep: Record<string, JournalEntry>): Record<string, JournalEntry> {
+    const key = `${TX_JOURNAL_CORRUPT_PREFIX}${Date.now()}`;
+    try {
+      store.setItem(key, value);
+      store.setItem(TX_JOURNAL_KEY, JSON.stringify(keep));
+      store.setItem(TX_JOURNAL_QUARANTINE_KEY, key);
+    } catch {
+      throw new JournalError("The transaction record could not be saved");
+    }
+    // No notification: this runs inside reads (also React snapshots); later reads see the same.
+    return keep;
+  }
+
   function read(): Record<string, JournalEntry> {
     const raw = store.getItem(TX_JOURNAL_KEY);
     if (raw === null) return {};
+    let parsed: unknown;
     try {
-      const parsed: unknown = JSON.parse(raw);
-      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("shape");
-      return parsed as Record<string, JournalEntry>;
+      parsed = JSON.parse(raw);
     } catch {
-      throw new JournalError("The transaction record in this browser cannot be read");
+      return quarantine(raw, {});
     }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return quarantine(raw, {});
+    const good: Record<string, JournalEntry> = {};
+    const bad: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (isEntry(value, key)) good[key] = value;
+      else bad[key] = value;
+    }
+    return Object.keys(bad).length > 0 ? quarantine(JSON.stringify(bad), good) : good;
   }
 
   function prune(entries: Record<string, JournalEntry>): Record<string, JournalEntry> {
@@ -117,6 +166,18 @@ export function createJournal(store: JournalStore): TxJournal {
       entries[entry.signature] = entry;
       write(entries);
       return entry;
+    },
+    quarantined() {
+      const key = store.getItem(TX_JOURNAL_QUARANTINE_KEY);
+      return key ? key : null;
+    },
+    clearQuarantine() {
+      try {
+        store.setItem(TX_JOURNAL_QUARANTINE_KEY, "");
+      } catch {
+        // The notice simply stays.
+      }
+      listeners.forEach((l) => l());
     },
     setStatus(signature, status, extra) {
       const entries = read();

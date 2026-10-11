@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { ELOTE_POOL_PROGRAM_ADDRESS } from "@elote/pool-client";
 import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { getBase58Decoder, getBase64Encoder, getCompiledTransactionMessageDecoder, getTransactionDecoder } from "@solana/kit";
-import { COMPUTE_BUDGET_PROGRAM } from "../src/tx/computeBudget";
+import { COMPUTE_BUDGET_PROGRAM, PRIORITY_FEE_MICROLAMPORTS } from "../src/tx/computeBudget";
 import { describeTxError } from "../src/tx/errors";
 import { createJournal, memoryStore, type TxJournal } from "../src/tx/journal";
 import { createRpc } from "../src/tx/rpc";
@@ -85,8 +85,8 @@ describe("sendOp", () => {
     const simulate = rpcServer.calls.find((c) => c.method === "simulateTransaction")!;
     expect(simulate.params[1]).toMatchObject({ sigVerify: false, replaceRecentBlockhash: true, encoding: "base64" });
 
-    // Compute budget from the simulation, then the idempotent token account, then the pool call.
-    expect(programsOf(state.sent[0]!)).toEqual([COMPUTE_BUDGET_PROGRAM, ASSOCIATED_TOKEN_PROGRAM_ADDRESS, ELOTE_POOL_PROGRAM_ADDRESS]);
+    // Compute unit limit (from the simulation) and price, the idempotent token account, the pool call.
+    expect(programsOf(state.sent[0]!)).toEqual([COMPUTE_BUDGET_PROGRAM, COMPUTE_BUDGET_PROGRAM, ASSOCIATED_TOKEN_PROGRAM_ADDRESS, ELOTE_POOL_PROGRAM_ADDRESS]);
 
     const entry = journal.get(result.signature);
     expect(entry).toMatchObject({ status: "confirmed", op: "deposit", slot: "4242", lastValidBlockHeight: "1000" });
@@ -101,13 +101,13 @@ describe("sendOp", () => {
     ] as const) {
       const { ctx } = await context();
       await sendOp(op, ctx);
-      expect(programsOf(state.sent.at(-1)!)).toEqual([COMPUTE_BUDGET_PROGRAM, ASSOCIATED_TOKEN_PROGRAM_ADDRESS, ELOTE_POOL_PROGRAM_ADDRESS]);
+      expect(programsOf(state.sent.at(-1)!)).toEqual([COMPUTE_BUDGET_PROGRAM, COMPUTE_BUDGET_PROGRAM, ASSOCIATED_TOKEN_PROGRAM_ADDRESS, ELOTE_POOL_PROGRAM_ADDRESS]);
     }
   });
 
   test("simulation failure maps to TxFailedError with the program error name; nothing signed", async () => {
-    // Index 0 is the compute budget probe, 1 the token account, 2 the pool deposit.
-    state.simulateErr = { InstructionError: [2, { Custom: 6011 }] };
+    // Indexes 0 and 1 are the compute budget (limit, price), 2 the token account, 3 the pool deposit.
+    state.simulateErr = { InstructionError: [3, { Custom: 6011 }] };
     const { ctx, signCount } = await context();
     const error = await sendOp(deposit, ctx).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(TxFailedError);
@@ -119,7 +119,7 @@ describe("sendOp", () => {
   });
 
   test("a custom code from the token account instruction is not read as a pool error", async () => {
-    state.simulateErr = { InstructionError: [1, { Custom: 1 }] };
+    state.simulateErr = { InstructionError: [2, { Custom: 1 }] };
     const { ctx } = await context();
     const error = await sendOp(deposit, ctx).catch((e: unknown) => e);
     expect(error).toMatchObject({ reason: "insufficient-sol" });
@@ -162,7 +162,7 @@ describe("sendOp", () => {
     rpcServer.use({
       sendTransaction: () => {
         throw new RpcErrorReply(-32002, "Transaction simulation failed", {
-          err: { InstructionError: [2, { Custom: 6000 }] },
+          err: { InstructionError: [3, { Custom: 6000 }] },
           logs: [],
           accounts: null,
           unitsConsumed: 1000,
@@ -181,7 +181,7 @@ describe("sendOp", () => {
     rpcServer.use({
       sendTransaction: (params) => {
         const sig = signatureOfWire(params[0] as string);
-        state.statuses.set(sig, { err: { InstructionError: [2, { Custom: 6003 }] }, confirmationStatus: "confirmed", slot: 7 });
+        state.statuses.set(sig, { err: { InstructionError: [3, { Custom: 6003 }] }, confirmationStatus: "confirmed", slot: 7 });
         return sig;
       },
     });
@@ -190,6 +190,55 @@ describe("sendOp", () => {
     expect(error).toMatchObject({ reason: "program", programErrorName: "InsufficientLiquidity" });
     expect((error as TxFailedError).signature).toBeDefined();
     expect(journal.all()[0]?.status).toBe("failed");
+  });
+
+  test("sent but never confirmed (status lookups keep failing): TxUncertainError, journal stays sent", async () => {
+    state.confirmOnSend = null;
+    rpcServer.use({
+      getSignatureStatuses: () => {
+        throw new Response("unavailable", { status: 503 });
+      },
+    });
+    const { ctx } = await context();
+    const error = await sendOp(deposit, ctx).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(TxUncertainError);
+    const sig = (error as TxUncertainError).signature;
+    expect(state.sent).toHaveLength(1);
+    expect(signatureOfWire(state.sent[0]!)).toBe(sig);
+    expect(journal.get(sig)?.status).toBe("sent");
+    expect(rpcServer.count("getSignatureStatuses")).toBe(5);
+  });
+
+  test("preflight 'already processed' for a transaction that landed is a confirmation, not a failure", async () => {
+    rpcServer.use({
+      sendTransaction: (params) => {
+        // Landed a moment ago (for instance re-broadcast by another tab), so preflight refuses it.
+        state.statuses.set(signatureOfWire(params[0] as string), { err: null, confirmationStatus: "confirmed", slot: 31 });
+        throw new RpcErrorReply(-32002, "Transaction simulation failed: This transaction has already been processed", {
+          err: "AlreadyProcessed",
+          logs: [],
+          accounts: null,
+          unitsConsumed: 0,
+          returnData: null,
+        });
+      },
+    });
+    const { ctx } = await context();
+    const result = await sendOp(deposit, ctx);
+    expect(result.slot).toBe(31n);
+    expect(journal.get(result.signature)?.status).toBe("confirmed");
+  });
+
+  test("a compute unit price is part of the message the wallet signs", async () => {
+    const { ctx } = await context();
+    await sendOp(deposit, ctx);
+    const tx = getTransactionDecoder().decode(getBase64Encoder().encode(state.sent[0]!));
+    const message = getCompiledTransactionMessageDecoder().decode(tx.messageBytes) as unknown as {
+      instructions: Array<{ data?: Uint8Array }>;
+    };
+    const price = message.instructions[1]!.data!;
+    expect(price[0]).toBe(3);
+    expect(new DataView(price.buffer, price.byteOffset, price.byteLength).getBigUint64(1, true)).toBe(PRIORITY_FEE_MICROLAMPORTS);
   });
 
   test("an unresolved earlier transaction blocks a new prompt", async () => {

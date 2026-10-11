@@ -29,7 +29,8 @@ export function AppProviders({ config, children }: { config: AppConfig; children
   const chain = chainForCluster(config.explorerCluster);
 
   useEffect(() => {
-    if (!config.testWallet) return;
+    // The build-time check lets real builds drop the test wallet module altogether.
+    if (import.meta.env.VITE_TEST_WALLET !== "1" || !config.testWallet) return;
     let unregister: (() => void) | undefined;
     let cancelled = false;
     void import("../wallet/testWallet")

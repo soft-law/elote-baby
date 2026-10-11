@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { generateKeyPairSigner, getBase58Decoder } from "@solana/kit";
 import {
   JournalError,
+  TX_JOURNAL_CORRUPT_PREFIX,
   TX_JOURNAL_KEY,
   createJournal,
   memoryStore,
@@ -9,7 +10,6 @@ import {
   type JournalStore,
 } from "../src/tx/journal";
 import { createRpc } from "../src/tx/rpc";
-import { TxExpiredError } from "../src/tx/tx";
 import { sendOp, type SendContext } from "../src/tx/write";
 import { RPC_URL, countingSigner, healthyCluster, startRpc, testPool, type ChainState } from "./support/rpc";
 
@@ -58,10 +58,30 @@ describe("journal store", () => {
     expect(() => journal.persistSigned(e)).toThrow(JournalError);
   });
 
-  test("an unreadable record is an error, never silently replaced", () => {
+  test("an unreadable record is set aside, flagged, and does not block new entries", () => {
     const store = memoryStore();
     store.setItem(TX_JOURNAL_KEY, "{not json");
-    expect(() => createJournal(store).unresolved()).toThrow(JournalError);
+    const journal = createJournal(store);
+    expect(journal.unresolved()).toEqual([]);
+    const key = journal.quarantined();
+    expect(key?.startsWith(TX_JOURNAL_CORRUPT_PREFIX)).toBe(true);
+    expect(store.getItem(key!)).toBe("{not json");
+    expect(journal.persistSigned(entry()).status).toBe("signed");
+    journal.clearQuarantine();
+    expect(journal.quarantined()).toBeNull();
+    // The set-aside data stays for inspection.
+    expect(store.getItem(key!)).toBe("{not json");
+  });
+
+  test("a malformed entry is set aside, the readable ones stay", () => {
+    const store = memoryStore();
+    const good = createJournal(store).persistSigned(entry());
+    const raw = JSON.parse(store.getItem(TX_JOURNAL_KEY)!);
+    raw.broken = { signature: "broken", status: "weird" };
+    store.setItem(TX_JOURNAL_KEY, JSON.stringify(raw));
+    const journal = createJournal(store);
+    expect(journal.unresolved().map((e) => e.signature)).toEqual([good.signature]);
+    expect(JSON.parse(store.getItem(journal.quarantined()!)!)).toEqual({ broken: { signature: "broken", status: "weird" } });
   });
 
   test("storage that does not keep the write is an error", () => {
@@ -164,14 +184,12 @@ describe("interrupted transaction", () => {
     expect(signCount()).toBe(2);
   });
 
-  test("the identical transaction signed again is not sent twice", async () => {
+  test("the identical transaction signed again resolves to the earlier outcome, sent once", async () => {
     const { ctx, store, pending } = await signThenCloseTab();
     state.statuses.set(pending.signature, { err: null, confirmationStatus: "confirmed", slot: 5 });
-    // Same blockhash, same op, same signer: the same signature.
-    const error = await sendOp({ kind: "deposit", assets: 3_000_000n, minSharesOut: 1n }, { ...ctx, journal: createJournal(store), onStep: undefined }).catch(
-      (e: unknown) => e,
-    );
-    expect(error).toBeInstanceOf(TxExpiredError);
+    // Same blockhash, same op, same signer: the same signature, which the cluster runs once.
+    const result = await sendOp({ kind: "deposit", assets: 3_000_000n, minSharesOut: 1n }, { ...ctx, journal: createJournal(store), onStep: undefined });
+    expect(result).toEqual({ signature: pending.signature, slot: 5n });
     expect(state.sent).toHaveLength(0);
   });
 

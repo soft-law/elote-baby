@@ -1,37 +1,54 @@
 // Settles transactions an earlier visit left unresolved (signed or sent), on load and then every
 // few seconds while any remain. Read-only towards the wallet: it never asks for a signature.
+// Each check takes the "elote.tx" lock without waiting, so it never races a sendOp in progress
+// (in this tab or another); signatures this tab is delivering are not shown as pending.
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useAppConfig } from "../app/configContext";
-import { getBrowserJournal, recoverJournal, TX_JOURNAL_KEY, type JournalEntry, type TxJournal } from "./journal";
+import { getBrowserJournal, recoverJournal, TX_JOURNAL_KEY, TX_JOURNAL_QUARANTINE_KEY, type JournalEntry, type TxJournal } from "./journal";
 import { useRpc } from "./RpcProvider";
+import { inFlightSignatures, subscribeInFlight, withTxLock, type LockManagerLike } from "./write";
 
 export const RECOVERY_INTERVAL_MS = 5_000;
 
 export type JournalRecovery = {
-  /** Unresolved entries of the configured pool, newest first. */
+  /** Unresolved entries of the configured pool, newest first, excluding this tab's in-flight one. */
   pending: JournalEntry[];
-  /** The record exists but cannot be read; the person must not repeat transactions blindly. */
+  /** Part of the record could not be read and was set aside: check the explorer before repeating. */
   unavailable: boolean;
   checking: boolean;
   checkNow: () => Promise<void>;
+  /** Hides the set-aside notice. */
+  dismissUnavailable: () => void;
 };
 
-const UNAVAILABLE = "unavailable";
+type Snapshot = { pending: JournalEntry[]; unavailable: boolean };
 
-export function useJournalRecovery(journal: TxJournal | null = getBrowserJournal()): JournalRecovery {
+export type JournalRecoveryOptions = {
+  journal?: TxJournal | null;
+  /** Defaults to navigator.locks (module mutex without it); injectable for tests. */
+  locks?: LockManagerLike | null;
+  intervalMs?: number;
+};
+
+export function useJournalRecovery(options: JournalRecoveryOptions = {}): JournalRecovery {
+  const journal = options.journal === undefined ? getBrowserJournal() : options.journal;
+  const intervalMs = options.intervalMs ?? RECOVERY_INTERVAL_MS;
+  const locks = options.locks;
   const rpc = useRpc();
   const { poolAddress } = useAppConfig();
   const pool = poolAddress as string;
 
   const subscribe = useCallback(
     (notify: () => void) => {
-      const unsubscribe = journal?.subscribe(notify);
+      const unsubscribeJournal = journal?.subscribe(notify);
+      const unsubscribeInFlight = subscribeInFlight(notify);
       const onStorage = (event: StorageEvent) => {
-        if (event.key === TX_JOURNAL_KEY || event.key === null) notify();
+        if (event.key === TX_JOURNAL_KEY || event.key === TX_JOURNAL_QUARANTINE_KEY || event.key === null) notify();
       };
       window.addEventListener("storage", onStorage);
       return () => {
-        unsubscribe?.();
+        unsubscribeJournal?.();
+        unsubscribeInFlight();
         window.removeEventListener("storage", onStorage);
       };
     },
@@ -39,34 +56,42 @@ export function useJournalRecovery(journal: TxJournal | null = getBrowserJournal
   );
 
   // A string snapshot keeps useSyncExternalStore stable between identical reads.
-  const snapshot = useCallback(() => {
-    if (!journal) return "[]";
+  const snapshot = useCallback((): string => {
+    if (!journal) return JSON.stringify({ pending: [], unavailable: false } satisfies Snapshot);
     try {
-      return JSON.stringify(journal.unresolved({ pool }).sort((a, b) => b.createdAt - a.createdAt));
+      const busy = inFlightSignatures();
+      const pending = journal
+        .unresolved({ pool })
+        .filter((e) => !busy.has(e.signature))
+        .sort((a, b) => b.createdAt - a.createdAt);
+      return JSON.stringify({ pending, unavailable: journal.quarantined() !== null } satisfies Snapshot);
     } catch {
-      return UNAVAILABLE;
+      // The store refuses even the set-aside copy: treat as unreadable.
+      return JSON.stringify({ pending: [], unavailable: true } satisfies Snapshot);
     }
   }, [journal, pool]);
 
-  const raw = useSyncExternalStore(subscribe, snapshot, () => "[]");
-  const unavailable = raw === UNAVAILABLE;
-  const pending = useMemo<JournalEntry[]>(() => (unavailable ? [] : (JSON.parse(raw) as JournalEntry[])), [raw, unavailable]);
+  const raw = useSyncExternalStore(subscribe, snapshot, () => JSON.stringify({ pending: [], unavailable: false }));
+  const { pending, unavailable } = useMemo(() => JSON.parse(raw) as Snapshot, [raw]);
 
   const [checking, setChecking] = useState(false);
-  const inFlight = useRef(false);
+  const inFlightCheck = useRef(false);
   const checkNow = useCallback(async () => {
-    if (!journal || inFlight.current) return;
-    inFlight.current = true;
+    if (!journal || inFlightCheck.current) return;
+    inFlightCheck.current = true;
     setChecking(true);
     try {
-      await recoverJournal(journal, rpc, { pool });
+      await withTxLock(() => recoverJournal(journal, rpc, { pool }), locks === undefined ? undefined : locks);
     } catch {
-      // Keep the notice; the next check tries again.
+      // "busy": a transaction is being sent and owns its entry. RPC trouble: keep the notice.
+      // Either way the next check tries again.
     } finally {
-      inFlight.current = false;
+      inFlightCheck.current = false;
       setChecking(false);
     }
-  }, [journal, rpc, pool]);
+  }, [journal, rpc, pool, locks]);
+
+  const dismissUnavailable = useCallback(() => journal?.clearQuarantine(), [journal]);
 
   const hasPending = pending.length > 0;
   useEffect(() => {
@@ -74,9 +99,9 @@ export function useJournalRecovery(journal: TxJournal | null = getBrowserJournal
     void checkNow();
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void checkNow();
-    }, RECOVERY_INTERVAL_MS);
+    }, intervalMs);
     return () => window.clearInterval(timer);
-  }, [hasPending, checkNow]);
+  }, [hasPending, checkNow, intervalMs]);
 
-  return { pending, unavailable, checking, checkNow };
+  return { pending, unavailable, checking, checkNow, dismissUnavailable };
 }

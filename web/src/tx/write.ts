@@ -21,9 +21,15 @@ import {
   type TransactionSigner,
 } from "@solana/kit";
 import type { AppConfig, PoolAccounts } from "../app/config";
-import { computeUnitsWithHeadroom, MAX_COMPUTE_UNITS, setComputeUnitLimitInstruction } from "./computeBudget";
-import { toTxError, txErrorFromChain } from "./errors";
-import { getBrowserJournal, JournalError, recoverJournal, type TxJournal } from "./journal";
+import {
+  computeUnitsWithHeadroom,
+  MAX_COMPUTE_UNITS,
+  PRIORITY_FEE_MICROLAMPORTS,
+  setComputeUnitLimitInstruction,
+  setComputeUnitPriceInstruction,
+} from "./computeBudget";
+import { toTxError, txErrorFromChain, type MessageLike } from "./errors";
+import { getBrowserJournal, JournalError, recoverJournal, type JournalEntry, type TxJournal } from "./journal";
 import { buildOpInstructions, type PoolOp } from "./ops";
 import type { EloteRpc } from "./rpc";
 import { assertSignOnly, signWithGuard } from "./signing";
@@ -59,6 +65,25 @@ const MAX_POLL_RPC_FAILURES = 5;
 const MAX_POLLS = 200;
 
 let moduleLockHeld = false;
+
+// Signatures this tab is delivering right now. Journal recovery and the pending notice leave them
+// alone: the running sendOp owns them.
+const inFlight = new Set<string>();
+const inFlightListeners = new Set<() => void>();
+function setInFlight(signature: string, on: boolean): void {
+  if (on) inFlight.add(signature);
+  else inFlight.delete(signature);
+  inFlightListeners.forEach((l) => l());
+}
+export function inFlightSignatures(): ReadonlySet<string> {
+  return inFlight;
+}
+export function subscribeInFlight(listener: () => void): () => void {
+  inFlightListeners.add(listener);
+  return () => {
+    inFlightListeners.delete(listener);
+  };
+}
 
 function browserLocks(): LockManagerLike | null {
   const nav = (globalThis as { navigator?: { locks?: LockManagerLike } }).navigator;
@@ -100,7 +125,11 @@ async function latestLifetime(rpc: EloteRpc): Promise<Lifetime> {
 
 /** Unsigned simulation; returns the compute units used, or throws the typed failure. */
 async function simulate(rpc: EloteRpc, signer: TransactionSigner, instructions: Instruction[]): Promise<bigint | undefined> {
-  const probe = [setComputeUnitLimitInstruction(MAX_COMPUTE_UNITS), ...instructions];
+  const probe = [
+    setComputeUnitLimitInstruction(MAX_COMPUTE_UNITS),
+    setComputeUnitPriceInstruction(PRIORITY_FEE_MICROLAMPORTS),
+    ...instructions,
+  ];
   const message = buildMessage(signer, await latestLifetime(rpc), probe);
   const wire = getBase64EncodedWireTransaction(compileTransaction(message));
   const { value } = await rpc
@@ -138,7 +167,10 @@ async function run(op: PoolOp, ctx: SendContext): Promise<TxResult> {
   try {
     const instructions = await buildOpInstructions(op, { signer, config: ctx.config, accounts: ctx.accounts });
     const units = await simulate(rpc, signer, instructions);
-    const budget = units !== undefined ? [setComputeUnitLimitInstruction(computeUnitsWithHeadroom(units))] : [];
+    const budget = [
+      ...(units !== undefined ? [setComputeUnitLimitInstruction(computeUnitsWithHeadroom(units))] : []),
+      setComputeUnitPriceInstruction(PRIORITY_FEE_MICROLAMPORTS),
+    ];
     // A fresh blockhash right before the wallet prompt.
     message = buildMessage(signer, await latestLifetime(rpc), [...budget, ...instructions]);
   } catch (error) {
@@ -162,13 +194,53 @@ async function run(op: PoolOp, ctx: SendContext): Promise<TxResult> {
       signedBase64: wire,
     });
   } catch (error) {
-    // Same signer, same blockhash, same instructions: the very transaction already recorded. The
-    // cluster would not run it twice; a retry with a newer blockhash is a new transaction.
-    if (journal.get(signature)) throw new TxExpiredError(null);
+    // Same signer, same blockhash, same instructions: the very transaction already recorded, which
+    // the cluster runs at most once. Its outcome is this op's outcome.
+    const earlier = journal.get(signature);
+    if (earlier) return earlierOutcome(earlier);
     // Without a durable record a closed tab could lose track of it: do not send.
     throw new TxFailedError("journal", { cause: error });
   }
-  onStep?.("sending", signature);
+
+  setInFlight(signature, true);
+  try {
+    onStep?.("sending", signature);
+    return await deliver({ rpc, journal, onStep, pollMs, message, signature, wire, lastValidBlockHeight });
+  } finally {
+    setInFlight(signature, false);
+  }
+}
+
+function earlierOutcome(entry: JournalEntry): TxResult {
+  switch (entry.status) {
+    case "confirmed":
+      return { signature: entry.signature, ...(entry.slot !== undefined ? { slot: BigInt(entry.slot) } : {}) };
+    case "failed":
+      throw new TxFailedError("unknown", { signature: entry.signature });
+    case "expired":
+      throw new TxExpiredError(entry.signature);
+    default:
+      throw new TxUncertainError(entry.signature);
+  }
+}
+
+type Delivery = {
+  rpc: EloteRpc;
+  journal: TxJournal;
+  onStep: SendContext["onStep"];
+  pollMs: number;
+  message: MessageLike;
+  signature: string;
+  wire: string;
+  lastValidBlockHeight: bigint;
+};
+
+async function lookup(rpc: EloteRpc, signature: string) {
+  const { value } = await rpc.getSignatureStatuses([toSignature(signature)], { searchTransactionHistory: true }).send();
+  return value[0] ?? null;
+}
+
+async function deliver({ rpc, journal, onStep, pollMs, message, signature, wire, lastValidBlockHeight }: Delivery): Promise<TxResult> {
 
   try {
     // The person may have taken longer than the lifetime to approve.
@@ -187,10 +259,15 @@ async function run(op: PoolOp, ctx: SendContext): Promise<TxResult> {
       .send();
   } catch (error) {
     if (isSolanaError(error, SOLANA_ERROR__JSON_RPC__SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE)) {
-      // Rejected in preflight: never broadcast, these bytes are void.
-      const typed = toTxError(error, message);
-      journal.setStatus(signature, typed instanceof TxExpiredError ? "expired" : "failed");
-      throw typed;
+      // Preflight also rejects a transaction that already landed ("already processed"): if the
+      // cluster knows the signature, polling settles it.
+      const known = await lookup(rpc, signature).catch(() => null);
+      if (!known) {
+        // Rejected in preflight: never broadcast, these bytes are void.
+        const typed = toTxError(error, message);
+        journal.setStatus(signature, typed instanceof TxExpiredError ? "expired" : "failed");
+        throw typed;
+      }
     }
     // Network trouble: it may or may not have been broadcast. Polling decides.
   }

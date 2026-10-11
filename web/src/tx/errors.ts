@@ -4,6 +4,12 @@
 // production bundles. Provider messages never reach the UI: they may carry signed bytes.
 import {
   ELOTE_POOL_ERROR__FIRST_DEPOSIT_TOO_SMALL,
+  ELOTE_POOL_ERROR__INVALID_SCHEDULE,
+  ELOTE_POOL_ERROR__LATE_INTEREST_UNPAID,
+  ELOTE_POOL_ERROR__NOT_ENOUGH_MISSED,
+  ELOTE_POOL_ERROR__NOT_SCHEDULED,
+  ELOTE_POOL_ERROR__SCHEDULE_ENDS_AFTER_TERM,
+  ELOTE_POOL_ERROR__WRITE_OFF_TOO_EARLY,
   ELOTE_POOL_ERROR__INSUFFICIENT_LIQUIDITY,
   ELOTE_POOL_ERROR__LINE_STATUS,
   ELOTE_POOL_ERROR__OVERFLOW,
@@ -48,11 +54,17 @@ export type ProgramErrorName =
   | "FirstDepositTooSmall"
   | "WrongAccount"
   | "SlippageExceeded"
-  | "TermEnded";
+  | "TermEnded"
+  | "InvalidSchedule"
+  | "ScheduleEndsAfterTerm"
+  | "NotScheduled"
+  | "NotEnoughMissed"
+  | "LateInterestUnpaid"
+  | "WriteOffTooEarly";
 
 /**
- * Program error names by code, keyed by the generated client's constants. 6013..6018 (arrears)
- * are not in the installed client yet; they fall back to the generic program message.
+ * Program error names by code (6000..6018), keyed by the generated client's constants. A code
+ * the installed client does not know falls back to the generic program message.
  */
 export const PROGRAM_ERROR_NAMES: Readonly<Partial<Record<number, ProgramErrorName>>> = {
   [ELOTE_POOL_ERROR__PAUSED]: "Paused",
@@ -68,6 +80,12 @@ export const PROGRAM_ERROR_NAMES: Readonly<Partial<Record<number, ProgramErrorNa
   [ELOTE_POOL_ERROR__WRONG_ACCOUNT]: "WrongAccount",
   [ELOTE_POOL_ERROR__SLIPPAGE_EXCEEDED]: "SlippageExceeded",
   [ELOTE_POOL_ERROR__TERM_ENDED]: "TermEnded",
+  [ELOTE_POOL_ERROR__INVALID_SCHEDULE]: "InvalidSchedule",
+  [ELOTE_POOL_ERROR__SCHEDULE_ENDS_AFTER_TERM]: "ScheduleEndsAfterTerm",
+  [ELOTE_POOL_ERROR__NOT_SCHEDULED]: "NotScheduled",
+  [ELOTE_POOL_ERROR__NOT_ENOUGH_MISSED]: "NotEnoughMissed",
+  [ELOTE_POOL_ERROR__LATE_INTEREST_UNPAID]: "LateInterestUnpaid",
+  [ELOTE_POOL_ERROR__WRITE_OFF_TOO_EARLY]: "WriteOffTooEarly",
 };
 
 type ProgramCopyKey = keyof Copy["app"]["tx"]["errors"]["program"];
@@ -86,6 +104,12 @@ const PROGRAM_COPY_KEY: Record<ProgramErrorName, ProgramCopyKey> = {
   WrongAccount: "wrongAccount",
   SlippageExceeded: "slippageExceeded",
   TermEnded: "termEnded",
+  InvalidSchedule: "invalidSchedule",
+  ScheduleEndsAfterTerm: "scheduleEndsAfterTerm",
+  NotScheduled: "notScheduled",
+  NotEnoughMissed: "notEnoughMissed",
+  LateInterestUnpaid: "lateInterestUnpaid",
+  WriteOffTooEarly: "writeOffTooEarly",
 };
 
 /** SPL Token InsufficientFunds, surfaced through the pool's transfer CPI. */

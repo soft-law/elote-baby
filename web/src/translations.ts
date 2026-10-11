@@ -157,6 +157,12 @@ export type Copy = {
           wrongAccount: string;
           slippageExceeded: string;
           termEnded: string;
+          invalidSchedule: string;
+          scheduleEndsAfterTerm: string;
+          notScheduled: string;
+          notEnoughMissed: string;
+          lateInterestUnpaid: string;
+          writeOffTooEarly: string;
         };
       };
     };
@@ -303,7 +309,8 @@ export const translations: Record<Lang, Copy> = {
         copied: "Address copied",
         disconnect: "Disconnect",
         close: "Close",
-        wrongChain: "This wallet account is not on the Solana test network. Switch networks in your wallet and connect again.",
+        wrongChain:
+          "This wallet account is not on the network this app uses, shown at the top of the page. Switch networks in your wallet and connect again.",
       },
       tx: {
         steps: {
@@ -325,12 +332,13 @@ export const translations: Record<Lang, Copy> = {
           sent: "Sent, waiting for confirmation",
           check: "Check now",
           checking: "Checking",
-          unavailable: "This browser cannot read its transaction record. Keep the site data and do not repeat the transaction.",
+          unavailable:
+            "Part of this browser's transaction record could not be read and was set aside. Before repeating a recent transaction, check your wallet's activity on Solana Explorer.",
         },
         errors: {
           rejected: "You declined the request in your wallet. Nothing was sent.",
           expired: "The transaction expired before it was confirmed. Nothing changed. Try again.",
-          uncertain: "An earlier transaction is still settling. Wait for its result before sending another one.",
+          uncertain: "A transaction from this browser is still settling. Wait for its result before sending another one.",
           insufficientSol: "Not enough SOL to pay the network fee. Get test SOL and try again.",
           insufficientTokens: "Your wallet does not have enough tMXN test tokens for this.",
           guard: "The wallet returned a different transaction than the one prepared, so nothing was sent.",
@@ -355,6 +363,12 @@ export const translations: Record<Lang, Copy> = {
             slippageExceeded:
               "The pool value changed since you reviewed this, so you would receive less than the minimum shown. Review the new amounts and try again.",
             termEnded: "The term of this line has ended.",
+            invalidSchedule: "The installment schedule of this line is not valid.",
+            scheduleEndsAfterTerm: "The last installment would fall due after the end of the term.",
+            notScheduled: "This line has no installment schedule.",
+            notEnoughMissed: "This line has not missed enough installments to go to collection.",
+            lateInterestUnpaid: "The payment must first cover the late interest due on this line. Pay at least that amount.",
+            writeOffTooEarly: "This line cannot be written off yet. The grace period has not ended.",
           },
         },
       },
@@ -499,7 +513,8 @@ export const translations: Record<Lang, Copy> = {
         copied: "Dirección copiada",
         disconnect: "Desconectar",
         close: "Cerrar",
-        wrongChain: "Esta cuenta de la wallet no está en la red de prueba de Solana. Cambia de red en tu wallet y vuelve a conectar.",
+        wrongChain:
+          "Esta cuenta de la wallet no está en la red que usa esta app, indicada arriba en la página. Cambia de red en tu wallet y vuelve a conectar.",
       },
       tx: {
         steps: {
@@ -521,12 +536,13 @@ export const translations: Record<Lang, Copy> = {
           sent: "Enviada, esperando confirmación",
           check: "Revisar ahora",
           checking: "Revisando",
-          unavailable: "Este navegador no puede leer su registro de transacciones. Conserva los datos del sitio y no repitas la transacción.",
+          unavailable:
+            "Parte del registro de transacciones de este navegador no se pudo leer y se apartó. Antes de repetir una transacción reciente, revisa la actividad de tu wallet en Solana Explorer.",
         },
         errors: {
           rejected: "Rechazaste la solicitud en tu wallet. No se envió nada.",
           expired: "La transacción venció antes de confirmarse. No cambió nada. Inténtalo de nuevo.",
-          uncertain: "Una transacción anterior sigue en curso. Espera su resultado antes de enviar otra.",
+          uncertain: "Una transacción de este navegador sigue en curso. Espera su resultado antes de enviar otra.",
           insufficientSol: "No tienes SOL suficiente para la comisión de la red. Consigue SOL de prueba e inténtalo de nuevo.",
           insufficientTokens: "Tu wallet no tiene suficientes tokens de prueba tMXN para esto.",
           guard: "La wallet devolvió una transacción distinta a la preparada, así que no se envió nada.",
@@ -551,6 +567,12 @@ export const translations: Record<Lang, Copy> = {
             slippageExceeded:
               "El valor del pool cambió desde que lo revisaste y recibirías menos que el mínimo mostrado. Revisa los nuevos montos e inténtalo de nuevo.",
             termEnded: "El plazo de esta línea terminó.",
+            invalidSchedule: "El calendario de pagos de esta línea no es válido.",
+            scheduleEndsAfterTerm: "El último pago vencería después del fin del plazo.",
+            notScheduled: "Esta línea no tiene calendario de pagos.",
+            notEnoughMissed: "Esta línea no tiene suficientes pagos vencidos para pasar a cobranza.",
+            lateInterestUnpaid: "El pago debe cubrir primero el interés moratorio de esta línea. Paga al menos ese monto.",
+            writeOffTooEarly: "Esta línea aún no puede castigarse. El periodo de gracia no ha terminado.",
           },
         },
       },

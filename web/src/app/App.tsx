@@ -15,8 +15,19 @@ function getRouter() {
   return (router ??= createBrowserRouter(routes, { basename: APP_BASENAME }));
 }
 
+// Only the named configuration keys. Passing import.meta.env whole would make Vite inline every
+// VITE_* variable of the build into this chunk, including the test wallet secret of test builds.
+const ENV = {
+  VITE_RPC_URL: import.meta.env.VITE_RPC_URL,
+  VITE_POOL_ADDRESS: import.meta.env.VITE_POOL_ADDRESS,
+  VITE_ASSET_MINT: import.meta.env.VITE_ASSET_MINT,
+  VITE_API_URL: import.meta.env.VITE_API_URL,
+  VITE_EXPLORER_CLUSTER: import.meta.env.VITE_EXPLORER_CLUSTER,
+  VITE_TEST_WALLET: import.meta.env.VITE_TEST_WALLET,
+};
+
 export function App() {
-  const result = useMemo(() => readAppConfig(import.meta.env), []);
+  const result = useMemo(() => readAppConfig(ENV), []);
 
   // Variable names are shown only in development; the public page stays generic.
   if (!result.ok) return <ConfigScreen problems={result.problems} showDetails={import.meta.env.DEV} />;
