@@ -345,6 +345,7 @@ export type Copy = {
         lineDrawn: string;
         lineRepaid: string;
         lateInterest: string;
+        scheduled: string;
         inCollection: string;
         writtenOff: string;
         other: string;
@@ -811,6 +812,7 @@ export const translations: Record<Lang, Copy> = {
           lineDrawn: "Drew {amount} tMXN test tokens",
           lineRepaid: "Repaid {principal} tMXN test tokens of principal and {interest} of interest",
           lateInterest: "Paid {amount} tMXN test tokens of late interest",
+          scheduled: "Schedule set: {installments} installments, one every {interval}",
           inCollection: "Sent to collection after {missed} missed installments",
           writtenOff: "Written off with a loss of {loss} tMXN test tokens",
           other: "Pool transaction",
@@ -1292,6 +1294,7 @@ export const translations: Record<Lang, Copy> = {
           lineDrawn: "Dispuso {amount} tokens de prueba tMXN",
           lineRepaid: "Pagó {principal} tokens de prueba tMXN de principal y {interest} de interés",
           lateInterest: "Pagó {amount} tokens de prueba tMXN de interés moratorio",
+          scheduled: "Calendario fijado: {installments} pagos, uno cada {interval}",
           inCollection: "Pasó a cobranza tras {missed} pagos vencidos",
           writtenOff: "Castigada con una pérdida de {loss} tokens de prueba tMXN",
           other: "Transacción del pool",

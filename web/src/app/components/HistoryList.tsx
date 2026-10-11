@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { fill } from "../fill";
 import { historyRow, type HistoryRow, type HistoryScope } from "../history";
 import { dataState } from "../dataState";
-import { explorerTxUrl, formatDate, truncateMiddle, type ExplorerCluster } from "../../pool/format";
+import { explorerTxUrl, formatDate, formatDuration, truncateMiddle, type ExplorerCluster } from "../../pool/format";
 import type { HistoryEntry, PoolEvent } from "../../pool/history";
 import type { Copy, Lang } from "../../translations";
 import { Amount } from "./Amount";
@@ -51,6 +51,11 @@ export function eventSentence(event: PoolEvent, t: Copy, lang: Lang): ReactNode 
       return fill(r.lineRepaid, { principal: money(event.data.principalPart, lang), interest: money(event.data.interestPart, lang) });
     case "LateInterestCollected":
       return fill(r.lateInterest, { amount: money(event.data.amount, lang) });
+    case "LineScheduled":
+      return fill(r.scheduled, {
+        installments: <span className="num font-semibold text-ink">{String(event.data.installments)}</span>,
+        interval: formatDuration(event.data.intervalSeconds, lang),
+      });
     case "LineInCollection":
       return fill(r.inCollection, { missed: <span className="num font-semibold text-ink">{String(event.data.missed)}</span> });
     case "LineWrittenOff":

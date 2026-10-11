@@ -410,7 +410,11 @@ describe("borrow page", () => {
 
     const toggle = page.card(0)!.querySelector('[data-testid="line-history-toggle"]') as HTMLButtonElement;
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(toggle.textContent).toBe(en.app.history.lineToggle);
+    // Visible "History"; the accessible name adds the line, so each card's button is distinct.
+    expect(toggle.textContent).toBe(`${en.app.history.lineToggle}, Line #0`);
+    expect(toggle.querySelector(".sr-only")!.textContent).toBe(", Line #0");
+    const other = page.card(1)!.querySelector('[data-testid="line-history-toggle"]')!;
+    expect(other.textContent).toBe(`${en.app.history.lineToggle}, Line #1`);
     await act(async () => toggle.click());
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     await page.until(() => page.card(0)!.querySelector('[data-testid="history-list"]') !== null, "line history");

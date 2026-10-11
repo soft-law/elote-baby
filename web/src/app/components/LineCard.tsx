@@ -75,7 +75,8 @@ export function LineHistory({ row, pool, t, lang, cluster }: { row: PoolLine; po
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const query = useHistoryQuery("line", row.address, { enabled: open });
-  const label = `${h.lineToggle}, ${fillText(t.app.borrow.line, { id: `#${row.lineId.toString()}` })}`;
+  const lineName = fillText(t.app.borrow.line, { id: `#${row.lineId.toString()}` });
+  const label = `${h.lineToggle}, ${lineName}`;
   return (
     <section data-testid="line-history" className="flex flex-col gap-3 border-t-[1.5px] border-line pt-4">
       <button
@@ -87,6 +88,8 @@ export function LineHistory({ row, pool, t, lang, cluster }: { row: PoolLine; po
         className="inline-flex min-h-[44px] items-center gap-2 self-start font-display text-[17px] font-semibold text-teal-700 hover:text-teal-800"
       >
         {h.lineToggle}
+        {/* The visible word starts the name; the line number tells the buttons apart. */}
+        <span className="sr-only">, {lineName}</span>
         <Chevron open={open} />
       </button>
       <div id={panelId} hidden={!open} className="flex flex-col gap-3">

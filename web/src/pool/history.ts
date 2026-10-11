@@ -59,6 +59,8 @@ export type HistoryEntry = {
   blockTime: number | null;
   failed: boolean;
   events: PoolEvent[];
+  /** True when the transaction could not be read or decoded (rate limit, timeout, odd reply). */
+  unreadable?: boolean;
 };
 
 type Parser = (data: ReadonlyUint8Array) => PoolEvent;

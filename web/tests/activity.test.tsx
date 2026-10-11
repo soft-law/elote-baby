@@ -4,6 +4,7 @@ import {
   getDepositedEventEncoder,
   getLateInterestCollectedEventEncoder,
   getLineInCollectionEventEncoder,
+  getLineScheduledEventEncoder,
   getLineRepaidEventEncoder,
   getRedeemedEventEncoder,
 } from "@elote/pool-client";
@@ -16,7 +17,7 @@ import { decodeEventInstructionData, type HistoryEntry } from "../src/pool/histo
 import { createRpc } from "../src/tx/rpc";
 import { translations, type Lang } from "../src/translations";
 import { eventIxData, fakeSignature, signatureInfo, transactionResult } from "./support/history";
-import { RPC_URL, startRpc } from "./support/rpc";
+import { RPC_URL, RpcErrorReply, startRpc } from "./support/rpc";
 
 const UNIT = 1_000_000n;
 const en = translations.en;
@@ -41,7 +42,7 @@ const depositedData = () =>
     getDepositedEventEncoder().encode({ pool, depositor: owner, assets: 10_000n * UNIT, shares: 9_999_999_000n, navAfter: 10_000n * UNIT, supplyAfter: 10_000n * UNIT }),
   );
 const redeemedData = () =>
-  eventIxData(getRedeemedEventEncoder().encode({ pool, holder: owner, shares: 4_000n * UNIT, assets: 4_192n * UNIT, navAfter: 0n, supplyAfter: 0n }));
+  eventIxData(getRedeemedEventEncoder().encode({ pool, holder: owner, shares: 4_000n * UNIT + 123n, assets: 4_192n * UNIT, navAfter: 0n, supplyAfter: 0n }));
 // Tagged like an event, with a discriminator no generated parser knows.
 const UNKNOWN_DATA = eventIxData([7, 7, 7, 7, 7, 7, 7, 7, 1, 2, 3, 4]);
 
@@ -151,6 +152,50 @@ describe("readHistory", () => {
     expect(entries.map((e) => e.blockTime)).toEqual([1_760_000_300, 1_760_000_200, null]);
     const dep = entries[0]!.events[0]!;
     if (dep.kind === "Deposited") expect(dep.data.assets).toBe(10_000n * UNIT);
+  });
+
+  test("one rate-limited transaction read costs only its row", async () => {
+    const sigs = [fakeSignature(71), fakeSignature(72), fakeSignature(73)];
+    rpcServer.use({
+      getSignaturesForAddress: () => sigs.map((s) => signatureInfo(s, 1_760_000_000)),
+      getTransaction: (params) => {
+        const sig = params[0] as string;
+        if (sig === sigs[1]) throw new RpcErrorReply(-32429, "Too many requests for a specific RPC call");
+        return transactionResult(sig, owner, [depositedData()]);
+      },
+    });
+    const entries = await readHistory(createRpc(RPC_URL), owner);
+    expect(entries.map((e) => e.signature)).toEqual(sigs);
+    expect(entries.map((e) => e.events.length)).toEqual([1, 0, 1]);
+    expect(entries.map((e) => e.unreadable === true)).toEqual([false, true, false]);
+    expect(entries[1]!.failed).toBe(false);
+    const scope: HistoryScope = { kind: "shares", pool, owner };
+    expect(entries.map((e) => historyRow(e, scope).kind)).toEqual(["events", "other", "events"]);
+  });
+
+  test("a malformed node reply is an unreadable row, not a failed list", async () => {
+    const sig = fakeSignature(81);
+    rpcServer.use({
+      getSignaturesForAddress: () => [signatureInfo(sig, 1_760_000_000)],
+      // No message: the decoder would throw on it.
+      getTransaction: () => ({ slot: 1, blockTime: 1, transaction: {}, meta: { err: null, innerInstructions: [] } }),
+    });
+    const entries = await readHistory(createRpc(RPC_URL), owner);
+    expect(entries).toEqual([{ signature: sig, blockTime: 1_760_000_000, failed: false, events: [], unreadable: true }]);
+  });
+
+  test("a transaction whose meta reports an error is failed even when the list said ok", async () => {
+    const sig = fakeSignature(91);
+    rpcServer.use({
+      getSignaturesForAddress: () => [signatureInfo(sig, 1_760_000_000, null)],
+      getTransaction: () => {
+        const tx = transactionResult(sig, owner, [depositedData()]);
+        return { ...tx, meta: { ...tx.meta, err: { InstructionError: [0, { Custom: 6013 }] }, status: { Err: { InstructionError: [0, { Custom: 6013 }] } } } };
+      },
+    });
+    const entries = await readHistory(createRpc(RPC_URL), owner);
+    expect(entries[0]!.failed).toBe(true);
+    expect(historyRow(entries[0]!, { kind: "shares", pool, owner }).kind).toBe("failed");
   });
 
   test("a transaction the node does not return is a row without events", async () => {
@@ -263,7 +308,17 @@ describe("HistoryList", () => {
     expect(rows.map((r) => r.getAttribute("data-signature"))).toEqual(sigs);
     expect(rows.map((r) => r.getAttribute("data-row"))).toEqual(["Deposited", "Redeemed", "other", "failed"]);
     expect(rows[0]!.textContent).toContain("Deposited 10,000 tMXN test tokens for 9,999.999 shares");
-    expect(rows[1]!.textContent).toContain("Redeemed 4,000 shares for 4,192 tMXN test tokens");
+    // 4,000.000123 shares: three decimals on screen, all six for screen readers.
+    const visible = (el: Element) => {
+      const copy = el.cloneNode(true) as Element;
+      for (const sr of copy.querySelectorAll(".sr-only")) sr.remove();
+      return (copy.textContent ?? "").replace(/\s+/g, " ");
+    };
+    expect(visible(rows[1]!)).toContain("Redeemed 4,000 shares for 4,192 tMXN test tokens");
+    const sharesAmount = rows[1]!.querySelector('[data-full="4,000.000123"]');
+    expect(sharesAmount).not.toBeNull();
+    expect(sharesAmount!.querySelector(".sr-only")!.textContent).toBe("4,000.000123");
+    expect(sharesAmount!.querySelector('[aria-hidden="true"]')!.textContent).toBe("4,000");
     expect(rows[2]!.textContent).toContain(en.app.history.rows.other);
     expect(rows[3]!.textContent).toContain(en.app.history.rows.failed);
     expect(rows[3]!.textContent).toContain(en.app.pool.noDate);
@@ -275,8 +330,6 @@ describe("HistoryList", () => {
       expect(link.getAttribute("rel")).toBe("noreferrer");
       expect(link.textContent).toContain(en.app.newTab);
     }
-    // Full six-decimal shares for screen readers.
-    expect(rows[0]!.textContent).toContain("9,999.999");
     expect(host.textContent).not.toMatch(/NaN|undefined|null/);
   });
 
@@ -294,7 +347,17 @@ describe("HistoryList", () => {
     );
     const late = decode(eventIxData(getLateInterestCollectedEventEncoder().encode({ pool, lineId: 0n, amount: 2n * UNIT })));
     const coll = decode(eventIxData(getLineInCollectionEventEncoder().encode({ pool, lineId: 0n, missed: 2, remaining: 500n * UNIT })));
-    const host = await render([entry(fakeSignature(61), [late, repaid]), entry(fakeSignature(62), [coll])], { kind: "line", pool, lineId: 0n });
+    const scheduled = decode(
+      eventIxData(getLineScheduledEventEncoder().encode({ pool, lineId: 0n, intervalSeconds: 30n * 86_400n, installments: 6, lateBps: 2_400, maxMissed: 2 })),
+    );
+    expect(scheduled.kind).toBe("LineScheduled");
+    const host = await render(
+      [entry(fakeSignature(61), [late, repaid]), entry(fakeSignature(62), [coll]), entry(fakeSignature(63), [scheduled])],
+      { kind: "line", pool, lineId: 0n },
+    );
+    const rows = [...host.querySelectorAll("li[data-signature]")];
+    expect(rows[2]!.getAttribute("data-row")).toBe("LineScheduled");
+    expect(rows[2]!.textContent).toContain("Schedule set: 6 installments, one every 30 days");
     expect(host.textContent).toContain("Paid 2 tMXN test tokens of late interest");
     expect(host.textContent).toContain("Repaid 100 tMXN test tokens of principal and 10 of interest");
     expect(host.textContent).toContain("Sent to collection after 2 missed installments");

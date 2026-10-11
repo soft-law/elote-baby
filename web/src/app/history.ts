@@ -88,12 +88,19 @@ export async function readHistory(
         failed: info.err !== null,
       };
       if (entry.failed) return { ...entry, events: [] };
-      const tx = await rpc
-        .getTransaction(info.signature as Signature, { encoding: "json", maxSupportedTransactionVersion: 0, commitment: "confirmed" })
-        .send({ abortSignal });
-      // A transaction the node no longer has (or not yet) is still a row, without events.
-      const events = tx ? decodeTransactionEvents(tx as unknown as TransactionLike) : [];
-      return { ...entry, failed: tx?.meta?.err ? true : false, events };
+      try {
+        const tx = await rpc
+          .getTransaction(info.signature as Signature, { encoding: "json", maxSupportedTransactionVersion: 0, commitment: "confirmed" })
+          .send({ abortSignal });
+        // A transaction the node no longer has (or not yet) is still a row, without events.
+        const events = tx ? decodeTransactionEvents(tx as unknown as TransactionLike) : [];
+        return { ...entry, failed: tx?.meta?.err ? true : false, events };
+      } catch (error) {
+        // Abort cancels the whole read; any other failure costs only this row, which then reads
+        // "Pool transaction" with its explorer link.
+        if (abortSignal?.aborted) throw error;
+        return { ...entry, events: [], unreadable: true };
+      }
     },
     abortSignal,
   );
@@ -132,7 +139,7 @@ export type HistoryRow =
   | { kind: "other"; signature: string; blockTime: number | null }
   | { kind: "events"; signature: string; blockTime: number | null; events: PoolEvent[] };
 
-const LINE_KINDS = new Set<PoolEvent["kind"]>(["LineOpened", "LineDrawn", "LateInterestCollected", "LineRepaid", "LineInCollection", "LineWrittenOff"]);
+const LINE_KINDS = new Set<PoolEvent["kind"]>(["LineOpened", "LineScheduled", "LineDrawn", "LateInterestCollected", "LineRepaid", "LineInCollection", "LineWrittenOff"]);
 
 /** The events of `event` that belong on this list; everything else in the transaction is ignored. */
 export function inScope(event: PoolEvent, scope: HistoryScope): boolean {
