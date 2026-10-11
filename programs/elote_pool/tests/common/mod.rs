@@ -45,6 +45,12 @@ pub const E_FIRST_DEPOSIT_TOO_SMALL: u32 = ERR_BASE + 9; // PoolError::FirstDepo
 pub const E_WRONG_ACCOUNT: u32 = ERR_BASE + 10; // PoolError::WrongAccount
 pub const E_SLIPPAGE_EXCEEDED: u32 = ERR_BASE + 11; // PoolError::SlippageExceeded
 pub const E_TERM_ENDED: u32 = ERR_BASE + 12; // PoolError::TermEnded
+pub const E_INVALID_SCHEDULE: u32 = ERR_BASE + 13; // PoolError::InvalidSchedule
+pub const E_SCHEDULE_ENDS_AFTER_TERM: u32 = ERR_BASE + 14; // PoolError::ScheduleEndsAfterTerm
+pub const E_NOT_SCHEDULED: u32 = ERR_BASE + 15; // PoolError::NotScheduled
+pub const E_NOT_ENOUGH_MISSED: u32 = ERR_BASE + 16; // PoolError::NotEnoughMissed
+pub const E_LATE_INTEREST_UNPAID: u32 = ERR_BASE + 17; // PoolError::LateInterestUnpaid
+pub const E_WRITE_OFF_TOO_EARLY: u32 = ERR_BASE + 18; // PoolError::WriteOffTooEarly
 
 /// SPL Token's `TokenError::InsufficientFunds`, surfaced as custom error 1 by a failed CPI.
 pub const SPL_TOKEN_INSUFFICIENT_FUNDS: u32 = 1;
@@ -54,6 +60,9 @@ pub const DEAD_SHARES: u64 = 1_000;
 
 /// One whole test-token unit: the asset mint has 6 decimals.
 pub const UNIT: u64 = 1_000_000;
+
+/// The installment interval the schedule tests use: 30 days.
+pub const MONTH: i64 = 30 * 24 * 3600;
 
 // -----------------------------------------------------------------------------------------------
 // PDAs: the seed layouts of `state::seeds`.
@@ -122,6 +131,7 @@ pub struct LineParams {
     pub term_end: i64,
     pub agreement_hash: [u8; 32],
     pub sponsor: Option<Pubkey>,
+    pub schedule: Option<elote_pool::state::ScheduleParams>,
 }
 
 pub struct Env {
@@ -311,6 +321,10 @@ impl Env {
     // -- pool instructions ---------------------------------------------------------------------
 
     pub fn init_pool_ix(&self, admin: &Pubkey, asset_mint: &Pubkey) -> Instruction {
+        self.init_pool_ix_with_grace(admin, asset_mint, 0)
+    }
+
+    pub fn init_pool_ix_with_grace(&self, admin: &Pubkey, asset_mint: &Pubkey, grace_period_seconds: u32) -> Instruction {
         let k = PoolKeys::new(admin, asset_mint);
         let (event_authority, program) = event_metas();
         Instruction {
@@ -328,15 +342,20 @@ impl Env {
                 program,
             }
             .to_account_metas(None),
-            data: elote_pool::instruction::InitPool {}.data(),
+            data: elote_pool::instruction::InitPool { grace_period_seconds }.data(),
         }
     }
 
     /// Creates a 6-decimal test asset mint (authority = admin) and a pool for it.
     pub fn setup_pool(&mut self) -> (PoolKeys, TransactionMetadata) {
+        self.setup_pool_with_grace(0)
+    }
+
+    /// As `setup_pool`, with a pool grace period of `grace_period_seconds`.
+    pub fn setup_pool_with_grace(&mut self, grace_period_seconds: u32) -> (PoolKeys, TransactionMetadata) {
         let admin = self.admin.insecure_clone();
         let asset_mint = self.create_mint(&admin.pubkey(), 6);
-        let ix = self.init_pool_ix(&admin.pubkey(), &asset_mint);
+        let ix = self.init_pool_ix_with_grace(&admin.pubkey(), &asset_mint, grace_period_seconds);
         let meta = self.send(ix, &admin, &[]);
         (PoolKeys::new(&admin.pubkey(), &asset_mint), meta)
     }
@@ -496,6 +515,7 @@ impl Env {
                 term_end: p.term_end,
                 agreement_hash: p.agreement_hash,
                 sponsor: p.sponsor,
+                schedule: p.schedule,
             }
             .data(),
         }
@@ -509,6 +529,26 @@ impl Env {
             term_end: self.now() + 30 * 24 * 3600,
             agreement_hash: AGREEMENT_HASH,
             sponsor: None,
+            schedule: None,
+        }
+    }
+
+    /// Terms of a scheduled line: `installments` monthly installments (30 days), a term that ends
+    /// exactly at the last due date if the line is drawn now, and the demo policy of three missed
+    /// installments before collection.
+    pub fn scheduled_params(&self, principal: u64, rate_bps: u16, installments: u16, late_bps: u16) -> LineParams {
+        LineParams {
+            principal,
+            rate_bps,
+            term_end: self.now() + i64::from(installments) * MONTH,
+            agreement_hash: AGREEMENT_HASH,
+            sponsor: None,
+            schedule: Some(elote_pool::state::ScheduleParams {
+                interval_seconds: MONTH,
+                installments,
+                late_bps,
+                max_missed: 3,
+            }),
         }
     }
 
@@ -608,6 +648,39 @@ impl Env {
             .to_account_metas(None),
             data: elote_pool::instruction::WriteOff {}.data(),
         }
+    }
+
+    pub fn mark_in_collection_ix(&self, k: &PoolKeys, line_id: u64) -> Instruction {
+        let (event_authority, program) = event_metas();
+        Instruction {
+            program_id: PROGRAM_ID,
+            accounts: elote_pool::accounts::MarkInCollection {
+                pool: k.pool,
+                line: line_pda(&k.pool, line_id).0,
+                event_authority,
+                program,
+            }
+            .to_account_metas(None),
+            data: elote_pool::instruction::MarkInCollection {}.data(),
+        }
+    }
+
+    /// The arrears of a scheduled line at the SVM's current time, as the program computes them.
+    pub fn arrears(&self, k: &PoolKeys, line_id: u64) -> elote_pool::math::Arrears {
+        let line = self.line(k, line_id);
+        let s = line.schedule().expect("scheduled line");
+        let terms = elote_pool::math::ScheduleTerms {
+            total: line.principal + line.interest_due,
+            drawn_at: line.drawn_at,
+            interval: s.interval_seconds,
+            installments: s.installments,
+            late_bps: s.late_bps,
+            grace: self.pool(k).grace_period_seconds(),
+            late_paid_until: s.late_paid_until,
+            principal: line.principal,
+            late_collected: s.late_collected,
+        };
+        elote_pool::math::arrears(&terms, line.principal_repaid + line.interest_repaid, self.now()).expect("arrears")
     }
 
     pub fn line(&self, k: &PoolKeys, line_id: u64) -> elote_pool::state::CreditLine {

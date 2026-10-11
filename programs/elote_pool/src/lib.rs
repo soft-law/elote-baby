@@ -15,6 +15,7 @@ pub mod math;
 pub mod state;
 
 use instructions::*;
+use state::ScheduleParams;
 
 declare_id!("BGdJQxxJoHiLH2VS6HAGHe5kQuKKq9dwrPeX7DEEwYyM");
 
@@ -22,9 +23,10 @@ declare_id!("BGdJQxxJoHiLH2VS6HAGHe5kQuKKq9dwrPeX7DEEwYyM");
 pub mod elote_pool {
     use super::*;
 
-    /// Creates the pool, its share token mint and its vault for `asset_mint`.
-    pub fn init_pool(ctx: Context<InitPool>) -> Result<()> {
-        instructions::pool::init_pool(ctx)
+    /// Creates the pool, its share token mint and its vault for `asset_mint`, with the grace
+    /// period (seconds) that applies to every line of the pool.
+    pub fn init_pool(ctx: Context<InitPool>, grace_period_seconds: u32) -> Result<()> {
+        instructions::pool::init_pool(ctx, grace_period_seconds)
     }
 
     /// Deposits `assets` into the vault and receives shares at the current NAV, at least
@@ -40,7 +42,8 @@ pub mod elote_pool {
     }
 
     /// Approves credit line `line_id` (the next in sequence) for `borrower`; a named sponsor
-    /// co-signs. Moves no money.
+    /// co-signs. With `schedule`, the line is repaid in installments (version 2); without it, at a
+    /// single maturity (version 1). Moves no money.
     #[allow(clippy::too_many_arguments)]
     pub fn open_line(
         ctx: Context<OpenLine>,
@@ -50,8 +53,9 @@ pub mod elote_pool {
         term_end: i64,
         agreement_hash: [u8; 32],
         sponsor: Option<Pubkey>,
+        schedule: Option<ScheduleParams>,
     ) -> Result<()> {
-        instructions::lines::open_line(ctx, line_id, principal, rate_bps, term_end, agreement_hash, sponsor)
+        instructions::lines::open_line(ctx, line_id, principal, rate_bps, term_end, agreement_hash, sponsor, schedule)
     }
 
     /// Pays the whole principal of an approved line from the vault to the borrower, before the
@@ -60,17 +64,27 @@ pub mod elote_pool {
         instructions::lines::draw(ctx)
     }
 
-    /// Repays `amount` of an active line, principal first, then interest. Anyone may pay.
+    /// Repays up to `amount` of a drawn line. Anyone may pay. A single-maturity line takes
+    /// principal first, then interest; a scheduled line takes late interest (which `amount` must
+    /// cover), then interest, then principal, and never more than is due.
     pub fn repay(ctx: Context<Repay>, amount: u64) -> Result<()> {
         instructions::lines::repay(ctx, amount)
     }
 
-    /// Recognises the unpaid principal of an active line past its term as a loss.
+    /// Moves a scheduled line to collection once `max_missed` installments are missed and the
+    /// grace period of the last of them has run. Anyone may call it, also while paused.
+    pub fn mark_in_collection(ctx: Context<MarkInCollection>) -> Result<()> {
+        instructions::lines::mark_in_collection(ctx)
+    }
+
+    /// Recognises the unpaid principal of a line as a loss. Admin only: after the term plus the
+    /// pool's grace, or, for a line in collection, after its oldest missed due date plus grace.
     pub fn write_off(ctx: Context<WriteOff>) -> Result<()> {
         instructions::lines::write_off(ctx)
     }
 
-    /// Pauses or resumes deposits, redemptions, openings, draws and repayments.
+    /// Pauses or resumes deposits, redemptions, openings and draws. Repayments, collection and
+    /// write-offs are never paused.
     pub fn set_paused(ctx: Context<SetPaused>, paused: bool) -> Result<()> {
         instructions::pool::set_paused(ctx, paused)
     }

@@ -30,4 +30,16 @@ pub enum PoolError {
     SlippageExceeded,
     #[msg("The term has ended")]
     TermEnded,
+    #[msg("The installment schedule is not valid")]
+    InvalidSchedule,
+    #[msg("The last installment would fall due after the term")]
+    ScheduleEndsAfterTerm,
+    #[msg("The line has no installment schedule")]
+    NotScheduled,
+    #[msg("Fewer installments missed than the line allows before collection")]
+    NotEnoughMissed,
+    #[msg("The repayment must cover the late interest due")]
+    LateInterestUnpaid,
+    #[msg("A line in collection is written off only after its oldest missed due date plus grace, or after the term plus grace")]
+    WriteOffTooEarly,
 }

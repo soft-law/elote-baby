@@ -1,17 +1,25 @@
-//! Credit lines approved from the pool: open, draw, repay and write off.
+//! Credit lines approved from the pool: open, draw, repay, collection and write off.
 //!
-//! A line moves `Approved -> Active -> Repaid | WrittenOff`. Repayments go to principal first,
-//! then to the fixed interest; collected interest raises the NAV, a written-off principal lowers
-//! it once.
+//! A line moves `Approved -> Active -> Repaid | WrittenOff`, and a scheduled line can also move
+//! `Active -> InCollection -> Repaid | WrittenOff`. The pause blocks openings and draws (and,
+//! in `pool.rs`, deposits and redemptions); repayments and `mark_in_collection` always run. On a single-maturity line (version 1)
+//! repayments go to principal first, then to the fixed interest. On a scheduled line (version 2)
+//! they go to late interest, then interest, then principal. Collected interest and late interest
+//! raise the NAV; a written-off principal lowers it once.
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::errors::PoolError;
-use crate::events::{LineDrawn, LineOpened, LineRepaid, LineWrittenOff};
-use crate::math;
+use crate::events::{
+    LateInterestCollected, LineDrawn, LineInCollection, LineOpened, LineRepaid, LineScheduled, LineWrittenOff,
+};
+use crate::math::{self, Arrears, ScheduleTerms};
 use crate::pool_signer;
-use crate::state::{seeds, CreditLine, LineStatus, Pool, BPS, LINE_VERSION};
+use crate::state::{
+    seeds, CreditLine, LineStatus, Pool, Schedule, ScheduleParams, BPS, LINE_VERSION, LINE_VERSION_SCHEDULED,
+    MAX_INSTALLMENTS, MIN_MAX_MISSED,
+};
 
 // -----------------------------------------------------------------------------------------------
 // open_line
@@ -49,6 +57,7 @@ pub struct OpenLine<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn open_line(
     ctx: Context<OpenLine>,
     line_id: u64,
@@ -57,6 +66,7 @@ pub fn open_line(
     term_end: i64,
     agreement_hash: [u8; 32],
     sponsor: Option<Pubkey>,
+    schedule: Option<ScheduleParams>,
 ) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let pool = &mut ctx.accounts.pool;
@@ -71,9 +81,12 @@ pub fn open_line(
         require!(signed, PoolError::SponsorRequired);
     }
     let interest_due = math::interest_due(principal, rate_bps).ok_or(PoolError::Overflow)?;
+    if let Some(s) = schedule {
+        validate_schedule(&s, principal, interest_due, now, term_end)?;
+    }
 
     let line = &mut ctx.accounts.line;
-    line.version = LINE_VERSION;
+    line.version = if schedule.is_some() { LINE_VERSION_SCHEDULED } else { LINE_VERSION };
     line.pool = pool.key();
     line.line_id = line_id;
     line.borrower = ctx.accounts.borrower.key();
@@ -90,6 +103,17 @@ pub fn open_line(
     line.drawn_at = 0;
     line.closed_at = 0;
     line.reserved = [0; 32];
+    if let Some(s) = schedule {
+        line.set_schedule(&Schedule {
+            interval_seconds: s.interval_seconds,
+            installments: s.installments,
+            late_bps: s.late_bps,
+            max_missed: s.max_missed,
+            flags: 0,
+            late_collected: 0,
+            late_paid_until: 0,
+        });
+    }
     line.bump = ctx.bumps.line;
 
     pool.line_count = pool.line_count.checked_add(1).ok_or(PoolError::Overflow)?;
@@ -105,7 +129,39 @@ pub fn open_line(
         interest_due,
         term_end,
     });
+    if let Some(s) = schedule {
+        emit_cpi!(LineScheduled {
+            pool: pool.key(),
+            line_id,
+            interval_seconds: s.interval_seconds,
+            installments: s.installments,
+            late_bps: s.late_bps,
+            max_missed: s.max_missed,
+        });
+    }
     Ok(())
+}
+
+/// Checks the schedule against the line's terms: at least one and at most `MAX_INSTALLMENTS`
+/// installments of at least one unit each, a positive interval, `late_bps <= BPS`,
+/// `MIN_MAX_MISSED <= max_missed <= installments`, and the last due date no later than `term_end` if the line
+/// were drawn now (`draw` checks it again at the actual draw).
+fn validate_schedule(s: &ScheduleParams, principal: u64, interest_due: u64, now: i64, term_end: i64) -> Result<()> {
+    require!(s.installments >= 1 && s.installments <= MAX_INSTALLMENTS, PoolError::InvalidSchedule);
+    require!(s.interval_seconds > 0, PoolError::InvalidSchedule);
+    require!(u64::from(s.late_bps) <= BPS, PoolError::InvalidSchedule);
+    require!(s.max_missed >= MIN_MAX_MISSED && u16::from(s.max_missed) <= s.installments, PoolError::InvalidSchedule);
+    let total = principal.checked_add(interest_due).ok_or(PoolError::Overflow)?;
+    require!(total >= u64::from(s.installments), PoolError::InvalidSchedule);
+    let last_due = schedule_end(now, s.interval_seconds, s.installments)?;
+    require!(last_due <= term_end, PoolError::ScheduleEndsAfterTerm);
+    Ok(())
+}
+
+/// The last due date of a schedule drawn at `start`: `start + installments * interval`.
+fn schedule_end(start: i64, interval_seconds: i64, installments: u16) -> Result<i64> {
+    let span = interval_seconds.checked_mul(i64::from(installments)).ok_or(PoolError::Overflow)?;
+    Ok(start.checked_add(span).ok_or(PoolError::Overflow)?)
 }
 
 // -----------------------------------------------------------------------------------------------
@@ -153,6 +209,11 @@ pub fn draw(ctx: Context<Draw>) -> Result<()> {
     require!(line.status == LineStatus::Approved, PoolError::LineStatus);
     let now = Clock::get()?.unix_timestamp;
     require!(now <= line.term_end, PoolError::TermEnded);
+    // Due dates count from the draw: the last one must still fall within the term.
+    if let Some(s) = line.schedule() {
+        let last_due = schedule_end(now, s.interval_seconds, s.installments)?;
+        require!(last_due <= line.term_end, PoolError::ScheduleEndsAfterTerm);
+    }
     let amount = line.principal;
     require!(amount <= ctx.accounts.vault.amount, PoolError::InsufficientLiquidity);
 
@@ -222,20 +283,49 @@ pub struct Repay<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+/// Version 1: `amount` must not exceed what remains; principal first, then interest.
+///
+/// Version 2: `amount` must cover the late interest due; the repayment settles the late interest,
+/// then interest, then principal, and takes at most what is due: the payer's account is debited
+/// only that, never `amount` when it is larger. Accepted in `Active` and `InCollection`.
+///
+/// Never blocked by the pause: a borrower can always pay.
 pub fn repay(ctx: Context<Repay>, amount: u64) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
     let pool = &ctx.accounts.pool;
     let line = &ctx.accounts.line;
-    require!(!pool.paused, PoolError::Paused);
-    require!(line.status == LineStatus::Active, PoolError::LineStatus);
+    let schedule = line.schedule();
+    let accepted = match schedule {
+        Some(_) => matches!(line.status, LineStatus::Active | LineStatus::InCollection),
+        None => line.status == LineStatus::Active,
+    };
+    require!(accepted, PoolError::LineStatus);
 
     let principal_left = line.principal.checked_sub(line.principal_repaid).ok_or(PoolError::Overflow)?;
     let interest_left = line.interest_due.checked_sub(line.interest_repaid).ok_or(PoolError::Overflow)?;
     let remaining = principal_left.checked_add(interest_left).ok_or(PoolError::Overflow)?;
-    require!(amount > 0 && amount <= remaining, PoolError::WrongAmount);
+    require!(amount > 0, PoolError::WrongAmount);
 
-    // Principal first, then interest.
-    let principal_part = amount.min(principal_left);
-    let interest_part = amount.checked_sub(principal_part).ok_or(PoolError::Overflow)?;
+    let (late_part, interest_part, principal_part) = match schedule {
+        None => {
+            require!(amount <= remaining, PoolError::WrongAmount);
+            // Principal first, then interest.
+            let principal_part = amount.min(principal_left);
+            (0, amount.checked_sub(principal_part).ok_or(PoolError::Overflow)?, principal_part)
+        }
+        Some(_) => {
+            let late = line_arrears(line, pool, now)?.late_due;
+            require!(amount >= late, PoolError::LateInterestUnpaid);
+            // Late interest, then interest, then principal, never more than is due.
+            let rest = amount.checked_sub(late).ok_or(PoolError::Overflow)?.min(remaining);
+            let interest_part = rest.min(interest_left);
+            (late, interest_part, rest.checked_sub(interest_part).ok_or(PoolError::Overflow)?)
+        }
+    };
+    let transfer = late_part
+        .checked_add(interest_part)
+        .and_then(|v| v.checked_add(principal_part))
+        .ok_or(PoolError::Overflow)?;
 
     token::transfer(
         CpiContext::new(
@@ -246,7 +336,7 @@ pub fn repay(ctx: Context<Repay>, amount: u64) -> Result<()> {
                 authority: ctx.accounts.payer.to_account_info(),
             },
         ),
-        amount,
+        transfer,
     )?;
 
     let pool = &mut ctx.accounts.pool;
@@ -259,14 +349,26 @@ pub fn repay(ctx: Context<Repay>, amount: u64) -> Result<()> {
     let line = &mut ctx.accounts.line;
     line.principal_repaid = line.principal_repaid.checked_add(principal_part).ok_or(PoolError::Overflow)?;
     line.interest_repaid = line.interest_repaid.checked_add(interest_part).ok_or(PoolError::Overflow)?;
-    let remaining_after = remaining.checked_sub(amount).ok_or(PoolError::Overflow)?;
+    if let Some(mut s) = schedule {
+        // The late interest accrued until now is settled, whether or not any was due.
+        s.late_collected = s.late_collected.checked_add(late_part).ok_or(PoolError::Overflow)?;
+        s.late_paid_until = now;
+        line.set_schedule(&s);
+    }
+    let remaining_after = remaining
+        .checked_sub(interest_part)
+        .and_then(|v| v.checked_sub(principal_part))
+        .ok_or(PoolError::Overflow)?;
     if remaining_after == 0 {
         line.status = LineStatus::Repaid;
-        line.closed_at = Clock::get()?.unix_timestamp;
+        line.closed_at = now;
     }
 
     ctx.accounts.vault.reload()?;
     let nav_after = math::nav(ctx.accounts.vault.amount, pool.outstanding_principal).ok_or(PoolError::Overflow)?;
+    if late_part > 0 {
+        emit_cpi!(LateInterestCollected { pool: pool.key(), line_id: line.line_id, amount: late_part });
+    }
     emit_cpi!(LineRepaid {
         pool: pool.key(),
         line_id: line.line_id,
@@ -276,6 +378,79 @@ pub fn repay(ctx: Context<Repay>, amount: u64) -> Result<()> {
         remaining: remaining_after,
         nav_after,
     });
+    Ok(())
+}
+
+/// The arrears of a scheduled line at `now`. Only for drawn lines (`Active` or `InCollection`),
+/// so `drawn_at` is a real time.
+fn line_arrears(line: &CreditLine, pool: &Pool, now: i64) -> Result<Arrears> {
+    let s = line.schedule().ok_or(PoolError::NotScheduled)?;
+    let terms = ScheduleTerms {
+        total: line.principal.checked_add(line.interest_due).ok_or(PoolError::Overflow)?,
+        drawn_at: line.drawn_at,
+        interval: s.interval_seconds,
+        installments: s.installments,
+        late_bps: s.late_bps,
+        grace: pool.grace_period_seconds(),
+        late_paid_until: s.late_paid_until,
+        principal: line.principal,
+        late_collected: s.late_collected,
+    };
+    let paid = line.principal_repaid.checked_add(line.interest_repaid).ok_or(PoolError::Overflow)?;
+    Ok(math::arrears(&terms, paid, now).ok_or(PoolError::Overflow)?)
+}
+
+// -----------------------------------------------------------------------------------------------
+// mark_in_collection
+// -----------------------------------------------------------------------------------------------
+
+#[event_cpi]
+#[derive(Accounts)]
+pub struct MarkInCollection<'info> {
+    #[account(
+        seeds = [seeds::POOL, pool.admin.as_ref(), pool.asset_mint.as_ref()],
+        bump = pool.bump,
+    )]
+    pub pool: Account<'info, Pool>,
+
+    #[account(
+        mut,
+        seeds = [seeds::LINE, pool.key().as_ref(), &line.line_id.to_le_bytes()],
+        bump = line.bump,
+        has_one = pool @ PoolError::WrongAccount,
+    )]
+    pub line: Account<'info, CreditLine>,
+}
+
+/// Anyone may move an active scheduled line to `InCollection` once `max_missed` installments are
+/// missed and the grace period of the last of them has run: with `covered` installments paid,
+/// `now > drawn_at + (covered + max_missed) * interval + grace`. It only records facts, so it is
+/// not blocked by the pause (repayments are not either).
+pub fn mark_in_collection(ctx: Context<MarkInCollection>) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let pool = &ctx.accounts.pool;
+    let line = &ctx.accounts.line;
+    let s = line.schedule().ok_or(PoolError::NotScheduled)?;
+    require!(line.status == LineStatus::Active, PoolError::LineStatus);
+    let a = line_arrears(line, pool, now)?;
+    let k = a.covered.checked_add(u16::from(s.max_missed)).ok_or(PoolError::Overflow)?;
+    require!(k <= s.installments, PoolError::NotEnoughMissed);
+    let grace_end = s
+        .interval_seconds
+        .checked_mul(i64::from(k))
+        .and_then(|span| line.drawn_at.checked_add(span))
+        .and_then(|due| due.checked_add(i64::from(pool.grace_period_seconds())))
+        .ok_or(PoolError::Overflow)?;
+    require!(now > grace_end, PoolError::NotEnoughMissed);
+
+    let remaining = line
+        .principal
+        .checked_sub(line.principal_repaid)
+        .and_then(|v| v.checked_add(line.interest_due.checked_sub(line.interest_repaid)?))
+        .ok_or(PoolError::Overflow)?;
+    let line = &mut ctx.accounts.line;
+    line.status = LineStatus::InCollection;
+    emit_cpi!(LineInCollection { pool: pool.key(), line_id: line.line_id, missed: a.missed, remaining });
     Ok(())
 }
 
@@ -309,12 +484,33 @@ pub struct WriteOff<'info> {
     pub vault: Box<Account<'info, TokenAccount>>,
 }
 
-/// Recognises the unpaid principal of an overdue line as a loss. Not blocked by the pause.
+/// Recognises the unpaid principal of an overdue line as a loss. Admin only; not blocked by the
+/// pause. Allowed when
+///
+/// - the line is `Active` and `now > term_end + grace` (else `TermNotEnded`), or
+/// - the line is `InCollection` and either a missed installment is still unpaid and
+///   `now > first_missed_due + grace`, or `now > term_end + grace` (else `WriteOffTooEarly`).
+///
+/// `grace` is the pool's grace period; with zero grace a single-maturity line behaves as before.
 pub fn write_off(ctx: Context<WriteOff>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
+    let pool = &ctx.accounts.pool;
+    let line = &ctx.accounts.line;
+    let grace = i64::from(pool.grace_period_seconds());
+    let after_term = now > line.term_end.checked_add(grace).ok_or(PoolError::Overflow)?;
+    match line.status {
+        LineStatus::Active => require!(after_term, PoolError::TermNotEnded),
+        LineStatus::InCollection => {
+            let after_missed = match line_arrears(line, pool, now)?.first_missed_due {
+                Some(due) => now > due.checked_add(grace).ok_or(PoolError::Overflow)?,
+                None => false, // cured: nothing is missed
+            };
+            require!(after_missed || after_term, PoolError::WriteOffTooEarly);
+        }
+        _ => return err!(PoolError::LineStatus),
+    }
+
     let line = &mut ctx.accounts.line;
-    require!(line.status == LineStatus::Active, PoolError::LineStatus);
-    require!(now > line.term_end, PoolError::TermNotEnded);
 
     let loss = line.principal.checked_sub(line.principal_repaid).ok_or(PoolError::Overflow)?;
     let pool = &mut ctx.accounts.pool;
