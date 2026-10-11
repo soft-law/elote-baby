@@ -50,7 +50,6 @@ export function App() {
         <Flow t={t} />
         <Agreement t={t} />
         <TwoLines t={t} />
-        <WhereWeAre t={t} />
       </main>
       <SiteFooter t={t} />
     </div>
@@ -395,16 +394,3 @@ function TwoLines({ t }: { t: Copy }) {
   );
 }
 
-function WhereWeAre({ t }: { t: Copy }) {
-  const w = t.where;
-  return (
-    <section id="where" aria-labelledby="where-title" className="border-t border-line bg-mist">
-      <div className="mx-auto flex max-w-[1200px] flex-col gap-6 px-4 py-14 md:px-8 md:py-20">
-        <h2 id="where-title" className="m-0 text-[30px] font-bold leading-[1.12] tracking-[-0.02em] md:text-[44px]">
-          {w.title}
-        </h2>
-        <p className="m-0 max-w-[38em] text-[18px] leading-[1.6] text-ink-soft md:text-[21px]">{w.body}</p>
-      </div>
-    </section>
-  );
-}

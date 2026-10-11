@@ -103,7 +103,7 @@ describe("translations", () => {
       expect("writeOff" in t.flow).toBe(false);
       expect("cardLabel" in t.pool).toBe(false);
       expect("caption" in t.pool).toBe(false);
-      expect(Object.keys(t.where).sort()).toEqual(["body", "title"]);
+      expect("where" in t).toBe(false);
       expect(Object.keys(t.lines).sort()).toEqual(["body", "title"]);
     }
   });

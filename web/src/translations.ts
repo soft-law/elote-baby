@@ -88,7 +88,6 @@ export type Copy = {
     demo: DemoCopy;
   };
   lines: { title: string; body: string };
-  where: { title: string; body: string };
   footer: {
     powered: string;
     legal: string;
@@ -320,10 +319,6 @@ export const translations: Record<Lang, Copy> = {
     lines: {
       title: "For small businesses, with government support",
       body: "Every credit line we offer is for a small or medium business and comes with government support.",
-    },
-    where: {
-      title: "Where we are",
-      body: "Early talks with a municipal program in Baja California; nothing signed.",
     },
     footer: {
       powered: "Softlaw SA de CV",
@@ -595,10 +590,6 @@ export const translations: Record<Lang, Copy> = {
     lines: {
       title: "Para pymes, con apoyo de gobierno",
       body: "Todas las líneas de crédito que ofrecemos son para pequeñas y medianas empresas y cuentan con apoyo de gobierno.",
-    },
-    where: {
-      title: "Dónde estamos",
-      body: "Pláticas iniciales con un programa municipal en Baja California; nada firmado.",
     },
     footer: {
       powered: "Softlaw SA de CV",
