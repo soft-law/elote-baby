@@ -1,0 +1,204 @@
+//! Pool, deposits and redemptions at net asset value.
+
+mod common;
+
+use anchor_lang::AccountDeserialize;
+use common::*;
+use elote_pool::events::{PoolInitialized, PoolPaused};
+use solana_signer::Signer;
+
+/// Value of one whole share in asset units, at `nav` and `supply`, rounded down.
+fn per_share(nav: u64, supply: u64) -> u128 {
+    (nav as u128) * (UNIT as u128) / (supply as u128)
+}
+
+#[test]
+fn init_pool_creates_share_mint_and_vault() {
+    let mut env = Env::new();
+    let (k, meta) = env.setup_pool();
+
+    let pool = env.pool(&k);
+    assert_eq!(pool.version, 1);
+    assert_eq!(pool.admin, env.admin.pubkey());
+    assert_eq!(pool.asset_mint, k.asset_mint);
+    assert_eq!(pool.vault, k.vault);
+    assert_eq!(pool.share_mint, k.share_mint);
+    assert_eq!(pool.outstanding_principal, 0);
+    assert_eq!(pool.interest_collected, 0);
+    assert_eq!(pool.written_off, 0);
+    assert_eq!(pool.line_count, 0);
+    assert!(!pool.paused);
+    assert_eq!(pool.bump, pool_pda(&env.admin.pubkey(), &k.asset_mint).1);
+
+    let share_mint = env.anchor_account::<anchor_spl::token::Mint>(&k.share_mint);
+    assert_eq!(share_mint.decimals, 6, "share decimals follow the asset");
+    assert_eq!(share_mint.supply, 0);
+    assert_eq!(Option::<solana_pubkey::Pubkey>::from(share_mint.mint_authority), Some(k.pool));
+    assert_eq!(Option::<solana_pubkey::Pubkey>::from(share_mint.freeze_authority), None);
+
+    let vault = anchor_spl::token::TokenAccount::try_deserialize(&mut env.account(&k.vault).data.as_slice()).unwrap();
+    assert_eq!(vault.mint, k.asset_mint);
+    assert_eq!(vault.owner, k.pool);
+    assert_eq!(vault.amount, 0);
+
+    let ev: PoolInitialized = find_event(&meta).expect("PoolInitialized");
+    assert_eq!(ev.pool, k.pool);
+    assert_eq!(ev.asset_mint, k.asset_mint);
+    assert_eq!(ev.share_mint, k.share_mint);
+    assert_eq!(ev.admin, env.admin.pubkey());
+
+    // A second init for the same admin and asset is refused (the pool account already exists).
+    let admin = env.admin.insecure_clone();
+    let ix = env.init_pool_ix(&admin.pubkey(), &k.asset_mint);
+    assert!(env.try_send(ix, &admin, &[]).is_err());
+}
+
+#[test]
+fn first_deposit_mints_one_to_one_and_enforces_minimum() {
+    let mut env = Env::new();
+    let (k, _) = env.setup_pool();
+    let a = env.investor(&k, 5 * UNIT);
+
+    let ix = env.deposit_ix(&k, &a.pubkey(), 0);
+    env.expect_err(ix, &a, &[], E_WRONG_AMOUNT);
+    let ix = env.deposit_ix(&k, &a.pubkey(), UNIT - 1);
+    env.expect_err(ix, &a, &[], E_FIRST_DEPOSIT_TOO_SMALL);
+    assert_eq!(env.token_balance(&k.vault), 0);
+
+    let ev = env.deposit(&k, &a, UNIT);
+    assert_eq!(ev.pool, k.pool);
+    assert_eq!(ev.depositor, a.pubkey());
+    assert_eq!(ev.assets, UNIT);
+    assert_eq!(ev.shares, UNIT);
+    assert_eq!(ev.nav_after, UNIT);
+    assert_eq!(ev.supply_after, UNIT);
+    assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.share_mint)), UNIT);
+    assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.asset_mint)), 4 * UNIT);
+    assert_eq!(env.token_balance(&k.vault), UNIT);
+
+    // The minimum only applies while the supply is zero.
+    let ev = env.deposit(&k, &a, 1);
+    assert_eq!(ev.shares, 1);
+    assert_eq!(env.supply(&k), UNIT + 1);
+}
+
+#[test]
+fn deposit_after_interest_mints_fewer_shares() {
+    let mut env = Env::new();
+    let (k, _) = env.setup_pool();
+    let a = env.investor(&k, 10 * UNIT);
+    let b = env.investor(&k, UNIT);
+    env.deposit(&k, &a, 10 * UNIT);
+
+    // Value enters the vault without new shares, as repaid interest does: NAV 10.4, supply 10.
+    env.donate(&k, 400_000);
+    assert_eq!(env.nav(&k), 10_400_000);
+
+    let ev = env.deposit(&k, &b, UNIT);
+    // floor(1_000_000 * 10_000_000 / 10_400_000) = floor(961_538.46)
+    assert_eq!(ev.shares, 961_538);
+    assert!(ev.shares < UNIT);
+    assert_eq!(ev.nav_after, 11_400_000);
+    assert_eq!(ev.supply_after, 10_961_538);
+}
+
+#[test]
+fn redeem_returns_pro_rata_and_respects_liquidity() {
+    let mut env = Env::new();
+    let (k, _) = env.setup_pool();
+    let a = env.investor(&k, 10 * UNIT);
+    let b = env.investor(&k, 5_500_000);
+    env.deposit(&k, &a, 10 * UNIT);
+    env.donate(&k, UNIT); // NAV 11.0, supply 10.0: 1.1 per share
+    let ev = env.deposit(&k, &b, 5_500_000);
+    assert_eq!(ev.shares, 5 * UNIT);
+    assert_eq!((ev.nav_after, ev.supply_after), (16_500_000, 15 * UNIT));
+    let before = per_share(env.nav(&k), env.supply(&k));
+
+    let ix = env.redeem_ix(&k, &a.pubkey(), 0);
+    env.expect_err(ix, &a, &[], E_WRONG_AMOUNT);
+
+    let ev = env.redeem(&k, &a, 3 * UNIT);
+    assert_eq!(ev.holder, a.pubkey());
+    assert_eq!(ev.shares, 3 * UNIT);
+    assert_eq!(ev.assets, 3_300_000);
+    assert_eq!(ev.nav_after, 13_200_000);
+    assert_eq!(ev.supply_after, 12 * UNIT);
+    assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.asset_mint)), 3_300_000);
+    assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.share_mint)), 7 * UNIT);
+    assert_eq!(per_share(env.nav(&k), env.supply(&k)), before, "redeeming leaves the value per share unchanged");
+
+    // Shares the holder does not have cannot be burned.
+    let ix = env.redeem_ix(&k, &b.pubkey(), 5 * UNIT + 1);
+    assert!(env.try_send(ix, &b, &[]).is_err());
+    assert_eq!(env.supply(&k), 12 * UNIT);
+}
+
+#[test]
+fn zero_shares_deposit_fails() {
+    let mut env = Env::new();
+    let (k, _) = env.setup_pool();
+    let a = env.investor(&k, UNIT);
+    let victim = env.investor(&k, 100);
+    env.deposit(&k, &a, UNIT);
+
+    // Inflation attempt: a direct donation lifts NAV to 11.0 against a supply of 1.0.
+    env.donate(&k, 10 * UNIT);
+
+    let ix = env.deposit_ix(&k, &victim.pubkey(), 1);
+    env.expect_err(ix, &victim, &[], E_ZERO_SHARES);
+    let ix = env.deposit_ix(&k, &victim.pubkey(), 10);
+    env.expect_err(ix, &victim, &[], E_ZERO_SHARES);
+    assert_eq!(env.token_balance(&ata(&victim.pubkey(), &k.asset_mint)), 100, "nothing left the depositor");
+
+    let ev = env.deposit(&k, &victim, 11);
+    assert_eq!(ev.shares, 1);
+}
+
+#[test]
+fn deposit_and_redeem_reject_wrong_accounts() {
+    let mut env = Env::new();
+    let (k, _) = env.setup_pool();
+    let a = env.investor(&k, 2 * UNIT);
+    let other = env.investor(&k, 0);
+
+    // Share account of somebody else.
+    let ix = env.deposit_ix_with(&k, &a.pubkey(), ata(&a.pubkey(), &k.asset_mint), ata(&other.pubkey(), &k.share_mint), UNIT);
+    env.expect_err(ix, &a, &[], E_WRONG_ACCOUNT);
+    // Asset and share accounts swapped: each has the wrong mint.
+    let ix = env.deposit_ix_with(&k, &a.pubkey(), ata(&a.pubkey(), &k.share_mint), ata(&a.pubkey(), &k.asset_mint), UNIT);
+    env.expect_err(ix, &a, &[], E_WRONG_ACCOUNT);
+
+    // A vault that is not the pool's.
+    let mut ix = env.deposit_ix(&k, &a.pubkey(), UNIT);
+    ix.accounts[3].pubkey = ata(&other.pubkey(), &k.asset_mint);
+    env.expect_err(ix, &a, &[], E_WRONG_ACCOUNT);
+}
+
+#[test]
+fn paused_blocks_deposit_and_redeem() {
+    let mut env = Env::new();
+    let (k, _) = env.setup_pool();
+    let a = env.investor(&k, 3 * UNIT);
+    env.deposit(&k, &a, UNIT);
+
+    // Only the admin pauses.
+    let ix = env.set_paused_ix(&k, &a.pubkey(), true);
+    env.expect_err(ix, &a, &[], E_UNAUTHORIZED);
+
+    let meta = env.set_paused(&k, true);
+    let ev: PoolPaused = find_event(&meta).expect("PoolPaused");
+    assert_eq!((ev.pool, ev.paused), (k.pool, true));
+    assert!(env.pool(&k).paused);
+
+    let ix = env.deposit_ix(&k, &a.pubkey(), UNIT);
+    env.expect_err(ix, &a, &[], E_PAUSED);
+    let ix = env.redeem_ix(&k, &a.pubkey(), UNIT);
+    env.expect_err(ix, &a, &[], E_PAUSED);
+
+    let meta = env.set_paused(&k, false);
+    let ev: PoolPaused = find_event(&meta).expect("PoolPaused");
+    assert!(!ev.paused);
+    env.deposit(&k, &a, UNIT);
+    env.redeem(&k, &a, UNIT);
+}

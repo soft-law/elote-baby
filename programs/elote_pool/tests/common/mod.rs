@@ -7,7 +7,7 @@
 
 #![allow(dead_code)]
 
-use anchor_lang::{AccountDeserialize, Discriminator};
+use anchor_lang::{AccountDeserialize, Discriminator, InstructionData, ToAccountMetas};
 use anchor_spl::associated_token::{
     get_associated_token_address, spl_associated_token_account::instruction as ata_ix,
 };
@@ -32,6 +32,58 @@ pub const LAMPORTS_PER_SOL: u64 = 1_000_000_000;
 /// Anchor's `#[error_code]` numbering: the first variant of the program's error enum is 6000.
 pub const ERR_BASE: u32 = 6000;
 
+pub const E_PAUSED: u32 = ERR_BASE; // PoolError::Paused
+pub const E_UNAUTHORIZED: u32 = ERR_BASE + 1; // PoolError::Unauthorized
+pub const E_WRONG_AMOUNT: u32 = ERR_BASE + 2; // PoolError::WrongAmount
+pub const E_INSUFFICIENT_LIQUIDITY: u32 = ERR_BASE + 3; // PoolError::InsufficientLiquidity
+pub const E_LINE_STATUS: u32 = ERR_BASE + 4; // PoolError::LineStatus
+pub const E_TERM_NOT_ENDED: u32 = ERR_BASE + 5; // PoolError::TermNotEnded
+pub const E_OVERFLOW: u32 = ERR_BASE + 6; // PoolError::Overflow
+pub const E_SPONSOR_REQUIRED: u32 = ERR_BASE + 7; // PoolError::SponsorRequired
+pub const E_ZERO_SHARES: u32 = ERR_BASE + 8; // PoolError::ZeroShares
+pub const E_FIRST_DEPOSIT_TOO_SMALL: u32 = ERR_BASE + 9; // PoolError::FirstDepositTooSmall
+pub const E_WRONG_ACCOUNT: u32 = ERR_BASE + 10; // PoolError::WrongAccount
+
+/// One whole test-token unit: the asset mint has 6 decimals.
+pub const UNIT: u64 = 1_000_000;
+
+// -----------------------------------------------------------------------------------------------
+// PDAs: the seed layouts of `state::seeds`.
+// -----------------------------------------------------------------------------------------------
+
+pub fn pool_pda(admin: &Pubkey, asset_mint: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"pool", admin.as_ref(), asset_mint.as_ref()], &PROGRAM_ID)
+}
+
+pub fn share_mint_pda(pool: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"shares", pool.as_ref()], &PROGRAM_ID)
+}
+
+pub fn line_pda(pool: &Pubkey, line_id: u64) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"line", pool.as_ref(), &line_id.to_le_bytes()], &PROGRAM_ID)
+}
+
+/// The addresses of one pool, all derived from the admin and the asset mint.
+#[derive(Clone, Copy, Debug)]
+pub struct PoolKeys {
+    pub pool: Pubkey,
+    pub asset_mint: Pubkey,
+    pub share_mint: Pubkey,
+    pub vault: Pubkey,
+}
+
+impl PoolKeys {
+    pub fn new(admin: &Pubkey, asset_mint: &Pubkey) -> Self {
+        let pool = pool_pda(admin, asset_mint).0;
+        Self {
+            pool,
+            asset_mint: *asset_mint,
+            share_mint: share_mint_pda(&pool).0,
+            vault: ata(&pool, asset_mint),
+        }
+    }
+}
+
 /// The `#[event_cpi]` self-CPI authority every event-emitting instruction carries.
 pub fn event_authority_pda() -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"__event_authority"], &PROGRAM_ID)
@@ -44,6 +96,10 @@ pub fn ata(owner: &Pubkey, mint: &Pubkey) -> Pubkey {
 pub struct Env {
     pub svm: LiteSVM,
     pub admin: Keypair,
+}
+
+fn event_metas() -> (Pubkey, Pubkey) {
+    (event_authority_pda().0, PROGRAM_ID)
 }
 
 fn workspace_root() -> std::path::PathBuf {
@@ -219,6 +275,147 @@ impl Env {
 
     pub fn mint_decimals(&self, mint: &Pubkey) -> u8 {
         self.anchor_account::<anchor_spl::token::Mint>(mint).decimals
+    }
+
+    // -- pool instructions ---------------------------------------------------------------------
+
+    pub fn init_pool_ix(&self, admin: &Pubkey, asset_mint: &Pubkey) -> Instruction {
+        let k = PoolKeys::new(admin, asset_mint);
+        let (event_authority, program) = event_metas();
+        Instruction {
+            program_id: PROGRAM_ID,
+            accounts: elote_pool::accounts::InitPool {
+                admin: *admin,
+                asset_mint: k.asset_mint,
+                pool: k.pool,
+                share_mint: k.share_mint,
+                vault: k.vault,
+                token_program: TOKEN_PROGRAM_ID,
+                associated_token_program: ATA_PROGRAM_ID,
+                system_program: SYSTEM_PROGRAM_ID,
+                event_authority,
+                program,
+            }
+            .to_account_metas(None),
+            data: elote_pool::instruction::InitPool {}.data(),
+        }
+    }
+
+    /// Creates a 6-decimal test asset mint (authority = admin) and a pool for it.
+    pub fn setup_pool(&mut self) -> (PoolKeys, TransactionMetadata) {
+        let admin = self.admin.insecure_clone();
+        let asset_mint = self.create_mint(&admin.pubkey(), 6);
+        let ix = self.init_pool_ix(&admin.pubkey(), &asset_mint);
+        let meta = self.send(ix, &admin, &[]);
+        (PoolKeys::new(&admin.pubkey(), &asset_mint), meta)
+    }
+
+    /// A funded wallet holding `assets` of the pool asset, with its share account already created.
+    pub fn investor(&mut self, k: &PoolKeys, assets: u64) -> Keypair {
+        let kp = self.funded(10);
+        let admin = self.admin.insecure_clone();
+        if assets > 0 {
+            self.mint_to(&k.asset_mint, &admin, &kp.pubkey(), assets);
+        } else {
+            self.create_ata(&kp.pubkey(), &k.asset_mint);
+        }
+        self.create_ata(&kp.pubkey(), &k.share_mint);
+        kp
+    }
+
+    pub fn deposit_ix_with(&self, k: &PoolKeys, depositor: &Pubkey, asset_account: Pubkey, share_account: Pubkey, assets: u64) -> Instruction {
+        let (event_authority, program) = event_metas();
+        Instruction {
+            program_id: PROGRAM_ID,
+            accounts: elote_pool::accounts::Deposit {
+                depositor: *depositor,
+                pool: k.pool,
+                share_mint: k.share_mint,
+                vault: k.vault,
+                depositor_asset_account: asset_account,
+                depositor_share_account: share_account,
+                token_program: TOKEN_PROGRAM_ID,
+                event_authority,
+                program,
+            }
+            .to_account_metas(None),
+            data: elote_pool::instruction::Deposit { assets }.data(),
+        }
+    }
+
+    pub fn deposit_ix(&self, k: &PoolKeys, depositor: &Pubkey, assets: u64) -> Instruction {
+        self.deposit_ix_with(k, depositor, ata(depositor, &k.asset_mint), ata(depositor, &k.share_mint), assets)
+    }
+
+    pub fn deposit(&mut self, k: &PoolKeys, depositor: &Keypair, assets: u64) -> elote_pool::events::Deposited {
+        let ix = self.deposit_ix(k, &depositor.pubkey(), assets);
+        let meta = self.send(ix, depositor, &[]);
+        find_event(&meta).expect("Deposited event")
+    }
+
+    pub fn redeem_ix(&self, k: &PoolKeys, holder: &Pubkey, shares: u64) -> Instruction {
+        let (event_authority, program) = event_metas();
+        Instruction {
+            program_id: PROGRAM_ID,
+            accounts: elote_pool::accounts::Redeem {
+                holder: *holder,
+                pool: k.pool,
+                share_mint: k.share_mint,
+                vault: k.vault,
+                holder_share_account: ata(holder, &k.share_mint),
+                holder_asset_account: ata(holder, &k.asset_mint),
+                token_program: TOKEN_PROGRAM_ID,
+                event_authority,
+                program,
+            }
+            .to_account_metas(None),
+            data: elote_pool::instruction::Redeem { shares }.data(),
+        }
+    }
+
+    pub fn redeem(&mut self, k: &PoolKeys, holder: &Keypair, shares: u64) -> elote_pool::events::Redeemed {
+        let ix = self.redeem_ix(k, &holder.pubkey(), shares);
+        let meta = self.send(ix, holder, &[]);
+        find_event(&meta).expect("Redeemed event")
+    }
+
+    pub fn set_paused_ix(&self, k: &PoolKeys, admin: &Pubkey, paused: bool) -> Instruction {
+        let (event_authority, program) = event_metas();
+        Instruction {
+            program_id: PROGRAM_ID,
+            accounts: elote_pool::accounts::SetPaused { admin: *admin, pool: k.pool, event_authority, program }
+                .to_account_metas(None),
+            data: elote_pool::instruction::SetPaused { paused }.data(),
+        }
+    }
+
+    pub fn set_paused(&mut self, k: &PoolKeys, paused: bool) -> TransactionMetadata {
+        let admin = self.admin.insecure_clone();
+        let ix = self.set_paused_ix(k, &admin.pubkey(), paused);
+        self.send(ix, &admin, &[])
+    }
+
+    // -- pool reads ----------------------------------------------------------------------------
+
+    pub fn pool(&self, k: &PoolKeys) -> elote_pool::state::Pool {
+        self.anchor_account(&k.pool)
+    }
+
+    /// Net asset value as the program computes it: vault balance + outstanding principal.
+    pub fn nav(&self, k: &PoolKeys) -> u64 {
+        self.token_balance(&k.vault) + self.pool(k).outstanding_principal
+    }
+
+    pub fn supply(&self, k: &PoolKeys) -> u64 {
+        self.mint_supply(&k.share_mint)
+    }
+
+    /// A direct SPL transfer into the vault from a fresh wallet: value enters without new shares.
+    pub fn donate(&mut self, k: &PoolKeys, amount: u64) {
+        let admin = self.admin.insecure_clone();
+        let donor = self.funded(1);
+        let from = self.mint_to(&k.asset_mint, &admin, &donor.pubkey(), amount);
+        self.transfer(&from, &k.vault, &donor, amount);
     }
 }
 
