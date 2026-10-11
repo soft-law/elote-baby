@@ -27,14 +27,16 @@ pub mod elote_pool {
         instructions::pool::init_pool(ctx)
     }
 
-    /// Deposits `assets` into the vault and receives shares at the current NAV.
-    pub fn deposit(ctx: Context<Deposit>, assets: u64) -> Result<()> {
-        instructions::pool::deposit(ctx, assets)
+    /// Deposits `assets` into the vault and receives shares at the current NAV, at least
+    /// `min_shares_out`. The first deposit locks `DEAD_SHARES` in the pool.
+    pub fn deposit(ctx: Context<Deposit>, assets: u64, min_shares_out: u64) -> Result<()> {
+        instructions::pool::deposit(ctx, assets, min_shares_out)
     }
 
-    /// Burns `shares` and receives assets at the current NAV, up to the vault's liquidity.
-    pub fn redeem(ctx: Context<Redeem>, shares: u64) -> Result<()> {
-        instructions::pool::redeem(ctx, shares)
+    /// Burns `shares` and receives assets at the current NAV, at least `min_assets_out`, up to
+    /// the vault's liquidity.
+    pub fn redeem(ctx: Context<Redeem>, shares: u64, min_assets_out: u64) -> Result<()> {
+        instructions::pool::redeem(ctx, shares, min_assets_out)
     }
 
     /// Approves credit line `line_id` (the next in sequence) for `borrower`; a named sponsor
@@ -52,7 +54,8 @@ pub mod elote_pool {
         instructions::lines::open_line(ctx, line_id, principal, rate_bps, term_end, agreement_hash, sponsor)
     }
 
-    /// Pays the whole principal of an approved line from the vault to the borrower.
+    /// Pays the whole principal of an approved line from the vault to the borrower, before the
+    /// term ends.
     pub fn draw(ctx: Context<Draw>) -> Result<()> {
         instructions::lines::draw(ctx)
     }

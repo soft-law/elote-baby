@@ -134,14 +134,14 @@ pub struct Draw<'info> {
     pub line: Account<'info, CreditLine>,
 
     #[account(mut, address = pool.vault @ PoolError::WrongAccount)]
-    pub vault: Account<'info, TokenAccount>,
+    pub vault: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         constraint = borrower_asset_account.mint == pool.asset_mint @ PoolError::WrongAccount,
         constraint = borrower_asset_account.owner == borrower.key() @ PoolError::WrongAccount,
     )]
-    pub borrower_asset_account: Account<'info, TokenAccount>,
+    pub borrower_asset_account: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -151,6 +151,8 @@ pub fn draw(ctx: Context<Draw>) -> Result<()> {
     let line = &ctx.accounts.line;
     require!(!pool.paused, PoolError::Paused);
     require!(line.status == LineStatus::Approved, PoolError::LineStatus);
+    let now = Clock::get()?.unix_timestamp;
+    require!(now <= line.term_end, PoolError::TermEnded);
     let amount = line.principal;
     require!(amount <= ctx.accounts.vault.amount, PoolError::InsufficientLiquidity);
 
@@ -171,7 +173,7 @@ pub fn draw(ctx: Context<Draw>) -> Result<()> {
     pool.outstanding_principal = pool.outstanding_principal.checked_add(amount).ok_or(PoolError::Overflow)?;
     let line = &mut ctx.accounts.line;
     line.status = LineStatus::Active;
-    line.drawn_at = Clock::get()?.unix_timestamp;
+    line.drawn_at = now;
 
     emit_cpi!(LineDrawn {
         pool: pool.key(),
@@ -208,14 +210,14 @@ pub struct Repay<'info> {
     pub line: Account<'info, CreditLine>,
 
     #[account(mut, address = pool.vault @ PoolError::WrongAccount)]
-    pub vault: Account<'info, TokenAccount>,
+    pub vault: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         constraint = payer_asset_account.mint == pool.asset_mint @ PoolError::WrongAccount,
         constraint = payer_asset_account.owner == payer.key() @ PoolError::WrongAccount,
     )]
-    pub payer_asset_account: Account<'info, TokenAccount>,
+    pub payer_asset_account: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -233,7 +235,7 @@ pub fn repay(ctx: Context<Repay>, amount: u64) -> Result<()> {
 
     // Principal first, then interest.
     let principal_part = amount.min(principal_left);
-    let interest_part = amount - principal_part;
+    let interest_part = amount.checked_sub(principal_part).ok_or(PoolError::Overflow)?;
 
     token::transfer(
         CpiContext::new(
@@ -257,7 +259,7 @@ pub fn repay(ctx: Context<Repay>, amount: u64) -> Result<()> {
     let line = &mut ctx.accounts.line;
     line.principal_repaid = line.principal_repaid.checked_add(principal_part).ok_or(PoolError::Overflow)?;
     line.interest_repaid = line.interest_repaid.checked_add(interest_part).ok_or(PoolError::Overflow)?;
-    let remaining_after = remaining - amount;
+    let remaining_after = remaining.checked_sub(amount).ok_or(PoolError::Overflow)?;
     if remaining_after == 0 {
         line.status = LineStatus::Repaid;
         line.closed_at = Clock::get()?.unix_timestamp;
@@ -304,7 +306,7 @@ pub struct WriteOff<'info> {
 
     /// Read for the NAV in the event.
     #[account(address = pool.vault @ PoolError::WrongAccount)]
-    pub vault: Account<'info, TokenAccount>,
+    pub vault: Box<Account<'info, TokenAccount>>,
 }
 
 /// Recognises the unpaid principal of an overdue line as a loss. Not blocked by the pause.

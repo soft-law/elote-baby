@@ -40,6 +40,12 @@ fn init_pool_creates_share_mint_and_vault() {
     assert_eq!(vault.mint, k.asset_mint);
     assert_eq!(vault.owner, k.pool);
     assert_eq!(vault.amount, 0);
+    assert_eq!(k.vault, vault_pda(&k.pool).0, "the vault is a PDA token account, not an ATA");
+    assert_eq!(pool.dead_shares, k.dead_shares);
+    let dead = anchor_spl::token::TokenAccount::try_deserialize(&mut env.account(&k.dead_shares).data.as_slice()).unwrap();
+    assert_eq!(dead.mint, k.share_mint);
+    assert_eq!(dead.owner, k.pool);
+    assert_eq!(dead.amount, 0);
 
     let ev: PoolInitialized = find_event(&meta).expect("PoolInitialized");
     assert_eq!(ev.pool, k.pool);
@@ -69,17 +75,20 @@ fn first_deposit_mints_one_to_one_and_enforces_minimum() {
     assert_eq!(ev.pool, k.pool);
     assert_eq!(ev.depositor, a.pubkey());
     assert_eq!(ev.assets, UNIT);
-    assert_eq!(ev.shares, UNIT);
+    // One-to-one, minus the dead shares locked in the pool.
+    assert_eq!(ev.shares, UNIT - DEAD_SHARES);
     assert_eq!(ev.nav_after, UNIT);
     assert_eq!(ev.supply_after, UNIT);
-    assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.share_mint)), UNIT);
+    assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.share_mint)), UNIT - DEAD_SHARES);
+    assert_eq!(env.token_balance(&k.dead_shares), DEAD_SHARES);
     assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.asset_mint)), 4 * UNIT);
     assert_eq!(env.token_balance(&k.vault), UNIT);
 
-    // The minimum only applies while the supply is zero.
+    // The minimum and the dead shares only apply while the supply is zero.
     let ev = env.deposit(&k, &a, 1);
     assert_eq!(ev.shares, 1);
     assert_eq!(env.supply(&k), UNIT + 1);
+    assert_eq!(env.token_balance(&k.dead_shares), DEAD_SHARES);
 }
 
 #[test]
@@ -128,10 +137,10 @@ fn redeem_returns_pro_rata_and_respects_liquidity() {
     let ix = env.redeem_ix(&k, &a.pubkey(), 0);
     env.expect_err(ix, &a, &[], E_WRONG_AMOUNT);
 
-    // Everything A holds is worth 10.4: more than the vault has. Nothing is burned.
-    let ix = env.redeem_ix(&k, &a.pubkey(), 10 * UNIT);
+    // Everything A holds is worth about 10.4: more than the vault has. Nothing is burned.
+    let ix = env.redeem_ix(&k, &a.pubkey(), 10 * UNIT - DEAD_SHARES);
     env.expect_err(ix, &a, &[], E_INSUFFICIENT_LIQUIDITY);
-    assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.share_mint)), 10 * UNIT);
+    assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.share_mint)), 10 * UNIT - DEAD_SHARES);
     assert_eq!(env.supply(&k), 15 * UNIT);
 
     // What fits is paid pro rata.
@@ -142,7 +151,7 @@ fn redeem_returns_pro_rata_and_respects_liquidity() {
     assert_eq!(ev.nav_after, 12_480_000);
     assert_eq!(ev.supply_after, 12 * UNIT);
     assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.asset_mint)), 3_120_000);
-    assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.share_mint)), 7 * UNIT);
+    assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.share_mint)), 7 * UNIT - DEAD_SHARES);
     assert_eq!(per_share(env.nav(&k), env.supply(&k)), before, "redeeming leaves the value per share unchanged");
 
     // 1.0 share is worth 1.04; 0.48 is left in the vault.
@@ -223,4 +232,60 @@ fn paused_blocks_deposit_and_redeem() {
     assert!(!ev.paused);
     env.deposit(&k, &a, UNIT);
     env.redeem(&k, &a, UNIT);
+}
+
+/// Reviewer's proof of concept: redeem down to a tiny supply, donate, and let the next depositor
+/// round down. The dead shares keep the supply at 1_000 or more, so the victim is priced fairly.
+#[test]
+fn dead_shares_stop_redeem_then_donate_inflation() {
+    let mut env = Env::new();
+    let (k, _) = env.setup_pool();
+    let attacker = env.investor(&k, UNIT);
+    let victim = env.investor(&k, 2_000);
+
+    let ev = env.deposit(&k, &attacker, UNIT);
+    assert_eq!(ev.shares, UNIT - DEAD_SHARES);
+    // The old attack redeemed 999,999 and kept 1 share; the attacker now holds only 999,000.
+    let ix = env.redeem_ix(&k, &attacker.pubkey(), 999_999);
+    assert!(env.try_send(ix, &attacker, &[]).is_err());
+    let ev = env.redeem(&k, &attacker, UNIT - DEAD_SHARES);
+    assert_eq!(ev.assets, UNIT - DEAD_SHARES);
+    assert_eq!(env.supply(&k), DEAD_SHARES);
+    assert_eq!(env.nav(&k), DEAD_SHARES);
+
+    env.donate(&k, 1_000); // NAV 2_000 against 1_000 dead shares
+
+    // The victim's slippage floor is honoured either way.
+    let ix = env.deposit_ix_min(&k, &victim.pubkey(), 2_000, 1_001);
+    env.expect_err(ix, &victim, &[], E_SLIPPAGE_EXCEEDED);
+    let ix = env.deposit_ix_min(&k, &victim.pubkey(), 2_000, 1_000);
+    let meta = env.send(ix, &victim, &[]);
+    let ev: elote_pool::events::Deposited = find_event(&meta).expect("Deposited");
+    assert_eq!(ev.shares, 1_000);
+    assert_eq!((ev.nav_after, ev.supply_after), (4_000, 2_000));
+
+    // The victim's shares are worth exactly what was deposited.
+    let ev = env.redeem(&k, &victim, 1_000);
+    assert_eq!(ev.assets, 2_000);
+}
+
+#[test]
+fn redeem_rounds_down_and_honours_min_assets_out() {
+    let mut env = Env::new();
+    let (k, _) = env.setup_pool();
+    let a = env.investor(&k, 10 * UNIT);
+    env.deposit(&k, &a, 10 * UNIT);
+    env.lend_and_repay(&k, 4 * UNIT, 1_000); // NAV 10.4, supply 10.0
+
+    // 333_333 * 10_400_000 / 10_000_000 = 346_666.32: the holder receives 346_666.
+    let ix = env.redeem_ix_min(&k, &a.pubkey(), 333_333, 346_667);
+    env.expect_err(ix, &a, &[], E_SLIPPAGE_EXCEEDED);
+    let ix = env.redeem_ix_min(&k, &a.pubkey(), 333_333, 346_666);
+    let meta = env.send(ix, &a, &[]);
+    let ev: elote_pool::events::Redeemed = find_event(&meta).expect("Redeemed");
+    assert_eq!(ev.assets, 346_666);
+    assert_eq!(ev.nav_after, 10_400_000 - 346_666);
+    assert_eq!(ev.supply_after, 10 * UNIT - 333_333);
+    // 7 * 1.04 = 7.28 rounds down to 7.
+    assert_eq!(env.redeem(&k, &a, 7).assets, 7);
 }

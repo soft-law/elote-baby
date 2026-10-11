@@ -9,11 +9,18 @@ pub mod seeds {
     pub const LINE: &[u8] = b"line";
     /// `[SHARES, pool]`: the share token mint.
     pub const SHARES: &[u8] = b"shares";
+    /// `[VAULT, pool]`: the pool's asset token account.
+    pub const VAULT: &[u8] = b"vault";
+    /// `[DEAD, pool]`: the pool-owned share token account holding the dead shares.
+    pub const DEAD: &[u8] = b"dead";
 }
 
 /// Smallest first deposit (1.0 of a 6-decimal asset), so the opening price of a share cannot be
 /// set by a dust deposit.
 pub const MIN_FIRST_DEPOSIT: u64 = 1_000_000;
+/// Shares the first deposit locks forever in the pool-owned dead account, so the supply never
+/// returns below this floor and a donation cannot round later deposits down to nothing.
+pub const DEAD_SHARES: u64 = 1_000;
 pub const BPS: u64 = 10_000;
 pub const POOL_VERSION: u8 = 1;
 pub const LINE_VERSION: u8 = 1;
@@ -24,10 +31,12 @@ pub struct Pool {
     pub version: u8,
     pub admin: Pubkey,
     pub asset_mint: Pubkey,
-    /// The pool PDA's associated token account for `asset_mint`.
+    /// PDA token account `[VAULT, pool]` for `asset_mint`, owned by the pool PDA.
     pub vault: Pubkey,
     /// The share token mint; its mint authority is the pool PDA.
     pub share_mint: Pubkey,
+    /// PDA share token account `[DEAD, pool]`, owned by the pool PDA; never burned.
+    pub dead_shares: Pubkey,
     /// Principal drawn and neither repaid nor written off.
     pub outstanding_principal: u64,
     /// Informative running total.

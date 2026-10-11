@@ -26,4 +26,8 @@ pub enum PoolError {
     FirstDepositTooSmall,
     #[msg("Wrong mint or token account")]
     WrongAccount,
+    #[msg("The result is below the minimum the caller accepts")]
+    SlippageExceeded,
+    #[msg("The term has ended")]
+    TermEnded,
 }

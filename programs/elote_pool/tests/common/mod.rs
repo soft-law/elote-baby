@@ -43,6 +43,11 @@ pub const E_SPONSOR_REQUIRED: u32 = ERR_BASE + 7; // PoolError::SponsorRequired
 pub const E_ZERO_SHARES: u32 = ERR_BASE + 8; // PoolError::ZeroShares
 pub const E_FIRST_DEPOSIT_TOO_SMALL: u32 = ERR_BASE + 9; // PoolError::FirstDepositTooSmall
 pub const E_WRONG_ACCOUNT: u32 = ERR_BASE + 10; // PoolError::WrongAccount
+pub const E_SLIPPAGE_EXCEEDED: u32 = ERR_BASE + 11; // PoolError::SlippageExceeded
+pub const E_TERM_ENDED: u32 = ERR_BASE + 12; // PoolError::TermEnded
+
+/// `state::DEAD_SHARES`: locked by the first deposit.
+pub const DEAD_SHARES: u64 = 1_000;
 
 /// One whole test-token unit: the asset mint has 6 decimals.
 pub const UNIT: u64 = 1_000_000;
@@ -59,6 +64,14 @@ pub fn share_mint_pda(pool: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"shares", pool.as_ref()], &PROGRAM_ID)
 }
 
+pub fn vault_pda(pool: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"vault", pool.as_ref()], &PROGRAM_ID)
+}
+
+pub fn dead_shares_pda(pool: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"dead", pool.as_ref()], &PROGRAM_ID)
+}
+
 pub fn line_pda(pool: &Pubkey, line_id: u64) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"line", pool.as_ref(), &line_id.to_le_bytes()], &PROGRAM_ID)
 }
@@ -70,6 +83,7 @@ pub struct PoolKeys {
     pub asset_mint: Pubkey,
     pub share_mint: Pubkey,
     pub vault: Pubkey,
+    pub dead_shares: Pubkey,
 }
 
 impl PoolKeys {
@@ -79,7 +93,8 @@ impl PoolKeys {
             pool,
             asset_mint: *asset_mint,
             share_mint: share_mint_pda(&pool).0,
-            vault: ata(&pool, asset_mint),
+            vault: vault_pda(&pool).0,
+            dead_shares: dead_shares_pda(&pool).0,
         }
     }
 }
@@ -303,8 +318,8 @@ impl Env {
                 pool: k.pool,
                 share_mint: k.share_mint,
                 vault: k.vault,
+                dead_shares: k.dead_shares,
                 token_program: TOKEN_PROGRAM_ID,
-                associated_token_program: ATA_PROGRAM_ID,
                 system_program: SYSTEM_PROGRAM_ID,
                 event_authority,
                 program,
@@ -336,7 +351,16 @@ impl Env {
         kp
     }
 
-    pub fn deposit_ix_with(&self, k: &PoolKeys, depositor: &Pubkey, asset_account: Pubkey, share_account: Pubkey, assets: u64) -> Instruction {
+    #[allow(clippy::too_many_arguments)]
+    pub fn deposit_ix_full(
+        &self,
+        k: &PoolKeys,
+        depositor: &Pubkey,
+        asset_account: Pubkey,
+        share_account: Pubkey,
+        assets: u64,
+        min_shares_out: u64,
+    ) -> Instruction {
         let (event_authority, program) = event_metas();
         Instruction {
             program_id: PROGRAM_ID,
@@ -345,6 +369,7 @@ impl Env {
                 pool: k.pool,
                 share_mint: k.share_mint,
                 vault: k.vault,
+                dead_shares: k.dead_shares,
                 depositor_asset_account: asset_account,
                 depositor_share_account: share_account,
                 token_program: TOKEN_PROGRAM_ID,
@@ -352,8 +377,16 @@ impl Env {
                 program,
             }
             .to_account_metas(None),
-            data: elote_pool::instruction::Deposit { assets }.data(),
+            data: elote_pool::instruction::Deposit { assets, min_shares_out }.data(),
         }
+    }
+
+    pub fn deposit_ix_with(&self, k: &PoolKeys, depositor: &Pubkey, asset_account: Pubkey, share_account: Pubkey, assets: u64) -> Instruction {
+        self.deposit_ix_full(k, depositor, asset_account, share_account, assets, 0)
+    }
+
+    pub fn deposit_ix_min(&self, k: &PoolKeys, depositor: &Pubkey, assets: u64, min_shares_out: u64) -> Instruction {
+        self.deposit_ix_full(k, depositor, ata(depositor, &k.asset_mint), ata(depositor, &k.share_mint), assets, min_shares_out)
     }
 
     pub fn deposit_ix(&self, k: &PoolKeys, depositor: &Pubkey, assets: u64) -> Instruction {
@@ -367,6 +400,10 @@ impl Env {
     }
 
     pub fn redeem_ix(&self, k: &PoolKeys, holder: &Pubkey, shares: u64) -> Instruction {
+        self.redeem_ix_min(k, holder, shares, 0)
+    }
+
+    pub fn redeem_ix_min(&self, k: &PoolKeys, holder: &Pubkey, shares: u64, min_assets_out: u64) -> Instruction {
         let (event_authority, program) = event_metas();
         Instruction {
             program_id: PROGRAM_ID,
@@ -382,7 +419,7 @@ impl Env {
                 program,
             }
             .to_account_metas(None),
-            data: elote_pool::instruction::Redeem { shares }.data(),
+            data: elote_pool::instruction::Redeem { shares, min_assets_out }.data(),
         }
     }
 

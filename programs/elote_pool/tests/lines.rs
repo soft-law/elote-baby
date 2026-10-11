@@ -308,3 +308,23 @@ fn open_rejects_bad_params() {
     assert_eq!(env.line(&k, 0).interest_due, 4 * UNIT);
     assert_eq!(env.pool(&k).line_count, 2);
 }
+
+#[test]
+fn draw_requires_the_term_not_ended() {
+    let mut env = Env::new();
+    let (k, _) = pool_with(&mut env, 10 * UNIT);
+    let borrower = env.borrower(&k);
+    let p = env.line_params(4 * UNIT, 1_000);
+    let (late, _) = env.open_line_with(&k, &borrower, &p, None);
+    let (on_time, _) = env.open_line_with(&k, &borrower, &p, None);
+
+    // At the last second of the term a draw is still allowed.
+    env.warp(p.term_end);
+    env.draw(&k, on_time, &borrower);
+
+    env.warp(p.term_end + 1);
+    let ix = env.draw_ix(&k, late, &borrower.pubkey());
+    env.expect_err(ix, &borrower, &[], E_TERM_ENDED);
+    assert_eq!(env.line(&k, late).status, LineStatus::Approved);
+    assert_eq!(env.pool(&k).outstanding_principal, 4 * UNIT);
+}

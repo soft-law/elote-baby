@@ -1,13 +1,12 @@
 //! Pool creation, deposits and redemptions at net asset value, and the pause switch.
 
 use anchor_lang::prelude::*;
-use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer};
 
 use crate::errors::PoolError;
 use crate::events::{Deposited, PoolInitialized, PoolPaused, Redeemed};
 use crate::math;
-use crate::state::{seeds, Pool, MIN_FIRST_DEPOSIT, POOL_VERSION};
+use crate::state::{seeds, Pool, DEAD_SHARES, MIN_FIRST_DEPOSIT, POOL_VERSION};
 
 /// Signs CPIs as the pool PDA.
 #[macro_export]
@@ -32,7 +31,7 @@ pub struct InitPool<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
-    pub asset_mint: Account<'info, Mint>,
+    pub asset_mint: Box<Account<'info, Mint>>,
 
     #[account(
         init,
@@ -51,18 +50,31 @@ pub struct InitPool<'info> {
         mint::decimals = asset_mint.decimals,
         mint::authority = pool,
     )]
-    pub share_mint: Account<'info, Mint>,
+    pub share_mint: Box<Account<'info, Mint>>,
 
+    /// A PDA token account, so nobody can pre-create it and block the pool.
     #[account(
         init,
         payer = admin,
-        associated_token::mint = asset_mint,
-        associated_token::authority = pool,
+        seeds = [seeds::VAULT, pool.key().as_ref()],
+        bump,
+        token::mint = asset_mint,
+        token::authority = pool,
     )]
-    pub vault: Account<'info, TokenAccount>,
+    pub vault: Box<Account<'info, TokenAccount>>,
+
+    /// Holds the dead shares of the first deposit; nothing ever moves them.
+    #[account(
+        init,
+        payer = admin,
+        seeds = [seeds::DEAD, pool.key().as_ref()],
+        bump,
+        token::mint = share_mint,
+        token::authority = pool,
+    )]
+    pub dead_shares: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
 
@@ -73,6 +85,7 @@ pub fn init_pool(ctx: Context<InitPool>) -> Result<()> {
     pool.asset_mint = ctx.accounts.asset_mint.key();
     pool.vault = ctx.accounts.vault.key();
     pool.share_mint = ctx.accounts.share_mint.key();
+    pool.dead_shares = ctx.accounts.dead_shares.key();
     pool.outstanding_principal = 0;
     pool.interest_collected = 0;
     pool.written_off = 0;
@@ -106,29 +119,34 @@ pub struct Deposit<'info> {
     pub pool: Account<'info, Pool>,
 
     #[account(mut, address = pool.share_mint @ PoolError::WrongAccount)]
-    pub share_mint: Account<'info, Mint>,
+    pub share_mint: Box<Account<'info, Mint>>,
 
     #[account(mut, address = pool.vault @ PoolError::WrongAccount)]
-    pub vault: Account<'info, TokenAccount>,
+    pub vault: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut, address = pool.dead_shares @ PoolError::WrongAccount)]
+    pub dead_shares: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         constraint = depositor_asset_account.mint == pool.asset_mint @ PoolError::WrongAccount,
         constraint = depositor_asset_account.owner == depositor.key() @ PoolError::WrongAccount,
     )]
-    pub depositor_asset_account: Account<'info, TokenAccount>,
+    pub depositor_asset_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         constraint = depositor_share_account.mint == pool.share_mint @ PoolError::WrongAccount,
         constraint = depositor_share_account.owner == depositor.key() @ PoolError::WrongAccount,
     )]
-    pub depositor_share_account: Account<'info, TokenAccount>,
+    pub depositor_share_account: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
 
-pub fn deposit(ctx: Context<Deposit>, assets: u64) -> Result<()> {
+/// The first deposit locks `DEAD_SHARES` of its shares in the pool-owned dead account; the
+/// depositor receives the rest. `min_shares_out` is the depositor's slippage floor.
+pub fn deposit(ctx: Context<Deposit>, assets: u64, min_shares_out: u64) -> Result<()> {
     let pool = &ctx.accounts.pool;
     require!(!pool.paused, PoolError::Paused);
     require!(assets > 0, PoolError::WrongAmount);
@@ -139,8 +157,11 @@ pub fn deposit(ctx: Context<Deposit>, assets: u64) -> Result<()> {
     if supply == 0 {
         require!(assets >= MIN_FIRST_DEPOSIT, PoolError::FirstDepositTooSmall);
     }
-    let shares = math::shares_for_deposit(assets, supply, nav).ok_or(PoolError::Overflow)?;
+    let minted = math::shares_for_deposit(assets, supply, nav).ok_or(PoolError::Overflow)?;
+    let dead = if supply == 0 { DEAD_SHARES } else { 0 };
+    let shares = minted.checked_sub(dead).ok_or(PoolError::Overflow)?;
     require!(shares > 0, PoolError::ZeroShares);
+    require!(shares >= min_shares_out, PoolError::SlippageExceeded);
 
     let token_program = ctx.accounts.token_program.key();
     token::transfer(
@@ -166,6 +187,20 @@ pub fn deposit(ctx: Context<Deposit>, assets: u64) -> Result<()> {
         ),
         shares,
     )?;
+    if dead > 0 {
+        token::mint_to(
+            CpiContext::new_with_signer(
+                token_program,
+                MintTo {
+                    mint: ctx.accounts.share_mint.to_account_info(),
+                    to: ctx.accounts.dead_shares.to_account_info(),
+                    authority: ctx.accounts.pool.to_account_info(),
+                },
+                pool_signer!(pool),
+            ),
+            dead,
+        )?;
+    }
 
     ctx.accounts.vault.reload()?;
     ctx.accounts.share_mint.reload()?;
@@ -198,29 +233,30 @@ pub struct Redeem<'info> {
     pub pool: Account<'info, Pool>,
 
     #[account(mut, address = pool.share_mint @ PoolError::WrongAccount)]
-    pub share_mint: Account<'info, Mint>,
+    pub share_mint: Box<Account<'info, Mint>>,
 
     #[account(mut, address = pool.vault @ PoolError::WrongAccount)]
-    pub vault: Account<'info, TokenAccount>,
+    pub vault: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         constraint = holder_share_account.mint == pool.share_mint @ PoolError::WrongAccount,
         constraint = holder_share_account.owner == holder.key() @ PoolError::WrongAccount,
     )]
-    pub holder_share_account: Account<'info, TokenAccount>,
+    pub holder_share_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         constraint = holder_asset_account.mint == pool.asset_mint @ PoolError::WrongAccount,
         constraint = holder_asset_account.owner == holder.key() @ PoolError::WrongAccount,
     )]
-    pub holder_asset_account: Account<'info, TokenAccount>,
+    pub holder_asset_account: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
 
-pub fn redeem(ctx: Context<Redeem>, shares: u64) -> Result<()> {
+/// `min_assets_out` is the holder's slippage floor.
+pub fn redeem(ctx: Context<Redeem>, shares: u64, min_assets_out: u64) -> Result<()> {
     let pool = &ctx.accounts.pool;
     require!(!pool.paused, PoolError::Paused);
     require!(shares > 0, PoolError::WrongAmount);
@@ -230,6 +266,7 @@ pub fn redeem(ctx: Context<Redeem>, shares: u64) -> Result<()> {
     let nav = math::nav(ctx.accounts.vault.amount, pool.outstanding_principal).ok_or(PoolError::Overflow)?;
     let assets = math::assets_for_redeem(shares, supply, nav).ok_or(PoolError::Overflow)?;
     require!(assets > 0, PoolError::WrongAmount);
+    require!(assets >= min_assets_out, PoolError::SlippageExceeded);
     require!(assets <= ctx.accounts.vault.amount, PoolError::InsufficientLiquidity);
 
     let token_program = ctx.accounts.token_program.key();
