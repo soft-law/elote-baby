@@ -126,7 +126,25 @@
   }
 }
 
-/* Motion is low: hover and press feedback only, nothing on load, nothing looping. */
+/* Loading placeholders: a soft sweep, only for readers who have not asked for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton {
+    background-image: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.65) 50%, transparent 100%);
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: skeleton-sweep 1.4s ease-in-out infinite;
+  }
+}
+@keyframes skeleton-sweep {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+/* Motion is low: hover and press feedback only, nothing on load, nothing looping except the app loading placeholders above. Reduced motion stops all of it. */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
