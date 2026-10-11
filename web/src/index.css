@@ -1,0 +1,140 @@
+@import "tailwindcss";
+
+/* Tokens from the approved Claude Design frames (Tokens.dc.html). */
+@theme {
+  --color-night: #131313;
+  --color-night-2: #0b0b0b;
+  --color-night-line: #4a5455;
+  --color-neon: #6ae1e7;
+  --color-neon-hover: #96eef2;
+  --color-teal-700: #0b6a70;
+  --color-teal-800: #084f54;
+  --color-teal-50: #e6f8f9;
+  --color-corn-100: #fff1c9;
+  --color-chili-700: #b83a1f;
+  --color-chili-50: #fdede8;
+  --color-green-700: #2e7d32;
+  --color-green-50: #e7f5e6;
+  --color-ink: #17201f;
+  --color-ink-soft: #4a5856;
+  --color-paper: #fbfaf6;
+  --color-mist: #f2f5f1;
+  --color-line: #e3e6e1;
+  --color-fog: #c9d3d4;
+  --color-fog-dim: #a3aeaf;
+  --color-on-neon: #0e1415;
+
+  --font-display: "Lexend", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-sm: 14px;
+  --radius-md: 18px;
+  --radius-lg: 24px;
+
+  --shadow-soft: 0 1px 2px rgb(16 40 40 / 0.05), 0 10px 28px rgb(16 40 40 / 0.08);
+  --shadow-glow: 0 0 0 1px var(--color-neon), 0 0 18px rgb(106 225 231 / 0.3);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 16px;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: 18px;
+    line-height: 1.65;
+    overflow-x: clip;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  a:focus-visible,
+  button:focus-visible {
+    outline: 3px solid var(--color-teal-700);
+    outline-offset: 3px;
+  }
+  .on-night a:focus-visible,
+  .on-night button:focus-visible {
+    outline-color: var(--color-neon);
+  }
+}
+
+@layer components {
+  .label {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 56px;
+    padding: 0 26px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 18px;
+    line-height: 1.2;
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      background-color 0.15s ease,
+      box-shadow 0.15s ease,
+      transform 0.15s ease;
+  }
+  .btn:active {
+    transform: translateY(1px);
+  }
+  .btn-neon {
+    background: var(--color-neon);
+    color: var(--color-on-neon);
+    box-shadow: var(--shadow-glow);
+  }
+  .btn-neon:hover {
+    background: var(--color-neon-hover);
+    box-shadow:
+      0 0 0 1px var(--color-neon-hover),
+      0 0 26px rgb(106 225 231 / 0.5);
+  }
+  .btn-ghost {
+    border: 1.5px solid var(--color-neon);
+    color: var(--color-neon);
+  }
+  .btn-ghost:hover {
+    background: rgb(106 225 231 / 0.14);
+  }
+}
+
+/* Motion is low: hover and press feedback only, nothing on load, nothing looping. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
