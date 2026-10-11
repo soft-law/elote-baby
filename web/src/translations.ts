@@ -326,7 +326,6 @@ export type Copy = {
       inCollection: string;
       errors: { aboveDue: string; belowLateInterest: string };
     };
-    placeholder: string;
     newTab: string;
     notFound: { title: string; body: string; home: string };
     error: { title: string; body: string; retry: string };
@@ -768,7 +767,6 @@ export const translations: Record<Lang, Copy> = {
           belowLateInterest: "Pay at least {min} tMXN test tokens: the late interest due on this line comes first.",
         },
       },
-      placeholder: "This section is under construction.",
       newTab: "opens in a new tab",
       notFound: { title: "Page not found", body: "This address does not match any page of the app.", home: "Go to the start" },
       error: { title: "Something went wrong", body: "This page could not load. Try again.", retry: "Try again" },
@@ -1225,7 +1223,6 @@ export const translations: Record<Lang, Copy> = {
           belowLateInterest: "Paga al menos {min} tokens de prueba tMXN: primero se cubre el interés moratorio de esta línea.",
         },
       },
-      placeholder: "Esta sección está en construcción.",
       newTab: "se abre en una pestaña nueva",
       notFound: { title: "Página no encontrada", body: "Esta dirección no corresponde a ninguna página de la app.", home: "Ir al inicio" },
       error: { title: "Algo salió mal", body: "No se pudo cargar esta página. Inténtalo de nuevo.", retry: "Reintentar" },

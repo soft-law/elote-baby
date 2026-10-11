@@ -157,7 +157,7 @@ export function installmentRows(line: LineView, now: bigint): InstallmentRow[] {
 
 /** What a repayment form offers for a line at `now`. */
 export type RepayFigures = {
-  /** What the program would take next: overdue installments and late interest, else the next installment, else what remains. */
+  /** What to pay to be current: overdue installments plus the buffered late interest, else the next installment, else what remains. */
   dueNow: bigint;
   /** Late interest estimated now: a v2 repayment must cover at least this. 0 for v1. */
   lateDue: bigint;
@@ -185,11 +185,15 @@ export function repayFigures(line: LineView, graceSeconds: number, now: bigint):
     const next = cumulativeDue(terms.total, terms.installments, Math.min(a.covered + 1, terms.installments)) - paid;
     principalAndInterest = min(line.remaining, next > 0n ? next : line.remaining);
   }
+  // The program takes late interest at landing first, then interest and principal. "Due now" adds
+  // the buffered late estimate, so paying exactly it still covers the overdue installments when
+  // late interest has grown since render. Invariant: minimum (lateDueBuffered) <= dueNow <= payoff.
+  const lateDueBuffered = max(buffered, a.lateDue);
   return {
-    dueNow: principalAndInterest + a.lateDue,
+    dueNow: principalAndInterest + lateDueBuffered,
     lateDue: a.lateDue,
-    lateDueBuffered: max(buffered, a.lateDue),
-    payoff: line.remaining + max(buffered, a.lateDue),
+    lateDueBuffered,
+    payoff: line.remaining + lateDueBuffered,
     estimate: true,
     arrears: a,
   };

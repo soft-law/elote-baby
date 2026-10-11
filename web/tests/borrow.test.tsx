@@ -4,8 +4,9 @@ import type { Address } from "@solana/kit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { fetchAgreementByHash, parseAgreementSummary } from "../src/app/agreement";
-import { DrawAction, agreementCreatedSeconds, drawBlock } from "../src/app/components/LineCard";
+import { agreementQueryKey, fetchAgreementByHash, parseAgreementSummary, type AgreementLookup } from "../src/app/agreement";
+import { AgreementBlock, COPIED_RESET_MS, agreementCreatedSeconds } from "../src/app/components/AgreementBlock";
+import { DrawAction, drawBlock } from "../src/app/components/LineCard";
 import type { AppConfig } from "../src/app/config";
 import { ConfigContext } from "../src/app/configContext";
 import { RepayForm, repayLimits } from "../src/app/forms/RepayForm";
@@ -147,9 +148,33 @@ describe("schedule arithmetic", () => {
     const late = repayFigures(lateLine, 10, 1_250n);
     expect(late.arrears).toMatchObject({ missed: 2, overdue: 220n * UNIT });
     expect(late.lateDue).toBeGreaterThan(0n);
-    expect(late.dueNow).toBe(220n * UNIT + late.lateDue);
     expect(late.lateDueBuffered).toBe(arrears(scheduleTerms(lateLine, 10)!, 0n, 1_250n + LATE_BUFFER_SECONDS).lateDue);
+    expect(late.lateDueBuffered).toBeGreaterThan(late.lateDue);
+    expect(late.dueNow).toBe(220n * UNIT + late.lateDueBuffered);
     expect(late.payoff).toBe(660n * UNIT + late.lateDueBuffered);
+  });
+
+  test("paying exactly Due now on an overdue v2 line clears the missed installments, even if it lands later", () => {
+    const schedule = { intervalSeconds: 30n * 86_400n, installments: 6, maxMissed: 2 };
+    const line = lineView({ version: 2, status: "inCollection", drawnAt: 1_000_000, schedule, lateInterest: { lateBps: 2_400, collected: 0n, paidUntil: null } });
+    const terms = scheduleTerms(line, 259_200)!;
+    const render = 1_000_000n + 100n * 86_400n;
+    const f = repayFigures(line, 259_200, render);
+    const overdue = f.arrears!.overdue;
+    expect(f.arrears!.missed).toBe(3);
+    // The figures stay consistent: minimum <= Due now <= Max (payoff).
+    expect(f.dueNow - f.lateDueBuffered).toBeGreaterThanOrEqual(overdue);
+    expect(repayLimits(f).minimum).toBeLessThanOrEqual(f.dueNow);
+    expect(f.dueNow).toBeLessThanOrEqual(f.payoff);
+    expect(checkRepay((Number(f.dueNow) / 1e6).toFixed(6), repayLimits(f), 10_000n * UNIT).ok).toBe(true);
+    // The repayment lands up to five minutes after render; the program takes late interest first.
+    for (const delay of [0n, 30n, LATE_BUFFER_SECONDS]) {
+      const landing = render + delay;
+      const lateAtLanding = arrears(terms, 0n, landing).lateDue;
+      const rest = f.dueNow - lateAtLanding;
+      expect(rest).toBeGreaterThanOrEqual(overdue);
+      expect(arrears(terms, rest, landing).missed).toBe(0);
+    }
   });
 
   test("pool grace from reserved bytes, durations in words", () => {
@@ -219,9 +244,19 @@ describe("agreement summary", () => {
   };
 
   test("parses what the server sends and refuses anything else", () => {
-    expect(parseAgreementSummary(body)).toMatchObject({ id: "a".repeat(32), signaturesCount: 2, roles: ["acreditante", "acreditado"] });
-    expect(parseAgreementSummary({ data: { ...body.data, evidenceUrl: "javascript:alert(1)" } })).toBeNull();
+    expect(parseAgreementSummary(body)).toMatchObject({
+      id: "a".repeat(32),
+      signaturesCount: 2,
+      roles: ["acreditante", "acreditado"],
+      evidenceUrl: body.data.evidenceUrl,
+    });
+    // id and evidenceUrl are optional: the summary stays, the link goes when the URL is not http(s).
+    expect(parseAgreementSummary({ data: { ...body.data, evidenceUrl: "javascript:alert(1)" } })).toMatchObject({ evidenceUrl: null, id: "a".repeat(32) });
+    expect(parseAgreementSummary({ data: { ...body.data, evidenceUrl: "not a url" } })?.evidenceUrl).toBeNull();
+    const { id: _id, evidenceUrl: _url, ...withheld } = body.data;
+    expect(parseAgreementSummary({ data: withheld })).toMatchObject({ id: null, evidenceUrl: null, status: "anchored", template: { id: "credit-agreement" } });
     expect(parseAgreementSummary({ data: { ...body.data, template: null } })).toBeNull();
+    expect(parseAgreementSummary({ data: { ...body.data, status: 1 } })).toBeNull();
     expect(parseAgreementSummary(null)).toBeNull();
     expect(parseAgreementSummary({ data: { ...body.data, signaturesCount: "2" } })?.signaturesCount).toBeNull();
     expect(agreementCreatedSeconds("2026-10-11 12:00:00")).toBe(Date.UTC(2026, 9, 11, 12) / 1000);
@@ -303,8 +338,9 @@ afterEach(async () => {
   mounted = null;
 });
 
-async function mount(node: ReactNode) {
+async function mount(node: ReactNode, prepare?: (client: QueryClient) => void) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, refetchInterval: false } } });
+  prepare?.(client);
   const host = document.createElement("div");
   document.body.appendChild(host);
   const root = createRoot(host);
@@ -419,5 +455,53 @@ describe("draw action", () => {
     expect(button.getAttribute("aria-describedby")).toBe(page.q('[data-testid="draw-note"]')!.id);
     await page.click(button);
     expect(tx.ops).toEqual([]);
+  });
+});
+
+describe("agreement block", () => {
+  const summary = {
+    id: null,
+    template: { id: "credit-agreement", version: "0.1.0" },
+    status: "anchored",
+    roles: ["acreditante", "acreditado"],
+    signaturesCount: 2,
+    createdAt: "2026-10-01 09:30:00",
+    evidenceUrl: null,
+  };
+  const seed = (lookup: AgreementLookup) => (client: QueryClient) => client.setQueryData(agreementQueryKey(HASH), lookup);
+
+  test("a summary without an evidence URL still shows, without the link", async () => {
+    const page = await mount(<AgreementBlock hashHex={HASH} t={en} lang="en" />, seed({ kind: "found", summary }));
+    expect(page.q('[data-testid="agreement-summary"]')!.textContent).toContain("2 of 2");
+    expect(page.q('[data-testid="agreement-evidence"]')).toBeNull();
+  });
+
+  test("with an evidence URL the link opens in a new tab", async () => {
+    const url = `http://api.test/api/agreements/${"a".repeat(32)}/evidence`;
+    const page = await mount(<AgreementBlock hashHex={HASH} t={en} lang="en" />, seed({ kind: "found", summary: { ...summary, evidenceUrl: url } }));
+    const link = page.q('[data-testid="agreement-evidence"]')!;
+    expect(link.getAttribute("href")).toBe(url);
+    expect(link.getAttribute("rel")).toBe("noreferrer");
+  });
+
+  test("copy announces Hash copied, then resets so the next copy is announced again", async () => {
+    const copied: string[] = [];
+    // The component reads the global navigator (bun's), not happy-dom's window.navigator.
+    const nav = globalThis.navigator as unknown as { clipboard?: unknown };
+    const previous = Object.getOwnPropertyDescriptor(nav, "clipboard");
+    Object.defineProperty(nav, "clipboard", { configurable: true, value: { writeText: async (text: string) => void copied.push(text) } });
+    try {
+      const page = await mount(<AgreementBlock hashHex={HASH} t={en} lang="en" />, seed({ kind: "notFound" }));
+      const status = () => page.q('[data-testid="agreement"] [role="status"]')!.textContent;
+      await page.click(page.q('[data-testid="agreement-copy"]'));
+      expect(copied).toEqual([HASH]);
+      expect(status()).toBe(en.app.borrow.agreement.copied);
+      await act(async () => sleep(COPIED_RESET_MS + 50));
+      expect(status()).toBe("");
+      expect(page.q('[data-testid="agreement-copy"]')!.textContent).toContain(en.app.borrow.agreement.copy);
+    } finally {
+      if (previous) Object.defineProperty(nav, "clipboard", previous);
+      else delete nav.clipboard;
+    }
   });
 });

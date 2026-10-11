@@ -4,8 +4,7 @@
 // active or in-collection line. Lines this code cannot read show the "Unknown" badge and nothing
 // else, so a new layout never breaks the page. Cards at every width, no tables.
 import { useQueryClient } from "@tanstack/react-query";
-import { useId, useState, type ReactNode } from "react";
-import { useAgreementQuery, type AgreementSummary } from "../agreement";
+import { useId, type ReactNode } from "react";
 import { fill, fillText } from "../fill";
 import { RepayForm } from "../forms/RepayForm";
 import type { PoolLine, PoolView } from "../queries";
@@ -13,219 +12,15 @@ import { useTxToast } from "../toast/useTxToast";
 import { explorerAddressUrl, formatBps, formatDate, formatDuration, truncateMiddle, type ExplorerCluster } from "../../pool/format";
 import type { LineView } from "../../pool/line";
 import { DECIMALS } from "../../pool/math";
-import { installmentRows, repayFigures, usableSchedule, type InstallmentState } from "../../pool/schedule";
+import { repayFigures, usableSchedule } from "../../pool/schedule";
 import type { Copy, Lang } from "../../translations";
 import { useTx, type UseTx } from "../../tx/useTx";
+import { isTxBusy } from "../txBusy";
+import { AgreementBlock } from "./AgreementBlock";
 import { Amount } from "./Amount";
+import { Field, money } from "./Field";
 import { LineStatusBadge, drawnAmount, repaidAmount } from "./LinesTable";
-
-function Svg({ children }: { children: ReactNode }) {
-  return (
-    <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-      {children}
-    </svg>
-  );
-}
-const IconCopy = () => (
-  <Svg>
-    <rect x="8.5" y="8.5" width="11" height="11" rx="2" />
-    <path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5" />
-  </Svg>
-);
-const IconCheck = () => (
-  <Svg>
-    <path d="M5 12.5l4.5 4.5L19 7.5" />
-  </Svg>
-);
-const IconExternal = () => (
-  <Svg>
-    <path d="M14 5h5v5M19 5l-8 8" />
-    <path d="M17 13.5V18a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V8.5A1.5 1.5 0 0 1 6 7h4.5" />
-  </Svg>
-);
-
-const BUSY_STEPS = new Set<UseTx["step"]>(["simulating", "signing", "sending", "confirming"]);
-
-function Field({ label, children, wide = false }: { label: string; children: ReactNode; wide?: boolean }) {
-  return (
-    <div className={`flex min-w-0 flex-col gap-0.5 ${wide ? "col-span-2" : ""}`}>
-      <dt className="label text-ink-soft">{label}</dt>
-      <dd className="m-0 min-w-0 break-words text-[17px]">{children}</dd>
-    </div>
-  );
-}
-
-function money(units: bigint, lang: Lang) {
-  return (
-    <span className="num">
-      <Amount units={units} lang={lang} />
-    </span>
-  );
-}
-
-// ---- agreement ----
-
-/** SQLite "YYYY-MM-DD HH:MM:SS" (UTC) or ISO; null when it does not parse. */
-export function agreementCreatedSeconds(createdAt: string): number | null {
-  const iso = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(createdAt) ? `${createdAt.replace(" ", "T")}Z` : createdAt;
-  const ms = Date.parse(iso);
-  return Number.isFinite(ms) ? Math.floor(ms / 1000) : null;
-}
-
-function agreementStatusLabel(status: string, t: Copy): string | null {
-  const s = t.app.borrow.agreement.statuses;
-  switch (status) {
-    case "draft":
-      return s.draft;
-    case "pending_signatures":
-      return s.pendingSignatures;
-    case "signed":
-      return s.signed;
-    case "anchored":
-      return s.anchored;
-    default:
-      return null;
-  }
-}
-
-function AgreementDetails({ summary, t, lang }: { summary: AgreementSummary; t: Copy; lang: Lang }) {
-  const a = t.app.borrow.agreement;
-  const status = agreementStatusLabel(summary.status, t);
-  const created = agreementCreatedSeconds(summary.createdAt);
-  return (
-    <div data-testid="agreement-summary" className="flex flex-col gap-3">
-      <dl className="m-0 grid grid-cols-2 gap-x-4 gap-y-2">
-        <Field label={a.template}>
-          <span className="num text-[15px]">
-            {summary.template.id} {summary.template.version}
-          </span>
-        </Field>
-        {status ? <Field label={a.status}>{status}</Field> : null}
-        {summary.signaturesCount !== null ? (
-          <Field label={a.signatures}>
-            {summary.roles.length > 0
-              ? fillText(a.signaturesValue, { count: String(summary.signaturesCount), total: String(summary.roles.length) })
-              : String(summary.signaturesCount)}
-          </Field>
-        ) : null}
-        {created !== null ? <Field label={a.created}>{formatDate(created, lang)}</Field> : null}
-      </dl>
-      <a
-        href={summary.evidenceUrl}
-        target="_blank"
-        rel="noreferrer"
-        data-testid="agreement-evidence"
-        className="inline-flex min-h-[44px] w-fit items-center gap-2 font-display text-[16px] font-semibold text-teal-700 underline decoration-teal-700/40 underline-offset-4 hover:decoration-teal-700"
-      >
-        {a.evidence}
-        <IconExternal />
-        <span className="sr-only"> ({t.app.newTab})</span>
-      </a>
-    </div>
-  );
-}
-
-function AgreementBlock({ hashHex, t, lang }: { hashHex: string; t: Copy; lang: Lang }) {
-  const a = t.app.borrow.agreement;
-  const query = useAgreementQuery(hashHex);
-  const [copied, setCopied] = useState(false);
-  const labelId = useId();
-  const onCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(hashHex);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  };
-  const found = query.data?.kind === "found" ? query.data.summary : null;
-  return (
-    <section aria-labelledby={labelId} data-testid="agreement" className="flex flex-col gap-3 rounded-[18px] border-[1.5px] border-line bg-mist/60 p-4">
-      <div className="flex flex-col gap-1">
-        <p id={labelId} className="label m-0 text-ink-soft">
-          {a.hash}
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <code title={hashHex} data-testid="agreement-hash" className="num min-w-0 break-all text-[15px] text-ink">
-            <span aria-hidden="true">{truncateMiddle(hashHex, 10, 10)}</span>
-            <span className="sr-only">{hashHex}</span>
-          </code>
-          <button
-            type="button"
-            onClick={() => void onCopy()}
-            data-testid="agreement-copy"
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-[12px] border-[1.5px] border-fog bg-white px-3 font-display text-[15px] font-semibold text-teal-700 hover:bg-teal-50"
-          >
-            {copied ? <IconCheck /> : <IconCopy />}
-            <span className="sr-only sm:not-sr-only">{copied ? a.copied : a.copy}</span>
-          </button>
-          <span role="status" className="sr-only">
-            {copied ? a.copied : ""}
-          </span>
-        </div>
-      </div>
-      {found ? <AgreementDetails summary={found} t={t} lang={lang} /> : null}
-    </section>
-  );
-}
-
-// ---- schedule and late interest ----
-
-const STATE_STYLE: Record<InstallmentState, string> = {
-  paid: "bg-green-50 text-green-700 border-green-700/30",
-  partial: "bg-teal-50 text-teal-800 border-teal-700/30",
-  overdue: "bg-chili-50 text-chili-700 border-chili-700/40",
-  pending: "bg-white text-ink-soft border-fog",
-};
-
-function ScheduleBlock({ line, now, t, lang }: { line: LineView; now: number; t: Copy; lang: Lang }) {
-  const s = t.app.borrow.schedule;
-  const titleId = useId();
-  const schedule = line.schedule;
-  if (!usableSchedule(schedule)) return null;
-  const rows = installmentRows(line, BigInt(now));
-  return (
-    <section aria-labelledby={titleId} data-testid="schedule" className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <h4 id={titleId} className="m-0 font-display text-[18px] font-semibold">
-          {s.title}
-        </h4>
-        <p className="m-0 text-[16px] leading-[1.55] text-ink-soft">
-          {fillText(s.every, { count: String(schedule.installments), interval: formatDuration(schedule.intervalSeconds, lang) })}
-          {line.drawnAt === null ? ` ${s.afterDraw}` : ""}
-        </p>
-      </div>
-      <ol aria-label={s.caption} className="m-0 grid list-none grid-cols-1 gap-2 p-0 sm:grid-cols-2 lg:grid-cols-3">
-        {rows.map((row) => (
-          <li
-            key={row.number}
-            data-installment={row.number}
-            data-state={row.state}
-            className="flex items-center justify-between gap-3 rounded-[14px] border-[1.5px] border-line bg-white px-3 py-2"
-          >
-            <span className="flex min-w-0 flex-col">
-              <span className="text-[15px] font-semibold">
-                {s.number} {row.number}
-              </span>
-              <span className="text-[14px] text-ink-soft">
-                {row.dueAt === null ? s.afterDraw : `${s.due} ${formatDate(row.dueAt, lang)}`}
-              </span>
-            </span>
-            <span className="flex flex-col items-end gap-1">
-              <span className="num text-[15px]">
-                <Amount units={row.amount} lang={lang} />
-              </span>
-              <span className={`inline-flex whitespace-nowrap rounded-full border-[1.5px] px-2 py-0.5 text-[13px] font-semibold ${STATE_STYLE[row.state]}`}>
-                <span className="sr-only">{s.state}: </span>
-                {s.states[row.state]}
-              </span>
-            </span>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
+import { ScheduleBlock } from "./ScheduleBlock";
 
 function LateInterestBlock({ line, pool, now, t, lang }: { line: LineView; pool: PoolView; now: number; t: Copy; lang: Lang }) {
   const l = t.app.borrow.late;
@@ -281,7 +76,7 @@ export function DrawAction({ line, pool, now, tx, t, lang }: DrawActionProps) {
   const queryClient = useQueryClient();
   const noteId = useId();
   const titleId = useId();
-  const busy = BUSY_STEPS.has(tx.step);
+  const busy = isTxBusy(tx.step);
   const block = drawBlock(line, pool, now);
   const note =
     block === "paused" ? d.pausedNote : block === "liquidity" ? d.liquidityNote : block === "termEnded" ? d.termEndedNote : block === "schedule" ? d.scheduleNote : null;

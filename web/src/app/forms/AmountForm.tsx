@@ -12,6 +12,7 @@ import type { Copy } from "../../translations";
 import type { PoolOp, PoolOpKind } from "../../tx/ops";
 import type { UseTx } from "../../tx/useTx";
 import { useTxToast } from "../toast/useTxToast";
+import { isTxBusy } from "../txBusy";
 import type { Checked, FieldError } from "./validation";
 
 export type AmountFormProps = {
@@ -45,8 +46,6 @@ export type AmountFormProps = {
   headingLevel?: "h2" | "h3" | "h4";
 };
 
-const BUSY_STEPS = new Set<UseTx["step"]>(["simulating", "signing", "sending", "confirming"]);
-
 export function AmountForm(props: AmountFormProps) {
   const { name, t, tx, check } = props;
   const Heading = props.headingLevel ?? "h2";
@@ -67,7 +66,7 @@ export function AmountForm(props: AmountFormProps) {
   // Bumped on every failed submit so focus moves to the summary each time.
   const [failedSubmits, setFailedSubmits] = useState(0);
 
-  const busy = BUSY_STEPS.has(tx.step);
+  const busy = isTxBusy(tx.step);
   const checked = check(input);
   const showError = touched && !checked.ok;
   const error = !checked.ok ? checked.error : null;

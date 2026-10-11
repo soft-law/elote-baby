@@ -7,14 +7,16 @@ import { useAppConfig } from "./configContext";
 export type AgreementStatus = "draft" | "pending_signatures" | "signed" | "anchored";
 
 export type AgreementSummary = {
-  id: string;
+  /** Absent when the server withholds it (the id is the capability to read the full record). */
+  id: string | null;
   template: { id: string; version: string };
   status: AgreementStatus | string;
   /** Required signing roles. */
   roles: string[];
   signaturesCount: number | null;
   createdAt: string;
-  evidenceUrl: string;
+  /** A valid http(s) URL, or null when absent or unusable: the summary still shows, without the link. */
+  evidenceUrl: string | null;
 };
 
 export type AgreementLookup = { kind: "found"; summary: AgreementSummary } | { kind: "notFound" };
@@ -27,28 +29,35 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Reads the summary as the server sends it; anything malformed counts as unknown. */
+/** An http(s) URL as a string; null for anything else (a `javascript:` link is never rendered). */
+function httpUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reads the summary as the server sends it. Template, status and creation date are required; the
+ * id and the evidence link are optional, so the server may withhold them without hiding the summary.
+ */
 export function parseAgreementSummary(body: unknown): AgreementSummary | null {
   if (!isRecord(body) || !isRecord(body.data)) return null;
   const d = body.data;
   const template = isRecord(d.template) ? d.template : null;
-  if (typeof d.id !== "string" || !template || typeof template.id !== "string" || typeof template.version !== "string") return null;
-  if (typeof d.status !== "string" || typeof d.createdAt !== "string" || typeof d.evidenceUrl !== "string") return null;
-  let evidence: URL;
-  try {
-    evidence = new URL(d.evidenceUrl);
-  } catch {
-    return null;
-  }
-  if (evidence.protocol !== "https:" && evidence.protocol !== "http:") return null;
+  if (!template || typeof template.id !== "string" || typeof template.version !== "string") return null;
+  if (typeof d.status !== "string" || typeof d.createdAt !== "string") return null;
   return {
-    id: d.id,
+    id: typeof d.id === "string" ? d.id : null,
     template: { id: template.id, version: template.version },
     status: d.status,
     roles: Array.isArray(d.roles) ? d.roles.filter((r): r is string => typeof r === "string") : [],
     signaturesCount: typeof d.signaturesCount === "number" && Number.isInteger(d.signaturesCount) ? d.signaturesCount : null,
     createdAt: d.createdAt,
-    evidenceUrl: evidence.toString(),
+    evidenceUrl: httpUrl(d.evidenceUrl),
   };
 }
 
