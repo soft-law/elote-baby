@@ -10,6 +10,7 @@ import {
   addSignature,
   ANCHOR_KINDS,
   getAgreement,
+  getAgreementByHash,
   hasSignature,
   isAgreementId,
   listAnchors,
@@ -19,7 +20,7 @@ import {
   type AnchorKind,
   type PartyRole,
 } from './store'
-import { exportEvidence } from './evidence'
+import { apiBaseUrl, exportEvidence } from './evidence'
 import { agreementRateLimit } from './rate-limit'
 
 const MAX_SIGNATURE_BODY_BYTES = 8 * 1024
@@ -102,6 +103,29 @@ export function publicAgreement(record: AgreementRecord) {
   }
 }
 
+/** An agreement hash as the pool program stores it: 64 hex characters, optional `0x`, lowercase only. */
+const AGREEMENT_HASH = /^(?:0x)?([0-9a-f]{64})$/
+
+/**
+ * What a credit line page shows next to the hash it holds: template, status, how many parties
+ * signed, anchors and the evidence link. Never the document, the terms, the sign message or the
+ * encryption keys.
+ */
+export function agreementSummary(record: AgreementRecord) {
+  return {
+    id: record.id,
+    chain: record.chain,
+    template: { id: record.templateId, version: record.templateVersion },
+    status: record.status,
+    roles: record.roles,
+    partiesCount: Object.keys(record.parties).length,
+    signaturesCount: listSignatures(record.id).length,
+    createdAt: record.createdAt,
+    anchors: listAnchors(record.id),
+    evidenceUrl: `${apiBaseUrl()}/api/agreements/${record.id}/evidence`,
+  }
+}
+
 /** Whether every party has signed. Reported, never enforced here: the chain, not this service, decides what can be recorded. */
 function consentOf(id: string): { complete: boolean; missingRoles: PartyRole[] } {
   const missingRoles = missingSignatures(id)
@@ -131,6 +155,14 @@ export function isChainReference(value: string): boolean {
 
 export function mountAgreementRoutes(app: Hono): void {
   app.use('/api/agreements/*', agreementRateLimit)
+
+  app.get('/api/agreements/by-hash/:hash', c => {
+    const match = AGREEMENT_HASH.exec(c.req.param('hash'))
+    if (!match) return c.json({ error: 'invalid agreement hash' }, 400)
+    const record = getAgreementByHash(match[1]!)
+    if (!record) return c.json({ error: 'agreement not found' }, 404)
+    return c.json({ data: agreementSummary(record) })
+  })
 
   app.get('/api/agreements/:id', c => {
     const id = c.req.param('id')

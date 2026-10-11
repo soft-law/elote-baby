@@ -202,6 +202,19 @@ export function getAgreement(id: string): AgreementRecord | null {
   }
 }
 
+/**
+ * The agreement whose document hash is `hex64` (64 lowercase hex characters, no prefix: the form
+ * the pool program stores as `agreement_hash`). The column keeps the `0x` form; both are matched.
+ * When several drafts share a hash, the anchored one wins, then the newest.
+ */
+export function getAgreementByHash(hex64: string): AgreementRecord | null {
+  if (!/^[0-9a-f]{64}$/.test(hex64)) return null
+  const row = store()
+    .query("SELECT id FROM agreements WHERE lower(hash) IN (?, ?) ORDER BY status = 'anchored' DESC, created_at DESC, rowid DESC LIMIT 1")
+    .get(`0x${hex64}`, hex64) as { id: string } | null
+  return row ? getAgreement(row.id) : null
+}
+
 export function listSignatures(id: string): SignatureRecord[] {
   return (
     store().query('SELECT role, address, signature, method, signed_at, encryption_public_key FROM agreement_signatures WHERE agreement_id = ? ORDER BY signed_at, role').all(id) as {

@@ -59,6 +59,9 @@ Other public routes, used by the sign page: `GET /api/agreements/<id>`,
 `POST /api/agreements/<id>/signatures` (Ed25519 over the stored message, from the wallet named for
 that role), `GET /api/agreements/<id>/evidence`. `GET /health` answers `{ ok: true }`.
 
+`GET /api/agreements/by-hash/<hash>` (64 lowercase hex, optional `0x`) returns a summary of the agreement a credit line
+holds (template, status, signature count, anchors, evidence link), never the document; 404 when unknown, 400 when malformed.
+
 ## Environment
 
 | Variable | Default | Meaning |
