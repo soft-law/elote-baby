@@ -62,7 +62,8 @@ describe("line adapter, version 1", () => {
   });
 
   test("every known status", () => {
-    const expected = ["approved", "active", "repaid", "writtenOff"] as const;
+    // Version-1 lines know four statuses; InCollection (index 4) is a version-2 status.
+    const expected = ["approved", "active", "repaid", "writtenOff", "inCollection"] as const;
     for (const status of [LineStatus.Approved, LineStatus.Active, LineStatus.Repaid, LineStatus.WrittenOff]) {
       expect(readable(decodeLineView(encode({ status }))).status).toBe(expected[status]);
     }

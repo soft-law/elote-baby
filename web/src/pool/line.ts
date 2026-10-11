@@ -189,7 +189,10 @@ function getTolerantCreditLineDecoder() {
 
 function hasDiscriminator(data: ReadonlyUint8Array): boolean {
   if (data.length < CREDIT_LINE_DISCRIMINATOR.length) return false;
-  return CREDIT_LINE_DISCRIMINATOR.every((b, i) => data[i] === b);
+  for (let i = 0; i < CREDIT_LINE_DISCRIMINATOR.length; i++) {
+    if (data[i] !== CREDIT_LINE_DISCRIMINATOR[i]) return false;
+  }
+  return true;
 }
 
 /** Decodes raw CreditLine account bytes. Never throws: unreadable bytes give an "unknown" view. */

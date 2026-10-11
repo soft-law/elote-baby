@@ -50,6 +50,9 @@ export default defineConfig({
   resolve: {
     // The generated pool client and the app must share one @solana/kit.
     dedupe: ["@solana/kit"],
+    // The client is a file: dependency. When the package manager links it instead of copying it,
+    // its imports must still resolve from web/node_modules, not from clients/js.
+    preserveSymlinks: true,
   },
   build: {
     rolldownOptions: {
