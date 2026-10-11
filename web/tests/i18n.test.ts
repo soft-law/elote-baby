@@ -126,12 +126,20 @@ describe("translations", () => {
     }
   });
 
-  test("the pool headline is a single sentence", () => {
+  test("the pool headline is one short line with both facts", () => {
     for (const lang of ["en", "es"] as const) {
       const title = translations[lang].pool.title;
-      expect(title).not.toMatch(/[.:;?]/);
+      expect(title).not.toMatch(/[.;?]/);
+      expect(title.length).toBeLessThanOrEqual(60);
       expect(title).toMatch(/100/);
     }
+  });
+
+  test("the hero says every line has government support, not some", () => {
+    expect(translations.en.hero.sub).toContain(", with government support.");
+    expect(translations.es.hero.sub).toContain(", con apoyo de gobierno.");
+    expect(translations.en.hero.sub).not.toMatch(/some with/i);
+    expect(translations.es.hero.sub).not.toMatch(/algunas con/i);
   });
 
   test("hero copy is the owner's", () => {

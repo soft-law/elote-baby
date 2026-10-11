@@ -238,12 +238,12 @@ export const translations: Record<Lang, Copy> = {
     hero: {
       titleA: "Mexican loans",
       titleB: "on Solana.",
-      sub: "Your deposit funds credit lines for small businesses, like the panadería on your corner, some with government support.",
+      sub: "Your deposit funds credit lines for small businesses, like the panadería on your corner, with government support.",
       invest: "Invest",
       borrow: "Borrow",
     },
     pool: {
-      title: "The first pool opens soon with 100 credit lines for small businesses",
+      title: "First pool soon: 100 credit lines for small businesses",
       body: "Every deposit joins one pool. Each credit line is opened from it and repaid into it.",
       line: "Line #12",
       entrepreneur: "Entrepreneur",
@@ -513,12 +513,12 @@ export const translations: Record<Lang, Copy> = {
     hero: {
       titleA: "Préstamos mexicanos",
       titleB: "en Solana.",
-      sub: "Tu depósito fondea líneas de crédito para negocios pequeños, como la panadería de tu esquina, algunas con apoyo de gobierno.",
+      sub: "Tu depósito fondea líneas de crédito para negocios pequeños, como la panadería de tu esquina, con apoyo de gobierno.",
       invest: "Invertir",
       borrow: "Pedir crédito",
     },
     pool: {
-      title: "El primer pool abre pronto con 100 líneas de crédito para negocios pequeños",
+      title: "Primer pool muy pronto: 100 créditos para pymes",
       body: "Cada depósito entra a un solo pool. Cada línea de crédito se abre desde ahí y se paga de vuelta ahí.",
       line: "Línea #12",
       entrepreneur: "Emprendedor",
