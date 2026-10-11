@@ -1,0 +1,27 @@
+{
+  "name": "@elote/agreements-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "create-key": "bun run scripts/create-key.ts",
+    "render-samples": "bun run scripts/render-sample-contracts.ts",
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit",
+    "check": "bun run typecheck && bun test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "@noble/curves": "1.9.1",
+    "@noble/hashes": "1.8.0",
+    "@scure/base": "2.0.0",
+    "hono": "^4.7.0",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "bun-types": "^1.2.0",
+    "typescript": "^6.0.2"
+  }
+}
