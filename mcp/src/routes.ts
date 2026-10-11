@@ -121,7 +121,8 @@ export function agreementSummary(record: AgreementRecord) {
     partiesCount: Object.keys(record.parties).length,
     signaturesCount: listSignatures(record.id).length,
     createdAt: record.createdAt,
-    anchors: listAnchors(record.id),
+    // Without documentUri: it may point at the document itself.
+    anchors: listAnchors(record.id).map(({ documentUri: _documentUri, ...anchor }) => anchor),
     evidenceUrl: `${apiBaseUrl()}/api/agreements/${record.id}/evidence`,
   }
 }

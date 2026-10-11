@@ -7,7 +7,7 @@ import type { Hono } from 'hono'
 import { createApp } from '../src/app'
 import { CREDIT_TEMPLATE_VERSION, computeDocumentHash, hashToHex64 } from '../src/engine'
 import { resetAgreementRateLimits } from '../src/rate-limit'
-import { addAnchor, addSignature, closeAgreementsStore, createAgreement, initAgreementsStore, type AgreementRecord } from '../src/store'
+import { addAnchor, addSignature, agreementsDatabase, closeAgreementsStore, createAgreement, initAgreementsStore, type AgreementRecord } from '../src/store'
 import { txSignature, wallet } from './helpers'
 
 const lender = wallet(21)
@@ -33,7 +33,7 @@ beforeAll(() => {
     terms: { principalCents: 2500000 },
   })
   addSignature(record.id, { role: 'acreditante', address: lender.address, signature: 'sig', method: 'ed25519', encryptionPublicKey: 'k'.repeat(43) })
-  addAnchor(record.id, { chain: 'solana', kind: 'registerCreditAgreement', reference: txSignature(5), recordId: '0', documentUri: '', signer: lender.address })
+  addAnchor(record.id, { chain: 'solana', kind: 'registerCreditAgreement', reference: txSignature(5), recordId: '0', documentUri: 'ipfs://document-cid', signer: lender.address })
 })
 afterAll(() => {
   closeAgreementsStore()
@@ -76,10 +76,12 @@ describe('agreement summary by hash', () => {
     for (const key of ['document', 'terms', 'signMessage', 'encryptionKeys', 'signatures', 'parties', 'hash']) {
       expect(key in data).toBe(false)
     }
+    for (const anchor of data.anchors as Record<string, unknown>[]) expect('documentUri' in anchor).toBe(false)
     const text = JSON.stringify(body)
     expect(text).not.toContain('sign this exact message')
     expect(text).not.toContain('k'.repeat(43))
     expect(text).not.toContain('principalCents')
+    expect(text).not.toContain('ipfs://document-cid')
   })
 
   test('404 for a well-formed hash nobody drafted', async () => {
@@ -92,6 +94,13 @@ describe('agreement summary by hash', () => {
       const res = await get(bad)
       expect({ bad, status: res.status, body: res.body }).toEqual({ bad, status: 400, body: { error: 'invalid agreement hash' } })
     }
+  })
+
+  test('the hash lookup uses the lower(hash) index', () => {
+    const plan = agreementsDatabase()
+      .query('EXPLAIN QUERY PLAN SELECT id FROM agreements WHERE lower(hash) IN (?, ?)')
+      .all('0x' + 'ab'.repeat(32), 'ab'.repeat(32)) as { detail: string }[]
+    expect(plan.map(row => row.detail).join(' ')).toContain('agreements_hash_lower')
   })
 
   test('the id route still answers next to it', async () => {

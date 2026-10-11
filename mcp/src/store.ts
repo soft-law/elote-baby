@@ -77,6 +77,8 @@ export function initAgreementsStore(path = process.env.AGREEMENTS_DB ?? 'elote-a
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `)
+  // Lookups by agreement hash (GET /api/agreements/by-hash/:hash) compare lower(hash).
+  db.exec('CREATE INDEX IF NOT EXISTS agreements_hash_lower ON agreements(lower(hash))')
   db.exec(`
     CREATE TABLE IF NOT EXISTS agreement_anchors (
       agreement_id TEXT NOT NULL REFERENCES agreements(id),
