@@ -7,7 +7,7 @@ Investors deposit the pool asset and receive shares. The pool admin approves cre
 entrepreneurs from the pool. When borrowers repay, the interest stays in the pool and every share
 is worth more. A recognised loss lowers the value of every share once.
 
-The demo asset is **tMXN (devnet test token, no value), a devnet test token, no value**: a plain SPL token created by the demo
+The demo asset is **tMXN (devnet test token, no value)**: a plain SPL token created by the demo
 script. Nothing here holds or moves real money.
 
 ## What it is
@@ -16,10 +16,14 @@ script. Nothing here holds or moves real money.
   `shares = assets * supply / NAV` on deposit, `assets = shares * NAV / supply` on redemption,
   with `NAV = vault balance + outstanding principal`. Both legs round down, in favour of the pool.
   Interest counts when it is collected; nothing accrues and there is no oracle.
+- **Dead shares.** The first deposit (at least 1.0) locks 1,000 of its shares in a share token
+  account owned by the pool, which nothing can move. The supply never falls below that floor, so a
+  donation to the vault cannot round later deposits down to nothing. `deposit` and `redeem` also
+  take a minimum the caller accepts (`min_shares_out`, `min_assets_out`).
 - **Credit lines from the pool.** Each line records the borrower, the principal, a fixed rate,
   the term and the hash of the signed credit agreement. Repayments go to principal first, then to
   interest. Anyone may repay on the borrower's behalf; the payer is recorded in the event.
-- **Optional sponsor.** A public program can be named on a line; it must co-sign the opening and
+- **Optional sponsor.** A public support program can be named on a line; it must co-sign the opening and
   may pay the interest. It never touches the pool's money otherwise.
 - **Pause.** The admin can pause deposits, redemptions, openings, draws and repayments. Writing off
   an overdue line and unpausing are never blocked.
@@ -31,24 +35,35 @@ script. Nothing here holds or moves real money.
   value when a loan is written off.
 - Not audited yet.
 
+Known behaviour of the share accounting, by design for this demo:
+
+- **Interest counts only when it is collected.** A deposit made just before a repayment of
+  interest shares in that interest as if it had been in the pool all along.
+- **A write-off is recognised only when the admin records it.** Until then, holders can redeem at
+  the full value, including the principal that will not come back. The operator procedure is to
+  pause the pool first, then write off, then unpause.
+- **After a total loss** (NAV 0 with shares still outstanding) deposits fail: the share price is
+  undefined and the pool cannot be refilled.
+
 ## Accounts
 
 | Account | Address | Holds |
 |---|---|---|
 | `Pool` | PDA `["pool", admin, asset_mint]` | admin, asset, vault, share token, outstanding principal, running totals, pause flag |
-| share token | PDA `["shares", pool]` | SPL mint with the asset's decimals; only the pool PDA can issue shares |
-| vault | associated token account of the pool PDA for the asset | the pool's liquid assets |
+| share token | PDA `["shares", pool]` | an SPL token with the asset's decimals; only the pool PDA can issue shares |
+| vault | PDA token account `["vault", pool]`, owned by the pool PDA | the pool's liquid assets |
+| dead shares | PDA token account `["dead", pool]`, owned by the pool PDA | the 1,000 shares locked by the first deposit |
 | `CreditLine` | PDA `["line", pool, line_id (u64 LE)]` | terms, agreement hash, repayments, status |
 
 ## Instructions
 
 | Instruction | Signers | Effect |
 |---|---|---|
-| `init_pool` | admin | creates the pool, its share token and its vault |
-| `deposit(assets)` | depositor | assets in, shares out at the current NAV; the first deposit is at least 1.0 |
-| `redeem(shares)` | holder | shares burned, assets out at the current NAV, up to the vault's liquidity |
+| `init_pool` | admin | creates the pool, its share token, its vault and its dead-shares account |
+| `deposit(assets, min_shares_out)` | depositor | assets in, shares out at the current NAV; the first deposit is at least 1.0 and locks 1,000 dead shares |
+| `redeem(shares, min_assets_out)` | holder | shares burned, assets out at the current NAV, up to the vault's liquidity |
 | `open_line(line_id, principal, rate_bps, term_end, agreement_hash, sponsor)` | admin, borrower, sponsor if named | approves the next line; moves no money |
-| `draw` | borrower | the whole principal goes from the vault to the borrower |
+| `draw` | borrower | the whole principal goes from the vault to the borrower, before the term ends |
 | `repay(amount)` | anyone | principal first, then interest; the line closes when nothing remains |
 | `write_off` | admin | after the term, the unpaid principal is recognised as a loss |
 | `set_paused(paused)` | admin | pause switch |

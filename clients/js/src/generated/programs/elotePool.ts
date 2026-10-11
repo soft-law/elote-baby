@@ -76,7 +76,13 @@ import {
   type SetPausedAsyncInput,
   type WriteOffAsyncInput,
 } from "../instructions";
-import { findLinePda, findPoolPda, findShareMintPda } from "../pdas";
+import {
+  findDeadSharesPda,
+  findLinePda,
+  findPoolPda,
+  findShareMintPda,
+  findVaultPda,
+} from "../pdas";
 
 export const ELOTE_POOL_PROGRAM_ADDRESS =
   "BGdJQxxJoHiLH2VS6HAGHe5kQuKKq9dwrPeX7DEEwYyM" as Address<"BGdJQxxJoHiLH2VS6HAGHe5kQuKKq9dwrPeX7DEEwYyM">;
@@ -484,6 +490,8 @@ export type ElotePoolPluginInstructions = {
 export type ElotePoolPluginPdas = {
   pool: typeof findPoolPda;
   shareMint: typeof findShareMintPda;
+  vault: typeof findVaultPda;
+  deadShares: typeof findDeadSharesPda;
   line: typeof findLinePda;
 };
 
@@ -549,6 +557,8 @@ export function elotePoolProgram() {
         pdas: {
           pool: findPoolPda,
           shareMint: findShareMintPda,
+          vault: findVaultPda,
+          deadShares: findDeadSharesPda,
           line: findLinePda,
         },
         identifyAccount: identifyElotePoolAccount,

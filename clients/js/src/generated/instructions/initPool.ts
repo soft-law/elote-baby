@@ -10,7 +10,6 @@ import {
   combineCodec,
   fixDecoderSize,
   fixEncoderSize,
-  getAddressEncoder,
   getBytesDecoder,
   getBytesEncoder,
   getProgramDerivedAddress,
@@ -43,7 +42,12 @@ import {
   type ResolvedInstructionAccount,
   type ResolvedInstructionAccountMeta,
 } from "@solana/program-client-core";
-import { findPoolPda, findShareMintPda } from "../pdas";
+import {
+  findDeadSharesPda,
+  findPoolPda,
+  findShareMintPda,
+  findVaultPda,
+} from "../pdas";
 import { ELOTE_POOL_PROGRAM_ADDRESS } from "../programs";
 
 export const INIT_POOL_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([
@@ -61,10 +65,9 @@ export type InitPoolInstruction<
   TAccountPool extends string | AccountMeta<string> = string,
   TAccountShareMint extends string | AccountMeta<string> = string,
   TAccountVault extends string | AccountMeta<string> = string,
+  TAccountDeadShares extends string | AccountMeta<string> = string,
   TAccountTokenProgram extends string | AccountMeta<string> =
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-  TAccountAssociatedTokenProgram extends string | AccountMeta<string> =
-    "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
   TAccountSystemProgram extends string | AccountMeta<string> =
     "11111111111111111111111111111111",
   TAccountEventAuthority extends string | AccountMeta<string> = string,
@@ -91,12 +94,12 @@ export type InitPoolInstruction<
       TAccountVault extends string
         ? WritableAccount<TAccountVault>
         : TAccountVault,
+      TAccountDeadShares extends string
+        ? WritableAccount<TAccountDeadShares>
+        : TAccountDeadShares,
       TAccountTokenProgram extends string
         ? ReadonlyAccount<TAccountTokenProgram>
         : TAccountTokenProgram,
-      TAccountAssociatedTokenProgram extends string
-        ? ReadonlyAccount<TAccountAssociatedTokenProgram>
-        : TAccountAssociatedTokenProgram,
       TAccountSystemProgram extends string
         ? ReadonlyAccount<TAccountSystemProgram>
         : TAccountSystemProgram,
@@ -143,9 +146,8 @@ export type InitPoolAsyncInput<
   TAccountPool extends InstructionAccountInput = InstructionAccountInput,
   TAccountShareMint extends InstructionAccountInput = InstructionAccountInput,
   TAccountVault extends InstructionAccountInput = InstructionAccountInput,
+  TAccountDeadShares extends InstructionAccountInput = InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput =
-    InstructionAccountInput,
-  TAccountAssociatedTokenProgram extends InstructionAccountInput =
     InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput =
     InstructionAccountInput,
@@ -157,9 +159,11 @@ export type InitPoolAsyncInput<
   assetMint: TAccountAssetMint;
   pool?: TAccountPool;
   shareMint?: TAccountShareMint;
+  /** A PDA token account, so nobody can pre-create it and block the pool. */
   vault?: TAccountVault;
+  /** Holds the dead shares of the first deposit; nothing ever moves them. */
+  deadShares?: TAccountDeadShares;
   tokenProgram?: TAccountTokenProgram;
-  associatedTokenProgram?: TAccountAssociatedTokenProgram;
   systemProgram?: TAccountSystemProgram;
   eventAuthority?: TAccountEventAuthority;
   program?: TAccountProgram;
@@ -171,8 +175,8 @@ export async function getInitPoolInstructionAsync<
   TAccountPool extends InstructionAccountInput,
   TAccountShareMint extends InstructionAccountInput,
   TAccountVault extends InstructionAccountInput,
+  TAccountDeadShares extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
-  TAccountAssociatedTokenProgram extends InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput,
   TAccountEventAuthority extends InstructionAccountInput,
   TAccountProgram extends InstructionAccountInput,
@@ -184,8 +188,8 @@ export async function getInitPoolInstructionAsync<
     TAccountPool,
     TAccountShareMint,
     TAccountVault,
+    TAccountDeadShares,
     TAccountTokenProgram,
-    TAccountAssociatedTokenProgram,
     TAccountSystemProgram,
     TAccountEventAuthority,
     TAccountProgram
@@ -215,12 +219,12 @@ export async function getInitPoolInstructionAsync<
       InstructionAccountInputAddress<TAccountVault>
     >,
     ResolvedInstructionAccountMeta<
-      TAccountTokenProgram,
-      InstructionAccountInputAddress<TAccountTokenProgram>
+      TAccountDeadShares,
+      InstructionAccountInputAddress<TAccountDeadShares>
     >,
     ResolvedInstructionAccountMeta<
-      TAccountAssociatedTokenProgram,
-      InstructionAccountInputAddress<TAccountAssociatedTokenProgram>
+      TAccountTokenProgram,
+      InstructionAccountInputAddress<TAccountTokenProgram>
     >,
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
@@ -257,13 +261,13 @@ export async function getInitPoolInstructionAsync<
       isWritable: true,
     },
     vault: { value: input.vault ?? null, isSigner: false, isWritable: true },
+    deadShares: {
+      value: input.deadShares ?? null,
+      isSigner: false,
+      isWritable: true,
+    },
     tokenProgram: {
       value: input.tokenProgram ?? null,
-      isSigner: false,
-      isWritable: false,
-    },
-    associatedTokenProgram: {
-      value: input.associatedTokenProgram ?? null,
       isSigner: false,
       isWritable: false,
     },
@@ -316,36 +320,30 @@ export async function getInitPoolInstructionAsync<
     );
   }
   if (!accounts.vault.value) {
-    accounts.vault.value = await getProgramDerivedAddress({
-      programAddress:
-        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" as Address<"ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL">,
-      seeds: [
-        getAddressEncoder().encode(
-          getAddressFromResolvedInstructionAccount("pool", accounts.pool.value),
+    accounts.vault.value = await findVaultPda(
+      {
+        pool: getAddressFromResolvedInstructionAccount(
+          "pool",
+          accounts.pool.value,
         ),
-        getBytesEncoder().encode(
-          new Uint8Array([
-            6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235,
-            121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133,
-            126, 255, 0, 169,
-          ]),
+      },
+      { programAddress },
+    );
+  }
+  if (!accounts.deadShares.value) {
+    accounts.deadShares.value = await findDeadSharesPda(
+      {
+        pool: getAddressFromResolvedInstructionAccount(
+          "pool",
+          accounts.pool.value,
         ),
-        getAddressEncoder().encode(
-          getAddressFromResolvedInstructionAccount(
-            "assetMint",
-            accounts.assetMint.value,
-          ),
-        ),
-      ],
-    });
+      },
+      { programAddress },
+    );
   }
   if (!accounts.tokenProgram.value) {
     accounts.tokenProgram.value =
       "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
-  }
-  if (!accounts.associatedTokenProgram.value) {
-    accounts.associatedTokenProgram.value =
-      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" as Address<"ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL">;
   }
   if (!accounts.systemProgram.value) {
     accounts.systemProgram.value =
@@ -369,8 +367,8 @@ export async function getInitPoolInstructionAsync<
       getAccountMeta("pool", accounts.pool),
       getAccountMeta("shareMint", accounts.shareMint),
       getAccountMeta("vault", accounts.vault),
+      getAccountMeta("deadShares", accounts.deadShares),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
-      getAccountMeta("associatedTokenProgram", accounts.associatedTokenProgram),
       getAccountMeta("systemProgram", accounts.systemProgram),
       getAccountMeta("eventAuthority", accounts.eventAuthority),
       getAccountMeta("program", accounts.program),
@@ -400,12 +398,12 @@ export async function getInitPoolInstructionAsync<
       InstructionAccountInputAddress<TAccountVault>
     >,
     ResolvedInstructionAccountMeta<
-      TAccountTokenProgram,
-      InstructionAccountInputAddress<TAccountTokenProgram>
+      TAccountDeadShares,
+      InstructionAccountInputAddress<TAccountDeadShares>
     >,
     ResolvedInstructionAccountMeta<
-      TAccountAssociatedTokenProgram,
-      InstructionAccountInputAddress<TAccountAssociatedTokenProgram>
+      TAccountTokenProgram,
+      InstructionAccountInputAddress<TAccountTokenProgram>
     >,
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
@@ -428,9 +426,8 @@ export type InitPoolInput<
   TAccountPool extends InstructionAccountInput = InstructionAccountInput,
   TAccountShareMint extends InstructionAccountInput = InstructionAccountInput,
   TAccountVault extends InstructionAccountInput = InstructionAccountInput,
+  TAccountDeadShares extends InstructionAccountInput = InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput =
-    InstructionAccountInput,
-  TAccountAssociatedTokenProgram extends InstructionAccountInput =
     InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput =
     InstructionAccountInput,
@@ -442,9 +439,11 @@ export type InitPoolInput<
   assetMint: TAccountAssetMint;
   pool: TAccountPool;
   shareMint: TAccountShareMint;
+  /** A PDA token account, so nobody can pre-create it and block the pool. */
   vault: TAccountVault;
+  /** Holds the dead shares of the first deposit; nothing ever moves them. */
+  deadShares: TAccountDeadShares;
   tokenProgram?: TAccountTokenProgram;
-  associatedTokenProgram?: TAccountAssociatedTokenProgram;
   systemProgram?: TAccountSystemProgram;
   eventAuthority: TAccountEventAuthority;
   program?: TAccountProgram;
@@ -456,8 +455,8 @@ export function getInitPoolInstruction<
   TAccountPool extends InstructionAccountInput,
   TAccountShareMint extends InstructionAccountInput,
   TAccountVault extends InstructionAccountInput,
+  TAccountDeadShares extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
-  TAccountAssociatedTokenProgram extends InstructionAccountInput,
   TAccountSystemProgram extends InstructionAccountInput,
   TAccountEventAuthority extends InstructionAccountInput,
   TAccountProgram extends InstructionAccountInput,
@@ -469,8 +468,8 @@ export function getInitPoolInstruction<
     TAccountPool,
     TAccountShareMint,
     TAccountVault,
+    TAccountDeadShares,
     TAccountTokenProgram,
-    TAccountAssociatedTokenProgram,
     TAccountSystemProgram,
     TAccountEventAuthority,
     TAccountProgram
@@ -499,12 +498,12 @@ export function getInitPoolInstruction<
     InstructionAccountInputAddress<TAccountVault>
   >,
   ResolvedInstructionAccountMeta<
-    TAccountTokenProgram,
-    InstructionAccountInputAddress<TAccountTokenProgram>
+    TAccountDeadShares,
+    InstructionAccountInputAddress<TAccountDeadShares>
   >,
   ResolvedInstructionAccountMeta<
-    TAccountAssociatedTokenProgram,
-    InstructionAccountInputAddress<TAccountAssociatedTokenProgram>
+    TAccountTokenProgram,
+    InstructionAccountInputAddress<TAccountTokenProgram>
   >,
   ResolvedInstructionAccountMeta<
     TAccountSystemProgram,
@@ -540,13 +539,13 @@ export function getInitPoolInstruction<
       isWritable: true,
     },
     vault: { value: input.vault ?? null, isSigner: false, isWritable: true },
+    deadShares: {
+      value: input.deadShares ?? null,
+      isSigner: false,
+      isWritable: true,
+    },
     tokenProgram: {
       value: input.tokenProgram ?? null,
-      isSigner: false,
-      isWritable: false,
-    },
-    associatedTokenProgram: {
-      value: input.associatedTokenProgram ?? null,
       isSigner: false,
       isWritable: false,
     },
@@ -576,10 +575,6 @@ export function getInitPoolInstruction<
     accounts.tokenProgram.value =
       "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" as Address<"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA">;
   }
-  if (!accounts.associatedTokenProgram.value) {
-    accounts.associatedTokenProgram.value =
-      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" as Address<"ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL">;
-  }
   if (!accounts.systemProgram.value) {
     accounts.systemProgram.value =
       "11111111111111111111111111111111" as Address<"11111111111111111111111111111111">;
@@ -596,8 +591,8 @@ export function getInitPoolInstruction<
       getAccountMeta("pool", accounts.pool),
       getAccountMeta("shareMint", accounts.shareMint),
       getAccountMeta("vault", accounts.vault),
+      getAccountMeta("deadShares", accounts.deadShares),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
-      getAccountMeta("associatedTokenProgram", accounts.associatedTokenProgram),
       getAccountMeta("systemProgram", accounts.systemProgram),
       getAccountMeta("eventAuthority", accounts.eventAuthority),
       getAccountMeta("program", accounts.program),
@@ -627,12 +622,12 @@ export function getInitPoolInstruction<
       InstructionAccountInputAddress<TAccountVault>
     >,
     ResolvedInstructionAccountMeta<
-      TAccountTokenProgram,
-      InstructionAccountInputAddress<TAccountTokenProgram>
+      TAccountDeadShares,
+      InstructionAccountInputAddress<TAccountDeadShares>
     >,
     ResolvedInstructionAccountMeta<
-      TAccountAssociatedTokenProgram,
-      InstructionAccountInputAddress<TAccountAssociatedTokenProgram>
+      TAccountTokenProgram,
+      InstructionAccountInputAddress<TAccountTokenProgram>
     >,
     ResolvedInstructionAccountMeta<
       TAccountSystemProgram,
@@ -659,9 +654,11 @@ export type ParsedInitPoolInstruction<
     assetMint: TAccountMetas[1];
     pool: TAccountMetas[2];
     shareMint: TAccountMetas[3];
+    /** A PDA token account, so nobody can pre-create it and block the pool. */
     vault: TAccountMetas[4];
-    tokenProgram: TAccountMetas[5];
-    associatedTokenProgram: TAccountMetas[6];
+    /** Holds the dead shares of the first deposit; nothing ever moves them. */
+    deadShares: TAccountMetas[5];
+    tokenProgram: TAccountMetas[6];
     systemProgram: TAccountMetas[7];
     eventAuthority: TAccountMetas[8];
     program: TAccountMetas[9];
@@ -700,8 +697,8 @@ export function parseInitPoolInstruction<
       pool: getNextAccount(),
       shareMint: getNextAccount(),
       vault: getNextAccount(),
+      deadShares: getNextAccount(),
       tokenProgram: getNextAccount(),
-      associatedTokenProgram: getNextAccount(),
       systemProgram: getNextAccount(),
       eventAuthority: getNextAccount(),
       program: getNextAccount(),

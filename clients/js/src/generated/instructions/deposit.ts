@@ -59,6 +59,7 @@ export type DepositInstruction<
   TAccountPool extends string | AccountMeta<string> = string,
   TAccountShareMint extends string | AccountMeta<string> = string,
   TAccountVault extends string | AccountMeta<string> = string,
+  TAccountDeadShares extends string | AccountMeta<string> = string,
   TAccountDepositorAssetAccount extends string | AccountMeta<string> = string,
   TAccountDepositorShareAccount extends string | AccountMeta<string> = string,
   TAccountTokenProgram extends string | AccountMeta<string> =
@@ -84,6 +85,9 @@ export type DepositInstruction<
       TAccountVault extends string
         ? WritableAccount<TAccountVault>
         : TAccountVault,
+      TAccountDeadShares extends string
+        ? WritableAccount<TAccountDeadShares>
+        : TAccountDeadShares,
       TAccountDepositorAssetAccount extends string
         ? WritableAccount<TAccountDepositorAssetAccount>
         : TAccountDepositorAssetAccount,
@@ -106,15 +110,20 @@ export type DepositInstruction<
 export type DepositInstructionData = {
   discriminator: ReadonlyUint8Array;
   assets: bigint;
+  minSharesOut: bigint;
 };
 
-export type DepositInstructionDataArgs = { assets: number | bigint };
+export type DepositInstructionDataArgs = {
+  assets: number | bigint;
+  minSharesOut: number | bigint;
+};
 
 export function getDepositInstructionDataEncoder(): FixedSizeEncoder<DepositInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
       ["assets", getU64Encoder()],
+      ["minSharesOut", getU64Encoder()],
     ]),
     (value) => ({ ...value, discriminator: DEPOSIT_DISCRIMINATOR }),
   );
@@ -124,6 +133,7 @@ export function getDepositInstructionDataDecoder(): FixedSizeDecoder<DepositInst
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["assets", getU64Decoder()],
+    ["minSharesOut", getU64Decoder()],
   ]);
 }
 
@@ -142,6 +152,7 @@ export type DepositAsyncInput<
   TAccountPool extends InstructionAccountInput = InstructionAccountInput,
   TAccountShareMint extends InstructionAccountInput = InstructionAccountInput,
   TAccountVault extends InstructionAccountInput = InstructionAccountInput,
+  TAccountDeadShares extends InstructionAccountInput = InstructionAccountInput,
   TAccountDepositorAssetAccount extends InstructionAccountInput =
     InstructionAccountInput,
   TAccountDepositorShareAccount extends InstructionAccountInput =
@@ -156,12 +167,14 @@ export type DepositAsyncInput<
   pool: TAccountPool;
   shareMint: TAccountShareMint;
   vault: TAccountVault;
+  deadShares: TAccountDeadShares;
   depositorAssetAccount: TAccountDepositorAssetAccount;
   depositorShareAccount: TAccountDepositorShareAccount;
   tokenProgram?: TAccountTokenProgram;
   eventAuthority?: TAccountEventAuthority;
   program?: TAccountProgram;
   assets: DepositInstructionDataArgs["assets"];
+  minSharesOut: DepositInstructionDataArgs["minSharesOut"];
 };
 
 export async function getDepositInstructionAsync<
@@ -169,6 +182,7 @@ export async function getDepositInstructionAsync<
   TAccountPool extends InstructionAccountInput,
   TAccountShareMint extends InstructionAccountInput,
   TAccountVault extends InstructionAccountInput,
+  TAccountDeadShares extends InstructionAccountInput,
   TAccountDepositorAssetAccount extends InstructionAccountInput,
   TAccountDepositorShareAccount extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
@@ -181,6 +195,7 @@ export async function getDepositInstructionAsync<
     TAccountPool,
     TAccountShareMint,
     TAccountVault,
+    TAccountDeadShares,
     TAccountDepositorAssetAccount,
     TAccountDepositorShareAccount,
     TAccountTokenProgram,
@@ -206,6 +221,10 @@ export async function getDepositInstructionAsync<
     ResolvedInstructionAccountMeta<
       TAccountVault,
       InstructionAccountInputAddress<TAccountVault>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountDeadShares,
+      InstructionAccountInputAddress<TAccountDeadShares>
     >,
     ResolvedInstructionAccountMeta<
       TAccountDepositorAssetAccount,
@@ -249,6 +268,11 @@ export async function getDepositInstructionAsync<
       isWritable: true,
     },
     vault: { value: input.vault ?? null, isSigner: false, isWritable: true },
+    deadShares: {
+      value: input.deadShares ?? null,
+      isSigner: false,
+      isWritable: true,
+    },
     depositorAssetAccount: {
       value: input.depositorAssetAccount ?? null,
       isSigner: false,
@@ -305,6 +329,7 @@ export async function getDepositInstructionAsync<
       getAccountMeta("pool", accounts.pool),
       getAccountMeta("shareMint", accounts.shareMint),
       getAccountMeta("vault", accounts.vault),
+      getAccountMeta("deadShares", accounts.deadShares),
       getAccountMeta("depositorAssetAccount", accounts.depositorAssetAccount),
       getAccountMeta("depositorShareAccount", accounts.depositorShareAccount),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
@@ -334,6 +359,10 @@ export async function getDepositInstructionAsync<
       InstructionAccountInputAddress<TAccountVault>
     >,
     ResolvedInstructionAccountMeta<
+      TAccountDeadShares,
+      InstructionAccountInputAddress<TAccountDeadShares>
+    >,
+    ResolvedInstructionAccountMeta<
       TAccountDepositorAssetAccount,
       InstructionAccountInputAddress<TAccountDepositorAssetAccount>
     >,
@@ -361,6 +390,7 @@ export type DepositInput<
   TAccountPool extends InstructionAccountInput = InstructionAccountInput,
   TAccountShareMint extends InstructionAccountInput = InstructionAccountInput,
   TAccountVault extends InstructionAccountInput = InstructionAccountInput,
+  TAccountDeadShares extends InstructionAccountInput = InstructionAccountInput,
   TAccountDepositorAssetAccount extends InstructionAccountInput =
     InstructionAccountInput,
   TAccountDepositorShareAccount extends InstructionAccountInput =
@@ -375,12 +405,14 @@ export type DepositInput<
   pool: TAccountPool;
   shareMint: TAccountShareMint;
   vault: TAccountVault;
+  deadShares: TAccountDeadShares;
   depositorAssetAccount: TAccountDepositorAssetAccount;
   depositorShareAccount: TAccountDepositorShareAccount;
   tokenProgram?: TAccountTokenProgram;
   eventAuthority: TAccountEventAuthority;
   program?: TAccountProgram;
   assets: DepositInstructionDataArgs["assets"];
+  minSharesOut: DepositInstructionDataArgs["minSharesOut"];
 };
 
 export function getDepositInstruction<
@@ -388,6 +420,7 @@ export function getDepositInstruction<
   TAccountPool extends InstructionAccountInput,
   TAccountShareMint extends InstructionAccountInput,
   TAccountVault extends InstructionAccountInput,
+  TAccountDeadShares extends InstructionAccountInput,
   TAccountDepositorAssetAccount extends InstructionAccountInput,
   TAccountDepositorShareAccount extends InstructionAccountInput,
   TAccountTokenProgram extends InstructionAccountInput,
@@ -400,6 +433,7 @@ export function getDepositInstruction<
     TAccountPool,
     TAccountShareMint,
     TAccountVault,
+    TAccountDeadShares,
     TAccountDepositorAssetAccount,
     TAccountDepositorShareAccount,
     TAccountTokenProgram,
@@ -424,6 +458,10 @@ export function getDepositInstruction<
   ResolvedInstructionAccountMeta<
     TAccountVault,
     InstructionAccountInputAddress<TAccountVault>
+  >,
+  ResolvedInstructionAccountMeta<
+    TAccountDeadShares,
+    InstructionAccountInputAddress<TAccountDeadShares>
   >,
   ResolvedInstructionAccountMeta<
     TAccountDepositorAssetAccount,
@@ -466,6 +504,11 @@ export function getDepositInstruction<
       isWritable: true,
     },
     vault: { value: input.vault ?? null, isSigner: false, isWritable: true },
+    deadShares: {
+      value: input.deadShares ?? null,
+      isSigner: false,
+      isWritable: true,
+    },
     depositorAssetAccount: {
       value: input.depositorAssetAccount ?? null,
       isSigner: false,
@@ -516,6 +559,7 @@ export function getDepositInstruction<
       getAccountMeta("pool", accounts.pool),
       getAccountMeta("shareMint", accounts.shareMint),
       getAccountMeta("vault", accounts.vault),
+      getAccountMeta("deadShares", accounts.deadShares),
       getAccountMeta("depositorAssetAccount", accounts.depositorAssetAccount),
       getAccountMeta("depositorShareAccount", accounts.depositorShareAccount),
       getAccountMeta("tokenProgram", accounts.tokenProgram),
@@ -543,6 +587,10 @@ export function getDepositInstruction<
     ResolvedInstructionAccountMeta<
       TAccountVault,
       InstructionAccountInputAddress<TAccountVault>
+    >,
+    ResolvedInstructionAccountMeta<
+      TAccountDeadShares,
+      InstructionAccountInputAddress<TAccountDeadShares>
     >,
     ResolvedInstructionAccountMeta<
       TAccountDepositorAssetAccount,
@@ -577,11 +625,12 @@ export type ParsedDepositInstruction<
     pool: TAccountMetas[1];
     shareMint: TAccountMetas[2];
     vault: TAccountMetas[3];
-    depositorAssetAccount: TAccountMetas[4];
-    depositorShareAccount: TAccountMetas[5];
-    tokenProgram: TAccountMetas[6];
-    eventAuthority: TAccountMetas[7];
-    program: TAccountMetas[8];
+    deadShares: TAccountMetas[4];
+    depositorAssetAccount: TAccountMetas[5];
+    depositorShareAccount: TAccountMetas[6];
+    tokenProgram: TAccountMetas[7];
+    eventAuthority: TAccountMetas[8];
+    program: TAccountMetas[9];
   };
   data: DepositInstructionData;
 };
@@ -594,12 +643,12 @@ export function parseDepositInstruction<
     InstructionWithAccounts<TAccountMetas> &
     InstructionWithData<ReadonlyUint8Array>,
 ): ParsedDepositInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 9) {
+  if (instruction.accounts.length < 10) {
     throw new SolanaError(
       SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS,
       {
         actualAccountMetas: instruction.accounts.length,
-        expectedAccountMetas: 9,
+        expectedAccountMetas: 10,
       },
     );
   }
@@ -616,6 +665,7 @@ export function parseDepositInstruction<
       pool: getNextAccount(),
       shareMint: getNextAccount(),
       vault: getNextAccount(),
+      deadShares: getNextAccount(),
       depositorAssetAccount: getNextAccount(),
       depositorShareAccount: getNextAccount(),
       tokenProgram: getNextAccount(),

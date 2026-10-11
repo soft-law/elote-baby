@@ -36,6 +36,10 @@ export const ELOTE_POOL_ERROR__ZERO_SHARES = 0x1778; // 6008
 export const ELOTE_POOL_ERROR__FIRST_DEPOSIT_TOO_SMALL = 0x1779; // 6009
 /** WrongAccount: Wrong mint or token account */
 export const ELOTE_POOL_ERROR__WRONG_ACCOUNT = 0x177a; // 6010
+/** SlippageExceeded: The result is below the minimum the caller accepts */
+export const ELOTE_POOL_ERROR__SLIPPAGE_EXCEEDED = 0x177b; // 6011
+/** TermEnded: The term has ended */
+export const ELOTE_POOL_ERROR__TERM_ENDED = 0x177c; // 6012
 
 export type ElotePoolError =
   | typeof ELOTE_POOL_ERROR__FIRST_DEPOSIT_TOO_SMALL
@@ -43,7 +47,9 @@ export type ElotePoolError =
   | typeof ELOTE_POOL_ERROR__LINE_STATUS
   | typeof ELOTE_POOL_ERROR__OVERFLOW
   | typeof ELOTE_POOL_ERROR__PAUSED
+  | typeof ELOTE_POOL_ERROR__SLIPPAGE_EXCEEDED
   | typeof ELOTE_POOL_ERROR__SPONSOR_REQUIRED
+  | typeof ELOTE_POOL_ERROR__TERM_ENDED
   | typeof ELOTE_POOL_ERROR__TERM_NOT_ENDED
   | typeof ELOTE_POOL_ERROR__UNAUTHORIZED
   | typeof ELOTE_POOL_ERROR__WRONG_ACCOUNT
@@ -58,7 +64,9 @@ if (process.env["NODE_ENV"] !== "production") {
     [ELOTE_POOL_ERROR__LINE_STATUS]: `The line is not in the required status`,
     [ELOTE_POOL_ERROR__OVERFLOW]: `Arithmetic overflow`,
     [ELOTE_POOL_ERROR__PAUSED]: `The pool is paused`,
+    [ELOTE_POOL_ERROR__SLIPPAGE_EXCEEDED]: `The result is below the minimum the caller accepts`,
     [ELOTE_POOL_ERROR__SPONSOR_REQUIRED]: `The sponsor named on this line must sign`,
+    [ELOTE_POOL_ERROR__TERM_ENDED]: `The term has ended`,
     [ELOTE_POOL_ERROR__TERM_NOT_ENDED]: `The term has not ended`,
     [ELOTE_POOL_ERROR__UNAUTHORIZED]: `Only the pool admin may do this`,
     [ELOTE_POOL_ERROR__WRONG_ACCOUNT]: `Wrong mint or token account`,

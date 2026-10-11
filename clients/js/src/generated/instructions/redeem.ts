@@ -106,15 +106,20 @@ export type RedeemInstruction<
 export type RedeemInstructionData = {
   discriminator: ReadonlyUint8Array;
   shares: bigint;
+  minAssetsOut: bigint;
 };
 
-export type RedeemInstructionDataArgs = { shares: number | bigint };
+export type RedeemInstructionDataArgs = {
+  shares: number | bigint;
+  minAssetsOut: number | bigint;
+};
 
 export function getRedeemInstructionDataEncoder(): FixedSizeEncoder<RedeemInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
       ["shares", getU64Encoder()],
+      ["minAssetsOut", getU64Encoder()],
     ]),
     (value) => ({ ...value, discriminator: REDEEM_DISCRIMINATOR }),
   );
@@ -124,6 +129,7 @@ export function getRedeemInstructionDataDecoder(): FixedSizeDecoder<RedeemInstru
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["shares", getU64Decoder()],
+    ["minAssetsOut", getU64Decoder()],
   ]);
 }
 
@@ -162,6 +168,7 @@ export type RedeemAsyncInput<
   eventAuthority?: TAccountEventAuthority;
   program?: TAccountProgram;
   shares: RedeemInstructionDataArgs["shares"];
+  minAssetsOut: RedeemInstructionDataArgs["minAssetsOut"];
 };
 
 export async function getRedeemInstructionAsync<
@@ -377,6 +384,7 @@ export type RedeemInput<
   eventAuthority: TAccountEventAuthority;
   program?: TAccountProgram;
   shares: RedeemInstructionDataArgs["shares"];
+  minAssetsOut: RedeemInstructionDataArgs["minAssetsOut"];
 };
 
 export function getRedeemInstruction<

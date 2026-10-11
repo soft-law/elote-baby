@@ -54,10 +54,12 @@ export type Pool = {
   version: number;
   admin: Address;
   assetMint: Address;
-  /** The pool PDA's associated token account for `asset_mint`. */
+  /** PDA token account `[VAULT, pool]` for `asset_mint`, owned by the pool PDA. */
   vault: Address;
   /** The share token mint; its mint authority is the pool PDA. */
   shareMint: Address;
+  /** PDA share token account `[DEAD, pool]`, owned by the pool PDA; never burned. */
+  deadShares: Address;
   /** Principal drawn and neither repaid nor written off. */
   outstandingPrincipal: bigint;
   /** Informative running total. */
@@ -74,10 +76,12 @@ export type PoolArgs = {
   version: number;
   admin: Address;
   assetMint: Address;
-  /** The pool PDA's associated token account for `asset_mint`. */
+  /** PDA token account `[VAULT, pool]` for `asset_mint`, owned by the pool PDA. */
   vault: Address;
   /** The share token mint; its mint authority is the pool PDA. */
   shareMint: Address;
+  /** PDA share token account `[DEAD, pool]`, owned by the pool PDA; never burned. */
+  deadShares: Address;
   /** Principal drawn and neither repaid nor written off. */
   outstandingPrincipal: number | bigint;
   /** Informative running total. */
@@ -100,6 +104,7 @@ export function getPoolEncoder(): FixedSizeEncoder<PoolArgs> {
       ["assetMint", getAddressEncoder()],
       ["vault", getAddressEncoder()],
       ["shareMint", getAddressEncoder()],
+      ["deadShares", getAddressEncoder()],
       ["outstandingPrincipal", getU64Encoder()],
       ["interestCollected", getU64Encoder()],
       ["writtenOff", getU64Encoder()],
@@ -121,6 +126,7 @@ export function getPoolDecoder(): FixedSizeDecoder<Pool> {
     ["assetMint", getAddressDecoder()],
     ["vault", getAddressDecoder()],
     ["shareMint", getAddressDecoder()],
+    ["deadShares", getAddressDecoder()],
     ["outstandingPrincipal", getU64Decoder()],
     ["interestCollected", getU64Decoder()],
     ["writtenOff", getU64Decoder()],
@@ -190,5 +196,5 @@ export async function fetchAllMaybePool(
 }
 
 export function getPoolSize(): number {
-  return 203;
+  return 235;
 }

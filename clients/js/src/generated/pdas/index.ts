@@ -6,6 +6,8 @@
  * @see https://github.com/codama-idl/codama
  */
 
+export * from "./deadShares";
 export * from "./line";
 export * from "./pool";
 export * from "./shareMint";
+export * from "./vault";

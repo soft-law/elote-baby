@@ -48,9 +48,11 @@ import {
   LineStatus,
   fetchCreditLine,
   fetchPool,
+  findDeadSharesPda,
   findLinePda,
   findPoolPda,
   findShareMintPda,
+  findVaultPda,
   getDepositInstructionAsync,
   getDrawInstructionAsync,
   getInitPoolInstructionAsync,
@@ -220,11 +222,14 @@ const [pool] = await findPoolPda({ admin: admin.address, assetMint: assetMint.ad
 const [shareMint] = await findShareMintPda({ pool });
 const ataOf = async (owner: Address, mint: Address) =>
   (await findAssociatedTokenPda({ owner, mint, tokenProgram: TOKEN_PROGRAM_ADDRESS }))[0];
-const vault = await ataOf(pool, assetMint.address);
+const [vault] = await findVaultPda({ pool });
+const [deadShares] = await findDeadSharesPda({ pool });
+// The first deposit locks this many shares in the pool's own share account (state::DEAD_SHARES).
+const DEAD_SHARES = 1_000n;
 
 console.log("\nCreating the pool");
 await send("init_pool", admin, [
-  await getInitPoolInstructionAsync({ admin, assetMint: assetMint.address, pool, shareMint, vault }),
+  await getInitPoolInstructionAsync({ admin, assetMint: assetMint.address, pool, shareMint, vault, deadShares }),
 ]);
 console.log(`  pool ${pool}\n  share token ${shareMint}\n  vault ${vault}`);
 
@@ -251,8 +256,10 @@ async function snapshot() {
   return { nav, supply, perShare, vault: v.data.amount, outstanding: p.data.outstandingPrincipal, interest: p.data.interestCollected };
 }
 
-/** Creates the depositor's share account if needed and deposits `assets`. */
+/** Creates the depositor's share account if needed and deposits `assets` with an exact floor. */
 async function deposit(label: string, who: KeyPairSigner, assets: bigint) {
+  const { nav, supply } = await snapshot();
+  const minSharesOut = supply === 0n ? assets - DEAD_SHARES : (assets * supply) / nav;
   await send(label, who, [
     await getCreateAssociatedTokenIdempotentInstructionAsync({ payer: who, owner: who.address, mint: shareMint }),
     await getDepositInstructionAsync({
@@ -262,7 +269,9 @@ async function deposit(label: string, who: KeyPairSigner, assets: bigint) {
       vault,
       depositorAssetAccount: await ataOf(who.address, assetMint.address),
       depositorShareAccount: await ataOf(who.address, shareMint),
+      deadShares,
       assets,
+      minSharesOut,
     }),
   ]);
 }
@@ -323,6 +332,7 @@ await send("investor A redeems 4,000 shares", investorA, [
     holderShareAccount: await ataOf(investorA.address, shareMint),
     holderAssetAccount: await ataOf(investorA.address, assetMint.address),
     shares: redeemShares,
+    minAssetsOut: (redeemShares * repaid.nav) / repaid.supply,
   }),
 ]);
 const after = await snapshot();
