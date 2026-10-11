@@ -29,6 +29,39 @@ const PRODUCT_WORDS = /licens|\bmint|\bnft|dividend|stablecoin|\bbacked\b|guaran
 /** The intellectual-property acronym, as copy (the HTTP header x-real-ip is not copy). */
 const IP_ACRONYM = /\bIP\b/
 
+/**
+ * Files whose code must name the token program's own identifiers (`mint:`,
+ * `mintAuthority`, `AuthorityType.MintTokens`, the faucet response key). Only
+ * their comments and string literals are held to the product vocabulary.
+ */
+const TOKEN_PROGRAM_FILES = ['src/faucet.ts', 'scripts/faucet-authority.ts']
+/** The one technical README sentence allowed to name the faucet response key. */
+const README_FAUCET_RESPONSE =
+  'The answer is `{ "signature": "<base58>", "amount": "1000000000", "mint": "<tMXN address>" }`: `amount` is in base units, as a string; `mint` is the token program\'s name for the test token address.'
+
+/**
+ * A regex literal in code: a slash right after `=`, `(`, `,`, `:`, `!`, `&`, `|`, `?`, `{`, `}`, `;`
+ * or `return`. The tokenizer below does not understand regex literals (a quote inside one would be
+ * read as the start of a string), so the token program files must not contain any.
+ */
+const REGEX_LITERAL = /(?:^|[=(,:!&|?{};]|\breturn)\s*\/(?![/*])(?:\\.|[^/\\\n])+\/[dgimsuy]*/
+const COMMENT_LINE = /^\s*(?:\*|\/\/|\/\*)/
+
+/** Keeps the comments and string literals of TypeScript source and blanks the code around them, keeping line numbers. */
+function proseOf(source: string): string {
+  const tokens = /\/\*[\s\S]*?\*\/|\/\/[^\n]*|'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|[^/'"`]+|[/'"`]/g
+  return source.replace(tokens, token => (/^(?:\/[/*]|['"`])/.test(token) ? token : token.replace(/[^\n]/g, ' ')))
+}
+
+function productHits(path: string): string[] {
+  const raw = readFileSync(join(ROOT, path), 'utf8')
+  const text = TOKEN_PROGRAM_FILES.includes(path) ? proseOf(raw) : raw
+  return text
+    .split('\n')
+    .map((line, index) => (PRODUCT_WORDS.test(line) && !(path === 'README.md' && line === README_FAUCET_RESPONSE) ? `${path}:${index + 1}: ${line.trim()}` : null))
+    .filter((hit): hit is string => hit !== null)
+}
+
 function hits(paths: string[], pattern: RegExp): string[] {
   return paths.flatMap(path =>
     readFileSync(join(ROOT, path), 'utf8')
@@ -52,7 +85,7 @@ describe('vocabulary', () => {
   })
 
   test('shipped source, scripts and README keep the product vocabulary', () => {
-    expect(hits(SHIPPED, PRODUCT_WORDS)).toEqual([])
+    expect(SHIPPED.flatMap(productHits)).toEqual([])
     expect(hits(SHIPPED, IP_ACRONYM)).toEqual([])
   })
 
@@ -64,5 +97,32 @@ describe('vocabulary', () => {
     expect(PRODUCT_WORDS.test('an NFT')).toBe(true)
     expect(PRODUCT_WORDS.test('licensee')).toBe(true)
     expect(IP_ACRONYM.test('an IP record')).toBe(true)
+  })
+
+  test('token program files contain no regex literal (the prose tokenizer cannot read them)', () => {
+    const literals = TOKEN_PROGRAM_FILES.flatMap(path =>
+      readFileSync(join(ROOT, path), 'utf8')
+        .split('\n')
+        .map((line, index) => (!COMMENT_LINE.test(line) && REGEX_LITERAL.test(line) ? `${path}:${index + 1}: ${line.trim()}` : null))
+        .filter((hit): hit is string => hit !== null),
+    )
+    expect(literals).toEqual([])
+    expect(REGEX_LITERAL.test("const p = x.replace(/^~/, 'home')")).toBe(true)
+    expect(REGEX_LITERAL.test("const quote = /'/")).toBe(true)
+    expect(REGEX_LITERAL.test("const url = 'https://api.devnet.solana.com'")).toBe(false)
+    expect(REGEX_LITERAL.test('const half = a / b / c')).toBe(false)
+    expect(COMMENT_LINE.test(' * POST /api/faucet { address }')).toBe(true)
+  })
+
+  test('token program files: identifiers pass, comments and strings are still scanned', () => {
+    expect(TOKEN_PROGRAM_FILES.every(path => SHIPPED.includes(path))).toBe(true)
+    const word = 'mi' + 'nt'
+    expect(PRODUCT_WORDS.test(proseOf(`call({ ${word}: x, ${word}Authority: y })`))).toBe(false)
+    expect(PRODUCT_WORDS.test(proseOf(`const a = 1 // the ${word}`))).toBe(true)
+    expect(PRODUCT_WORDS.test(proseOf(`/* the ${word} */ const a = 1`))).toBe(true)
+    expect(PRODUCT_WORDS.test(proseOf(`c.json({ error: '${word} failed' })`))).toBe(true)
+    expect(PRODUCT_WORDS.test(proseOf(`c.json({ error: "${word} failed" })`))).toBe(true)
+    expect(PRODUCT_WORDS.test(proseOf('log(`' + word + ' ${x}`)'))).toBe(true)
+    expect(proseOf('a\nb // c\nd').split('\n')).toHaveLength(3)
   })
 })

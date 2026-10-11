@@ -68,9 +68,56 @@ that role), `GET /api/agreements/<id>/evidence`. `GET /health` answers `{ ok: tr
 | `AGREEMENTS_DB` | `elote-agreements.db` | SQLite file for agreements, signatures, anchors and API key digests. |
 | `APP_BASE_URL` | `https://app.soft.law` | Where sign links point. |
 | `API_BASE_URL` | `http://localhost:$PORT` | Public URL of this server, used in evidence download links. Set it in every deployment. |
-| `CORS_ORIGINS` | origin of `APP_BASE_URL` | Comma-separated origins allowed to call `/api/*`. |
+| `CORS_ORIGINS` | origin of `APP_BASE_URL` | Comma-separated origins allowed to call `/api/*` (agreements and the faucet). |
+| `FAUCET_KEYPAIR` | unset | Faucet key, base64 of the 64-byte secret key. See [Faucet (devnet)](#faucet-devnet). |
+| `FAUCET_ASSET_MINT` | unset | Address of the fixed tMXN test token the faucet sends. |
+| `SOLANA_RPC_URL` | `https://api.devnet.solana.com` | Solana RPC the faucet sends through. |
 
 See `.env.example`.
+
+## Faucet (devnet)
+
+`POST /api/faucet` with `{ "address": "<base58 wallet>" }` sends 1,000 tMXN (devnet test token, no
+value) to that wallet: one transaction, signed by the faucet key, creates the wallet's associated
+token account if it does not exist and issues 1,000 test tokens (6 decimals) into it.
+The answer is `{ "signature": "<base58>", "amount": "1000000000", "mint": "<tMXN address>" }`: `amount` is in base units, as a string; `mint` is the token program's name for the test token address.
+
+| Status | When |
+|---|---|
+| 200 | Sent and confirmed. |
+| 400 | The body is not JSON or `address` is not a Solana wallet address. |
+| 429 | This wallet already asked in the last 24 hours (`retryAfterSeconds` and `Retry-After` say when to come back), or the client address sent more than 5 requests in a minute. |
+| 502 | The RPC failed or the transaction did not confirm; the wallet may try again. |
+| 503 | The faucet is not configured (`FAUCET_KEYPAIR` or `FAUCET_ASSET_MINT` missing or malformed). |
+
+Limits are devnet-grade, and the faucet is for devnet only: one request per wallet per 24 hours,
+kept in memory (a restart forgets them; several server instances do not share them), plus 5
+requests per minute per client address. The client address is read from `x-forwarded-for` (else
+`x-real-ip`), which a caller can set freely: the per-client limit is only meaningful behind a proxy
+that overwrites that header. CORS preflights do not count against it.
+Errors never carry the key or a stack trace, and the key is never logged.
+
+Setup, once, by the owner:
+
+1. Create a dedicated faucet key (never the pool admin key) and fund it with devnet SOL: it pays
+   the fee and the account rent (about 0.002 SOL for each wallet seen for the first time).
+2. Move the issuing authority of the published tMXN test token to the faucet key. The current
+   authority (the key that created the test token) signs:
+
+   ```sh
+   bun run scripts/faucet-authority.ts --asset <tMXN address> \
+     --new-authority <faucet public key> --authority-keypair <current authority JSON keypair>
+   ```
+
+3. Set `FAUCET_KEYPAIR`, `FAUCET_ASSET_MINT` and, if needed, `SOLANA_RPC_URL` in the server's
+   environment. `FAUCET_KEYPAIR` is the base64 of the 64 raw bytes, not of the JSON text; from a
+   Solana JSON keypair file, without printing it to a shared terminal:
+
+   ```sh
+   bun -e 'process.stdout.write(Buffer.from(JSON.parse(await Bun.file(process.argv[1]).text())).toString("base64"))' faucet.json
+   ```
+4. `CORS_ORIGINS` must include the origin of the pool app (for example `https://elote.baby` and
+   `http://localhost:4322` for the preview), or browsers block the request.
 
 ## Run locally
 
