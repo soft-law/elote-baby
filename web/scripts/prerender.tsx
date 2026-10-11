@@ -23,6 +23,10 @@ let out = html.replace(marker, `<div id="root">${body}</div>`);
 const entry = out.match(/<script type="module" crossorigin src="([^"]+)"><\/script>/);
 if (!entry) throw new Error("dist/index.html has no module entry script");
 out = out.replace(entry[0], "");
+// With two entries (index.html and app.html) Vite moves React into a shared chunk and preloads it.
+// Drop the preload so no script downloads before the load event, as with a single entry; the
+// deferred entry still imports the chunk.
+out = out.replace(/\s*<link rel="modulepreload"[^>]*>/g, "");
 const loader =
   `<script>addEventListener("load",function(){var s=document.createElement("script");` +
   `s.type="module";s.src=${JSON.stringify(entry[1])};document.head.appendChild(s)})</script>`;

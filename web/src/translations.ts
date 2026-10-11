@@ -87,6 +87,20 @@ export type Copy = {
     terms: string;
     privacy: string;
   };
+  app: {
+    meta: { title: string };
+    nav: { label: string; home: string; pool: string; invest: string; borrow: string; backToSite: string };
+    header: { network: string; connect: string; connectSoon: string };
+    home: { title: string; sub: string; invest: Card; borrow: Card; poolLink: string; connectPrompt: string };
+    pool: { title: string; sub: string };
+    invest: { title: string; sub: string };
+    borrow: { title: string; sub: string };
+    placeholder: string;
+    notFound: { title: string; body: string; home: string };
+    error: { title: string; body: string; retry: string };
+    config: { title: string; body: string; back: string };
+    configDev: { body: string; missing: string; invalid: string };
+  };
 };
 
 export const translations: Record<Lang, Copy> = {
@@ -186,6 +200,38 @@ export const translations: Record<Lang, Copy> = {
       terms: "Terms",
       privacy: "Privacy",
     },
+    app: {
+      meta: { title: `App | ${BRAND}` },
+      nav: { label: "App", home: "Start", pool: "Pool", invest: "Invest", borrow: "Borrow", backToSite: `Back to ${BRAND}` },
+      header: { network: "Devnet", connect: "Connect wallet", connectSoon: "Wallet connection is coming soon" },
+      home: {
+        title: "What would you like to do?",
+        sub: "Choose a role. You can switch at any time.",
+        invest: { title: "I invest", body: "Deposit tMXN, a test token, and receive pool shares." },
+        borrow: { title: "I borrow", body: "Draw and repay a credit line opened for your wallet." },
+        poolLink: "See the pool",
+        connectPrompt: "Connect a wallet to start.",
+      },
+      pool: { title: "The pool", sub: "Value per share, liquidity and every credit line, read from Solana." },
+      invest: {
+        title: "Invest",
+        sub: "Deposit tMXN test tokens for shares, or redeem shares when the pool has enough on hand.",
+      },
+      borrow: { title: "Borrow", sub: "Draw your approved line and repay it from your wallet." },
+      placeholder: "This section is under construction.",
+      notFound: { title: "Page not found", body: "This address does not match any page of the app.", home: "Go to the start" },
+      error: { title: "Something went wrong", body: "This page could not load. Try again.", retry: "Try again" },
+      config: {
+        title: "The app is not available right now",
+        body: "Please try again later.",
+        back: `Back to ${BRAND}`,
+      },
+      configDev: {
+        body: "These settings are missing or invalid. Set them in the environment and build again.",
+        missing: "missing",
+        invalid: "invalid",
+      },
+    },
   },
   es: {
     meta: { lang: "es", skip: "Ir al contenido" },
@@ -282,6 +328,38 @@ export const translations: Record<Lang, Copy> = {
       legal: "Legal",
       terms: "Términos",
       privacy: "Privacidad",
+    },
+    app: {
+      meta: { title: `App | ${BRAND}` },
+      nav: { label: "App", home: "Inicio", pool: "Pool", invest: "Invertir", borrow: "Pedir crédito", backToSite: `Volver a ${BRAND}` },
+      header: { network: "Devnet", connect: "Conectar wallet", connectSoon: "La conexión de wallet llega pronto" },
+      home: {
+        title: "¿Qué quieres hacer?",
+        sub: "Elige un rol. Puedes cambiarlo cuando quieras.",
+        invest: { title: "Quiero invertir", body: "Deposita tMXN, un token de prueba, y recibe participaciones del pool." },
+        borrow: { title: "Quiero pedir crédito", body: "Retira el crédito de una línea abierta para tu wallet y págalo." },
+        poolLink: "Ver el pool",
+        connectPrompt: "Conecta una wallet para empezar.",
+      },
+      pool: { title: "El pool", sub: "Valor por participación, liquidez y cada línea de crédito, leídos de Solana." },
+      invest: {
+        title: "Invertir",
+        sub: "Deposita tokens de prueba tMXN a cambio de participaciones, o canjéalas cuando el pool tenga liquidez.",
+      },
+      borrow: { title: "Pedir crédito", sub: "Retira el crédito de tu línea aprobada y págalo desde tu wallet." },
+      placeholder: "Esta sección está en construcción.",
+      notFound: { title: "Página no encontrada", body: "Esta dirección no corresponde a ninguna página de la app.", home: "Ir al inicio" },
+      error: { title: "Algo salió mal", body: "No se pudo cargar esta página. Inténtalo de nuevo.", retry: "Reintentar" },
+      config: {
+        title: "La app no está disponible por ahora",
+        body: "Inténtalo más tarde.",
+        back: `Volver a ${BRAND}`,
+      },
+      configDev: {
+        body: "Faltan estos ajustes o no son válidos. Defínelos en el entorno y vuelve a compilar.",
+        missing: "falta",
+        invalid: "no válido",
+      },
     },
   },
 };

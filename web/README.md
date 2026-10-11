@@ -24,6 +24,16 @@ The smoke test (`scripts/smoke.mjs`) runs under Node, starts nothing by itself a
 `bun run preview` to be running. It loads `playwright` from the `web/` dependencies if present,
 otherwise from the path in `PLAYWRIGHT_FROM` (a directory whose `node_modules` holds Playwright).
 
+## The pool app (`/app`)
+
+A second Vite entry, `app.html` -> `src/app/main.tsx`, rendered in the browser only (never
+prerendered). `/app` and `/app/*` answer with `app.html`: `vite.config.ts` rewrites them in the
+dev and preview servers, `vercel.json` in production. Routes live in `src/app/routes.tsx`
+(React Router, basename `/app`). Copy `.env.example` to `.env.local` and fill in the `VITE_*`
+values; with a missing or invalid value the app shows a configuration screen instead of loading.
+The landing (`src/App.tsx`, `src/main.tsx`, `scripts/prerender.tsx`) never imports `src/app`,
+`src/pool`, `src/wallet` or `src/tx`; `tests/isolation.test.ts` enforces it.
+
 ## Copy
 
 Every visible string is in `src/translations.ts`, with identical keys for `en` and `es`.

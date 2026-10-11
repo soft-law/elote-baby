@@ -13,9 +13,12 @@
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
+    "@elote/pool-client": "file:../clients/js",
     "@react-three/fiber": "9.8.1",
+    "@solana/kit": "^8.3.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "react-router": "^7.18.4",
     "three": "0.186.1"
   },
   "devDependencies": {

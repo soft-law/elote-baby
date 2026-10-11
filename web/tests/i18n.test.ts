@@ -113,4 +113,37 @@ describe("translations", () => {
     expect(translations.es.pool.cardLabel).toBe("Ejemplo");
     expect(translations.en.pool.caption).toBe("Interest is fixed when the line opens and counts only when repaid.");
   });
+  test("the app subtree exists in both languages", () => {
+    for (const lang of ["en", "es"] as const) {
+      expect(keyPaths(translations[lang].app as unknown as Tree).length).toBeGreaterThan(20);
+    }
+  });
+
+  test("app copy names devnet only in the header badge", () => {
+    for (const lang of ["en", "es"] as const) {
+      const hits = strings(translations[lang].app as unknown as Tree, "app")
+        .filter(([, v]) => /devnet/i.test(v))
+        .map(([path]) => path);
+      expect(hits).toEqual(["app.header.network"]);
+    }
+  });
+
+  test("app copy always calls tMXN a test token", () => {
+    const hint = { en: /test tokens?/i, es: /tokens? de prueba/i } as const;
+    for (const lang of ["en", "es"] as const) {
+      const hits = strings(translations[lang].app as unknown as Tree, "app")
+        .filter(([, v]) => /tMXN/.test(v) && !hint[lang].test(v))
+        .map(([path]) => path);
+      expect(hits).toEqual([]);
+    }
+  });
+
+  test("app copy never says mint, in either language", () => {
+    for (const lang of ["en", "es"] as const) {
+      const hits = strings(translations[lang].app as unknown as Tree, "app")
+        .filter(([, v]) => /mint|acu[nñ]a/i.test(v))
+        .map(([path]) => path);
+      expect(hits).toEqual([]);
+    }
+  });
 });

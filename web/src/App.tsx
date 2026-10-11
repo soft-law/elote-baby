@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { APP_URL, BRAND, PRIVACY_URL, TERMS_URL } from "./config";
+import { APP_URL } from "./config";
+import { LangToggle, Logo, SiteFooter } from "./chrome";
 import { META } from "./meta";
 import { CornMark } from "./CornMark";
 import { translations, type Card, type Copy, type Lang } from "./translations";
@@ -18,8 +19,6 @@ import {
   IconUpload,
   MinusDot,
 } from "./icons";
-
-const LANGS: Lang[] = ["en", "es"];
 
 function queryLang(): Lang | null {
   const fromQuery = new URLSearchParams(window.location.search).get("lang");
@@ -66,46 +65,12 @@ export function App() {
         <TwoLines t={t} />
         <WhereWeAre t={t} />
       </main>
-      <Footer t={t} />
+      <SiteFooter t={t} />
     </div>
   );
 }
 
-function Logo({ height, alt }: { height: number; alt: string }) {
-  // The logo is only ever shown on night (#131313). 1208x300 source ratio.
-  const width = Math.round((height * 1208) / 300);
-  return (
-    <picture>
-      <source srcSet="/logo.webp" type="image/webp" />
-      <img src="/logo.png" alt={alt} width={width} height={height} className="block h-auto" style={{ width, maxWidth: "100%" }} />
-    </picture>
-  );
-}
 
-function LangToggle({ t, lang, setLang }: { t: Copy; lang: Lang; setLang: (l: Lang) => void }) {
-  return (
-    <div role="group" aria-label={t.nav.language} className="inline-flex rounded-full border-[1.5px] border-night-line p-[2px]">
-      {LANGS.map((l) => {
-        const active = l === lang;
-        return (
-          <button
-            key={l}
-            type="button"
-            lang={l}
-            aria-pressed={active}
-            onClick={() => setLang(l)}
-            className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full font-display text-[14px] font-semibold ${
-              active ? "bg-white text-night" : "text-[#DDE6E6] hover:bg-white/10"
-            }`}
-          >
-            {l.toUpperCase()}
-            <span className="sr-only"> {translations[l].nav.languageName}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 function Header({ t, lang, setLang }: { t: Copy; lang: Lang; setLang: (l: Lang) => void }) {
   const [open, setOpen] = useState(false);
@@ -178,6 +143,11 @@ function Header({ t, lang, setLang }: { t: Copy; lang: Lang; setLang: (l: Lang) 
   );
 }
 
+// App links keep the chosen language (the app reads the same ?lang convention).
+function appHref(path: string, lang: string): string {
+  return `${APP_URL}${path}${lang === "es" ? "?lang=es" : ""}`;
+}
+
 function Hero({ t }: { t: Copy }) {
   return (
     <section
@@ -197,11 +167,11 @@ function Hero({ t }: { t: Copy }) {
         <div className="mt-6 flex flex-col gap-8 md:mt-8 md:gap-10">
           <p className="m-0 max-w-[36ch] text-[20px] leading-[1.5] text-fog md:text-[24px]">{t.hero.sub}</p>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <a href="#pool" className="btn btn-neon sm:min-w-[180px]">
+            <a href={appHref("/invest", t.meta.lang)} className="btn btn-neon sm:min-w-[180px]">
               {t.hero.invest}
               <IconArrowRight size={20} />
             </a>
-            <a href={APP_URL} className="btn btn-ghost sm:min-w-[180px]">
+            <a href={appHref("/borrow", t.meta.lang)} className="btn btn-ghost sm:min-w-[180px]">
               {t.hero.borrow}
             </a>
           </div>
@@ -532,27 +502,3 @@ function WhereWeAre({ t }: { t: Copy }) {
   );
 }
 
-function Footer({ t }: { t: Copy }) {
-  const f = t.footer;
-  return (
-    <footer className="on-night bg-night text-white">
-      <div className="mx-auto flex max-w-[1200px] flex-col flex-wrap justify-between gap-8 px-4 py-10 md:flex-row md:px-8 md:py-12">
-        <div className="flex flex-col gap-3">
-          <Logo height={40} alt={BRAND} />
-          <p className="m-0 text-[16px] leading-[1.6] text-fog">{f.powered}</p>
-        </div>
-        <div className="flex flex-col items-start gap-1 md:items-end">
-          <nav aria-label={f.legal} className="-mx-2.5 flex gap-2">
-            <a href={TERMS_URL} className="inline-flex min-h-[44px] items-center px-2.5 text-[16px] font-bold text-neon">
-              {f.terms}
-            </a>
-            <a href={PRIVACY_URL} className="inline-flex min-h-[44px] items-center px-2.5 text-[16px] font-bold text-neon">
-              {f.privacy}
-            </a>
-          </nav>
-          <p className="m-0 text-[15px] leading-[1.5] text-fog">{f.disclaimer}</p>
-        </div>
-      </div>
-    </footer>
-  );
-}
