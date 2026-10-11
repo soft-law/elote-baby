@@ -15,6 +15,10 @@ export function fieldErrorText(error: FieldError, t: Copy, lang: Lang): string {
       return t.app.tx.errors.program.zeroShares;
     case "aboveLiquidity":
       return fillText(e.aboveLiquidity, { max: formatAmount(error.max, lang, DECIMALS) });
+    case "aboveDue":
+      return fillText(t.app.borrow.errors.aboveDue, { max: formatAmount(error.max, lang, DECIMALS) });
+    case "belowLateInterest":
+      return fillText(t.app.borrow.errors.belowLateInterest, { min: formatAmount(error.min, lang, DECIMALS) });
     default:
       return e[error.code];
   }

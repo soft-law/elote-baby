@@ -2,6 +2,8 @@
 // form shows is the floor it passes to useTx().run, because both come from one call here.
 //   deposit  amount > 0, at most 6 decimals, first deposit >= 1 tMXN (the program's
 //            FirstDepositTooSmall), <= balance, and enough to receive at least one share
+//   repay    amount > 0, at most 6 decimals, <= balance, <= what the line still owes (plus late
+//            interest on a scheduled line), and on a scheduled line >= the late interest due
 //   redeem   shares > 0, at most 6 decimals, <= shares held, <= the liquidity cap
 //            floor(vault * supply / nav), and enough to receive at least one base unit
 // Both refuse an amount whose floor (minSharesOut / minAssetsOut) would round down to 0, so a
@@ -28,7 +30,11 @@ export type FieldError =
   | { code: "aboveLiquidity"; max: bigint }
   | { code: "tooSmall" }
   /** The floor sent with the transaction would be 0: too small to be worth sending. */
-  | { code: "dust" };
+  | { code: "dust" }
+  /** More than the line still owes (repay). */
+  | { code: "aboveDue"; max: bigint }
+  /** Less than the late interest a scheduled line must settle first (repay). */
+  | { code: "belowLateInterest"; min: bigint };
 
 /** A checked amount: what is sent (`units`), what is expected back, and the floor sent with it. */
 export type Checked = { ok: true; units: bigint; expected: bigint; min: bigint } | { ok: false; error: FieldError };
@@ -75,4 +81,21 @@ export function checkRedeem(input: string, pool: PoolFigures, shares: bigint): C
   const min = withTolerance(expected);
   if (min === 0n) return { ok: false, error: { code: "dust" } };
   return { ok: true, units: amount, expected, min };
+}
+
+/** Repayment limits of one line: at least `minimum` (late interest on a scheduled line), at most `owed`. */
+export type RepayLimits = { owed: bigint; minimum: bigint };
+
+/**
+ * Repayment of `input` test tokens. Partial repayments are allowed; there is no slippage floor, so
+ * `expected` and `min` are the amount itself.
+ */
+export function checkRepay(input: string, limits: RepayLimits, balance: bigint): Checked {
+  const parsed = parse(input);
+  if (!parsed.ok) return parsed;
+  const amount = parsed.units;
+  if (amount > limits.owed) return { ok: false, error: { code: "aboveDue", max: limits.owed } };
+  if (amount > balance) return { ok: false, error: { code: "aboveBalance" } };
+  if (amount < limits.minimum) return { ok: false, error: { code: "belowLateInterest", min: limits.minimum } };
+  return { ok: true, units: amount, expected: amount, min: amount };
 }

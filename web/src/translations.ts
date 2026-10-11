@@ -231,7 +231,101 @@ export type Copy = {
       cancelled: string;
       retry: string;
     };
-    borrow: { title: string; sub: string };
+    borrow: {
+      title: string;
+      sub: string;
+      connectTitle: string;
+      connectBody: string;
+      loading: string;
+      linesFailed: string;
+      linesStale: string;
+      poolFailed: string;
+      balancesFailed: string;
+      retry: string;
+      paused: string;
+      unitNote: string;
+      yourLines: string;
+      yourLinesSub: string;
+      sponsored: string;
+      sponsoredSub: string;
+      empty: { title: string; body: string };
+      line: string;
+      linesLabel: string;
+      fields: {
+        principal: string;
+        rate: string;
+        interest: string;
+        drawn: string;
+        repaid: string;
+        remaining: string;
+        termEnd: string;
+        drawnAt: string;
+        sponsor: string;
+        borrower: string;
+      };
+      unknownBody: string;
+      repaidNote: string;
+      writtenOffNote: string;
+      agreement: {
+        title: string;
+        hash: string;
+        copy: string;
+        copied: string;
+        template: string;
+        status: string;
+        signatures: string;
+        signaturesValue: string;
+        created: string;
+        evidence: string;
+        statuses: { draft: string; pendingSignatures: string; signed: string; anchored: string };
+      };
+      draw: {
+        title: string;
+        body: string;
+        submit: string;
+        pausedNote: string;
+        liquidityNote: string;
+        termEndedNote: string;
+        scheduleNote: string;
+      };
+      repay: {
+        title: string;
+        sub: string;
+        label: string;
+        available: string;
+        max: string;
+        maxLabel: string;
+        dueNow: string;
+        estimate: string;
+        preview: string;
+        previewSettles: string;
+        previewEmpty: string;
+        orderV1: string;
+        orderV2: string;
+        submit: string;
+      };
+      schedule: {
+        title: string;
+        every: string;
+        caption: string;
+        number: string;
+        due: string;
+        amount: string;
+        state: string;
+        afterDraw: string;
+        states: { paid: string; partial: string; overdue: string; pending: string };
+      };
+      late: {
+        title: string;
+        rate: string;
+        collected: string;
+        dueNow: string;
+        grace: string;
+        noGrace: string;
+      };
+      inCollection: string;
+      errors: { aboveDue: string; belowLateInterest: string };
+    };
     placeholder: string;
     newTab: string;
     notFound: { title: string; body: string; home: string };
@@ -573,7 +667,107 @@ export const translations: Record<Lang, Copy> = {
         cancelled: "{op} cancelled",
         retry: "Try again",
       },
-      borrow: { title: "Borrow", sub: "Draw your approved line and repay it from your wallet." },
+      borrow: {
+        title: "Borrow",
+        sub: "Draw your approved line and repay it from your wallet.",
+        connectTitle: "Connect a wallet to see your lines",
+        connectBody: "Your credit lines are read for the wallet you connect. Nothing is sent until you sign.",
+        loading: "Loading your lines",
+        linesFailed: "Your credit lines could not be read from Solana. Try again.",
+        linesStale: "Your lines could not be refreshed. They show the last values read.",
+        poolFailed: "The pool could not be read from Solana, so draws and repayments are on hold. Try again.",
+        balancesFailed: "Your test token balance could not be read, so repayments are on hold. Try again.",
+        retry: "Try again",
+        paused: "The pool is paused. Draws are on hold until it resumes. Repayments still go through.",
+        unitNote: "Amounts in tMXN, a test token.",
+        yourLines: "Your lines",
+        yourLinesSub: "Credit lines opened for this wallet.",
+        sponsored: "Lines you sponsor",
+        sponsoredSub: "This wallet is named as sponsor. Anyone can repay a line, so you use the same form.",
+        empty: {
+          title: "No lines for this wallet.",
+          body: "Lines are opened by the pool administrator after the agreement is signed.",
+        },
+        line: "Line {id}",
+        linesLabel: "Credit lines",
+        fields: {
+          principal: "Principal",
+          rate: "Interest rate",
+          interest: "Fixed interest",
+          drawn: "Drawn",
+          repaid: "Repaid",
+          remaining: "Still owed",
+          termEnd: "Due date",
+          drawnAt: "Drawn on",
+          sponsor: "Sponsor",
+          borrower: "Borrower",
+        },
+        unknownBody: "This line uses a format this app cannot read yet, so no figures or actions are shown.",
+        repaidNote: "This line is fully repaid.",
+        writtenOffNote: "The pool wrote off the unpaid principal of this line.",
+        agreement: {
+          title: "Agreement",
+          hash: "Agreement hash",
+          copy: "Copy hash",
+          copied: "Hash copied",
+          template: "Template",
+          status: "Agreement status",
+          signatures: "Signatures",
+          signaturesValue: "{count} of {total}",
+          created: "Drafted on",
+          evidence: "Evidence",
+          statuses: { draft: "Draft", pendingSignatures: "Waiting for signatures", signed: "Signed", anchored: "Recorded on Solana" },
+        },
+        draw: {
+          title: "Draw",
+          body: "Moves the whole principal of {amount} tMXN test tokens to this wallet. Your wallet asks you to sign.",
+          submit: "Draw",
+          pausedNote: "Draws are on hold while the pool is paused.",
+          liquidityNote: "The pool does not have enough liquidity on hand for this draw right now.",
+          termEndedNote: "The term of this line has ended, so it can no longer be drawn.",
+          scheduleNote: "Drawn now, the last installment would fall due after the end of the term, so this line cannot be drawn.",
+        },
+        repay: {
+          title: "Repay",
+          sub: "Partial repayments are allowed.",
+          label: "Amount to repay",
+          available: "Available: {amount} tMXN test tokens",
+          max: "Max",
+          maxLabel: "Use the most this line takes now, up to your balance",
+          dueNow: "Due now: {amount} tMXN test tokens",
+          estimate: "Late interest is an estimate at this moment; the exact amount is settled on chain when the repayment lands.",
+          preview: "You repay {amount} tMXN test tokens.",
+          previewSettles: "You repay {amount} tMXN test tokens, which settles this line.",
+          previewEmpty: "Enter an amount to repay.",
+          orderV1: "Repayments go to principal first, then to interest.",
+          orderV2: "Repayments settle late interest first, then interest, then principal. The pool takes only what is due.",
+          submit: "Repay",
+        },
+        schedule: {
+          title: "Installments",
+          every: "{count} installments, one every {interval}.",
+          caption: "Installments of this line",
+          number: "Installment",
+          due: "Due",
+          amount: "Amount",
+          state: "Status",
+          afterDraw: "Due dates count from the draw.",
+          states: { paid: "Paid", partial: "Partly paid", overdue: "Overdue", pending: "Upcoming" },
+        },
+        late: {
+          title: "Late interest",
+          rate: "Late interest rate, yearly",
+          collected: "Late interest paid",
+          dueNow: "Late interest due now",
+          grace: "Late interest accrues on overdue installments after a grace period of {grace}.",
+          noGrace: "Late interest accrues on overdue installments from their due date.",
+        },
+        inCollection: "This line is in collection because installments were missed past the grace period. Repayments still go through.",
+        errors: {
+          aboveDue: "This line takes at most {max} tMXN test tokens right now.",
+          belowLateInterest: "Pay at least {min} tMXN test tokens: the late interest due on this line comes first.",
+        },
+      },
       placeholder: "This section is under construction.",
       newTab: "opens in a new tab",
       notFound: { title: "Page not found", body: "This address does not match any page of the app.", home: "Go to the start" },
@@ -930,7 +1124,107 @@ export const translations: Record<Lang, Copy> = {
         cancelled: "{op}: cancelaste la solicitud",
         retry: "Intentar de nuevo",
       },
-      borrow: { title: "Pedir crédito", sub: "Retira el crédito de tu línea aprobada y págalo desde tu wallet." },
+      borrow: {
+        title: "Pedir crédito",
+        sub: "Retira el crédito de tu línea aprobada y págalo desde tu wallet.",
+        connectTitle: "Conecta una wallet para ver tus líneas",
+        connectBody: "Tus líneas de crédito se leen de la wallet que conectes. No se envía nada hasta que firmes.",
+        loading: "Cargando tus líneas",
+        linesFailed: "No se pudieron leer tus líneas de crédito en Solana. Inténtalo de nuevo.",
+        linesStale: "No se pudieron actualizar tus líneas. Muestran los últimos valores leídos.",
+        poolFailed: "No se pudo leer el pool en Solana, así que las disposiciones y los pagos están detenidos. Inténtalo de nuevo.",
+        balancesFailed: "No se pudo leer tu saldo de tokens de prueba, así que los pagos están detenidos. Inténtalo de nuevo.",
+        retry: "Intentar de nuevo",
+        paused: "El pool está en pausa. Las disposiciones están detenidas hasta que se reanude. Los pagos siguen entrando.",
+        unitNote: "Montos en tMXN, un token de prueba.",
+        yourLines: "Tus líneas",
+        yourLinesSub: "Líneas de crédito abiertas para esta wallet.",
+        sponsored: "Líneas que patrocinas",
+        sponsoredSub: "Esta wallet figura como patrocinadora. Cualquiera puede pagar una línea, así que usas el mismo formulario.",
+        empty: {
+          title: "No hay líneas para esta wallet.",
+          body: "El administrador del pool abre las líneas cuando el contrato está firmado.",
+        },
+        line: "Línea {id}",
+        linesLabel: "Líneas de crédito",
+        fields: {
+          principal: "Principal",
+          rate: "Tasa de interés",
+          interest: "Interés fijo",
+          drawn: "Dispuesto",
+          repaid: "Pagado",
+          remaining: "Saldo pendiente",
+          termEnd: "Vencimiento",
+          drawnAt: "Dispuesta el",
+          sponsor: "Patrocinador",
+          borrower: "Acreditado",
+        },
+        unknownBody: "Esta línea usa un formato que la app aún no puede leer, así que no se muestran cifras ni acciones.",
+        repaidNote: "Esta línea está pagada por completo.",
+        writtenOffNote: "El pool castigó el principal no pagado de esta línea.",
+        agreement: {
+          title: "Contrato",
+          hash: "Hash del contrato",
+          copy: "Copiar hash",
+          copied: "Hash copiado",
+          template: "Plantilla",
+          status: "Estado del contrato",
+          signatures: "Firmas",
+          signaturesValue: "{count} de {total}",
+          created: "Redactado el",
+          evidence: "Evidencia",
+          statuses: { draft: "Borrador", pendingSignatures: "Esperando firmas", signed: "Firmado", anchored: "Registrado en Solana" },
+        },
+        draw: {
+          title: "Disponer",
+          body: "Transfiere todo el principal de {amount} tokens de prueba tMXN a esta wallet. Tu wallet te pide firmar.",
+          submit: "Disponer",
+          pausedNote: "Las disposiciones están detenidas mientras el pool está en pausa.",
+          liquidityNote: "El pool no tiene liquidez suficiente para esta disposición en este momento.",
+          termEndedNote: "El plazo de esta línea terminó, así que ya no se puede disponer.",
+          scheduleNote: "Si se dispone ahora, el último pago vencería después del fin del plazo, así que esta línea no se puede disponer.",
+        },
+        repay: {
+          title: "Pagar",
+          sub: "Se permiten pagos parciales.",
+          label: "Monto a pagar",
+          available: "Disponible: {amount} tokens de prueba tMXN",
+          max: "Máx.",
+          maxLabel: "Usar lo máximo que esta línea recibe ahora, hasta tu saldo",
+          dueNow: "Exigible ahora: {amount} tokens de prueba tMXN",
+          estimate: "El interés moratorio es una estimación a este momento; el monto exacto se liquida en cadena cuando entra el pago.",
+          preview: "Pagas {amount} tokens de prueba tMXN.",
+          previewSettles: "Pagas {amount} tokens de prueba tMXN, con lo que se liquida esta línea.",
+          previewEmpty: "Escribe un monto a pagar.",
+          orderV1: "Los pagos se aplican primero al principal y después al interés.",
+          orderV2: "Los pagos cubren primero el interés moratorio, después el interés y al final el principal. El pool toma solo lo exigible.",
+          submit: "Pagar",
+        },
+        schedule: {
+          title: "Calendario de pagos",
+          every: "{count} pagos, uno cada {interval}.",
+          caption: "Pagos de esta línea",
+          number: "Pago",
+          due: "Vence",
+          amount: "Monto",
+          state: "Estado",
+          afterDraw: "Las fechas de pago cuentan desde la disposición.",
+          states: { paid: "Pagado", partial: "Pagado en parte", overdue: "Vencido", pending: "Por vencer" },
+        },
+        late: {
+          title: "Interés moratorio",
+          rate: "Tasa moratoria anual",
+          collected: "Interés moratorio pagado",
+          dueNow: "Interés moratorio exigible ahora",
+          grace: "El interés moratorio corre sobre los pagos vencidos después de un periodo de gracia de {grace}.",
+          noGrace: "El interés moratorio corre sobre los pagos vencidos desde su fecha de vencimiento.",
+        },
+        inCollection: "Esta línea está en cobranza porque se dejaron de hacer pagos después del periodo de gracia. Los pagos siguen entrando.",
+        errors: {
+          aboveDue: "Esta línea recibe como máximo {max} tokens de prueba tMXN en este momento.",
+          belowLateInterest: "Paga al menos {min} tokens de prueba tMXN: primero se cubre el interés moratorio de esta línea.",
+        },
+      },
       placeholder: "Esta sección está en construcción.",
       newTab: "se abre en una pestaña nueva",
       notFound: { title: "Página no encontrada", body: "Esta dirección no corresponde a ninguna página de la app.", home: "Ir al inicio" },

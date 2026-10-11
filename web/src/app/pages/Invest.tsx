@@ -2,6 +2,7 @@
 // and test SOL buttons), then the deposit and redeem forms. Without a wallet it shows the connect
 // prompt in place, reusing the header's ConnectButton.
 import type { ReactNode } from "react";
+import { ASSET_SYMBOL } from "../../pool/format";
 import { DECIMALS, UNIT } from "../../pool/math";
 import type { Copy, Lang } from "../../translations";
 import { useTx } from "../../tx/useTx";
@@ -16,7 +17,7 @@ import { SectionHead } from "../components/SectionHead";
 import { SkeletonGrid } from "../components/SkeletonCard";
 import { StatCard } from "../components/StatCard";
 import { dataState } from "../dataState";
-import { ASSET_SYMBOL, DepositForm } from "../forms/DepositForm";
+import { DepositForm } from "../forms/DepositForm";
 import { RedeemForm } from "../forms/RedeemForm";
 import { useLang } from "../lang";
 import { usePoolQuery, type PoolView } from "../queries";

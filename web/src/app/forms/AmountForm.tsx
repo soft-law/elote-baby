@@ -41,12 +41,15 @@ export type AmountFormProps = {
   submitText: string;
   toOp: (checked: Extract<Checked, { ok: true }>) => PoolOp;
   tx: UseTx;
+  /** Level of the form title; h2 when the form sits under the page heading (default). */
+  headingLevel?: "h2" | "h3" | "h4";
 };
 
 const BUSY_STEPS = new Set<UseTx["step"]>(["simulating", "signing", "sending", "confirming"]);
 
 export function AmountForm(props: AmountFormProps) {
   const { name, t, tx, check } = props;
+  const Heading = props.headingLevel ?? "h2";
   const queryClient = useQueryClient();
   const uid = useId();
   const inputId = `${name}-amount-${uid}`;
@@ -115,9 +118,9 @@ export function AmountForm(props: AmountFormProps) {
     <section aria-labelledby={titleId} className="flex h-full flex-col rounded-[24px] border-[1.5px] border-line bg-white shadow-[var(--shadow-soft)]">
       <form noValidate onSubmit={(e) => void onSubmit(e)} data-testid={`${name}-form`} className="flex h-full flex-col gap-4 p-5 md:p-7">
         <div className="flex flex-col gap-1.5">
-          <h2 id={titleId} className="m-0 text-[24px] font-bold leading-tight md:text-[28px]">
+          <Heading id={titleId} className="m-0 text-[24px] font-bold leading-tight md:text-[28px]">
             {props.title}
-          </h2>
+          </Heading>
           <p className="m-0 text-[17px] leading-[1.55] text-ink-soft">{props.sub}</p>
         </div>
 

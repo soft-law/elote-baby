@@ -3,6 +3,9 @@
 import type { Lang } from "../translations";
 import { DECIMALS, UNIT } from "./math";
 
+/** Symbol of the pool's test token. */
+export const ASSET_SYMBOL = "tMXN";
+
 const LOCALE: Record<Lang, string> = { en: "en-US", es: "es-MX" };
 
 function groupWhole(whole: bigint, lang: Lang): string {
@@ -41,6 +44,21 @@ export function formatDate(unixSeconds: number | null, lang: Lang = "en"): strin
   return new Intl.DateTimeFormat(LOCALE[lang], { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }).format(
     new Date(unixSeconds * 1000),
   );
+}
+
+/**
+ * A span of seconds in the largest whole unit that divides it: 2592000 gives "30 days", 7200
+ * gives "2 hours". Plural forms and words come from Intl, so they follow the language.
+ */
+export function formatDuration(seconds: bigint | number, lang: Lang = "en"): string {
+  const s = BigInt(seconds);
+  const units: Array<[bigint, "day" | "hour" | "minute" | "second"]> = [
+    [86_400n, "day"],
+    [3_600n, "hour"],
+    [60n, "minute"],
+  ];
+  const [size, unit] = units.find(([size]) => s >= size && s % size === 0n) ?? [1n, "second"];
+  return new Intl.NumberFormat(LOCALE[lang], { style: "unit", unit, unitDisplay: "long" }).format(Number(s / size));
 }
 
 /** First and last characters of an address or signature: "BGdJ...wYyM". */

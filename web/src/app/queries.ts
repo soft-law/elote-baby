@@ -48,6 +48,8 @@ export type PoolView = {
   writtenOff: bigint;
   lineCount: bigint;
   paused: boolean;
+  /** Grace after a due date before late interest accrues, in seconds (Pool.reserved bytes 0..4, u32 LE). */
+  graceSeconds: number;
   /** Slot the read was served at. */
   slot: bigint;
 };
@@ -149,9 +151,16 @@ export async function readPool(
       writtenOff: pool.writtenOff,
       lineCount: pool.lineCount,
       paused: pool.paused,
+      graceSeconds: poolGraceSeconds(pool.reserved),
       slot,
     },
   };
+}
+
+/** The pool's grace period from its reserved bytes (programs/elote_pool/src/state.rs); 0 when absent. */
+export function poolGraceSeconds(reserved: ReadonlyUint8Array): number {
+  if (reserved.length < 4) return 0;
+  return new DataView(reserved.buffer, reserved.byteOffset, 4).getUint32(0, true);
 }
 
 const UNREADABLE: AnyLineView = { readable: false, status: "unknown" };

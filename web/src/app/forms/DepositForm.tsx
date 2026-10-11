@@ -3,15 +3,13 @@
 // smaller amount with the same copy the program's FirstDepositTooSmall maps to.
 import { Amount } from "../components/Amount";
 import { fill } from "../fill";
-import { formatAmount } from "../../pool/format";
+import { ASSET_SYMBOL, formatAmount } from "../../pool/format";
 import { DECIMALS } from "../../pool/math";
 import type { Copy, Lang } from "../../translations";
 import type { UseTx } from "../../tx/useTx";
 import { AmountForm } from "./AmountForm";
 import { fieldErrorText } from "./errors";
 import { checkDeposit, type PoolFigures } from "./validation";
-
-export const ASSET_SYMBOL = "tMXN";
 
 export type DepositFormProps = {
   pool: PoolFigures & { paused: boolean };
