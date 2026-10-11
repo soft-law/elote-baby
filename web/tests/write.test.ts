@@ -7,7 +7,7 @@ import { describeTxError } from "../src/tx/errors";
 import { createJournal, memoryStore, type TxJournal } from "../src/tx/journal";
 import { createRpc } from "../src/tx/rpc";
 import { TxExpiredError, TxFailedError, TxUncertainError } from "../src/tx/tx";
-import { sendOp, type LockManagerLike, type SendContext, type SendStep } from "../src/tx/write";
+import { sendOp, withTxLock, type LockManagerLike, type SendContext, type SendStep } from "../src/tx/write";
 import { translations } from "../src/translations";
 import {
   RPC_URL,
@@ -278,27 +278,58 @@ describe("one transaction at a time", () => {
     await expect(sendOp(deposit, b.ctx)).resolves.toBeDefined();
   });
 
-  test("Web Locks: requests the elote.tx lock without waiting; no lock means busy", async () => {
-    const names: string[] = [];
-    let held = false;
+  test("Web Locks: a second user send is busy; the transaction lock is awaited, not skipped", async () => {
+    const calls: Array<[string, boolean]> = [];
+    const held = new Set<string>();
+    const queues = new Map<string, Array<() => void>>();
     const locks: LockManagerLike = {
       async request(name, options, callback) {
-        names.push(name);
-        expect(options).toEqual({ ifAvailable: true });
-        if (held) return callback(null);
-        held = true;
+        calls.push([name, options.ifAvailable === true]);
+        if (held.has(name)) {
+          if (options.ifAvailable) return callback(null);
+          await new Promise<void>((resolve) => queues.set(name, [...(queues.get(name) ?? []), resolve]));
+        }
+        held.add(name);
         try {
           return await callback({ name });
         } finally {
-          held = false;
+          const next = queues.get(name)?.shift();
+          if (next) next();
+          else held.delete(name);
         }
       },
     };
     const a = await context({ locks });
     const b = await context({ locks });
     const [first, second] = await Promise.allSettled([sendOp(deposit, a.ctx), sendOp(deposit, b.ctx)]);
-    expect(names).toEqual(["elote.tx", "elote.tx"]);
     expect(first.status).toBe("fulfilled");
     expect((second as PromiseRejectedResult).reason).toMatchObject({ reason: "busy" });
+    expect(calls).toContainEqual(["elote.tx.send", true]);
+    expect(calls).toContainEqual(["elote.tx", false]);
+    expect(b.signCount()).toBe(0);
+  });
+
+  test("a send pressed while a recovery check holds the transaction lock waits for it", async () => {
+    let release!: () => void;
+    const recovery = withTxLock(() => new Promise<void>((resolve) => (release = resolve)), null);
+    const { ctx, signCount } = await context();
+    let settled = false;
+    const send = sendOp(deposit, ctx).finally(() => (settled = true));
+    await new Promise((r) => setTimeout(r, 30));
+    // Still waiting: nothing simulated or signed, and not failed as busy.
+    expect(settled).toBe(false);
+    expect(rpcServer.count("simulateTransaction")).toBe(0);
+    release();
+    await recovery;
+    await expect(send).resolves.toMatchObject({ slot: 4242n });
+    expect(signCount()).toBe(1);
+  });
+
+  test("a recovery check while a send runs skips (busy) instead of waiting", async () => {
+    const { ctx } = await context();
+    const send = sendOp(deposit, ctx);
+    await expect(withTxLock(async () => "ran", null)).rejects.toMatchObject({ reason: "busy" });
+    await send;
+    await expect(withTxLock(async () => "ran", null)).resolves.toBe("ran");
   });
 });

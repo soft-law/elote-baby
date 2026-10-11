@@ -1,9 +1,10 @@
 // Sends one pool op, never a hidden second one:
 //   simulate -> fresh blockhash -> wallet signs -> guard -> journal "signed" -> send -> journal
 //   "sent" -> poll until confirmed or the blockhash expires -> journal "confirmed".
-// One transaction at a time per browser profile (Web Locks "elote.tx", a module mutex when the
-// browser has no Web Locks). An unresolved earlier transaction blocks a new one until recovery
-// settles it, so a person never signs twice for one intent.
+// One user send at a time per browser profile: Web Locks "elote.tx.send" (a second send is
+// "busy"), then "elote.tx", which a send waits for and a recovery check skips when held; module
+// locks when the browser has no Web Locks. An unresolved earlier transaction blocks a new one until
+// recovery settles it, so a person never signs twice for one intent.
 import {
   appendTransactionMessageInstructions,
   compileTransaction,
@@ -35,13 +36,16 @@ import type { EloteRpc } from "./rpc";
 import { assertSignOnly, signWithGuard } from "./signing";
 import { TxExpiredError, TxFailedError, TxUncertainError, type TxResult } from "./tx";
 
+/** Held while anything touches the chain for this browser: a send or a recovery check. */
 export const TX_LOCK_NAME = "elote.tx";
+/** Held for a whole user send; a second user send while it is held fails as "busy". */
+export const TX_SEND_LOCK_NAME = "elote.tx.send";
 
 export type SendStep = "simulating" | "signing" | "sending" | "confirming";
 
 /** The part of the Web Locks API the pipeline uses; injectable for tests. */
 export type LockManagerLike = {
-  request<T>(name: string, options: { ifAvailable: true }, callback: (lock: unknown) => Promise<T>): Promise<T>;
+  request<T>(name: string, options: { ifAvailable?: boolean }, callback: (lock: unknown) => Promise<T>): Promise<T>;
 };
 
 export type SendContext = {
@@ -64,7 +68,27 @@ const MAX_POLL_RPC_FAILURES = 5;
 /** Upper bound for polling a transaction the cluster reports as processed but never confirms. */
 const MAX_POLLS = 200;
 
-let moduleLockHeld = false;
+// Module fallbacks for browsers (and tests) without Web Locks, with the same two locks.
+let moduleSendHeld = false;
+let moduleTxHeld = false;
+const moduleTxWaiters: Array<() => void> = [];
+
+async function acquireModuleTx(wait: boolean): Promise<boolean> {
+  if (!moduleTxHeld) {
+    moduleTxHeld = true;
+    return true;
+  }
+  if (!wait) return false;
+  // Ownership is handed over directly by the releasing holder.
+  await new Promise<void>((resolve) => moduleTxWaiters.push(resolve));
+  return true;
+}
+
+function releaseModuleTx(): void {
+  const next = moduleTxWaiters.shift();
+  if (next) next();
+  else moduleTxHeld = false;
+}
 
 // Signatures this tab is delivering right now. Journal recovery and the pending notice leave them
 // alone: the running sendOp owns them.
@@ -90,7 +114,10 @@ function browserLocks(): LockManagerLike | null {
   return nav?.locks ?? null;
 }
 
-/** Runs `fn` holding the transaction lock, or fails with reason "busy" when another one holds it. */
+/**
+ * Runs `fn` holding the transaction lock without waiting, or fails with reason "busy" when it is
+ * held. For background work (journal recovery) that simply skips a cycle when a send is running.
+ */
 export async function withTxLock<T>(fn: () => Promise<T>, locks: LockManagerLike | null = browserLocks()): Promise<T> {
   if (locks) {
     return locks.request(TX_LOCK_NAME, { ifAvailable: true }, async (lock) => {
@@ -98,12 +125,36 @@ export async function withTxLock<T>(fn: () => Promise<T>, locks: LockManagerLike
       return fn();
     });
   }
-  if (moduleLockHeld) throw new TxFailedError("busy");
-  moduleLockHeld = true;
+  if (!(await acquireModuleTx(false))) throw new TxFailedError("busy");
   try {
     return await fn();
   } finally {
-    moduleLockHeld = false;
+    releaseModuleTx();
+  }
+}
+
+/**
+ * For a user send: fails as "busy" only when another user send is running (in any tab), and
+ * otherwise waits for the transaction lock, which a recovery check holds for one RPC round trip.
+ */
+export async function withSendLock<T>(fn: () => Promise<T>, locks: LockManagerLike | null = browserLocks()): Promise<T> {
+  if (locks) {
+    return locks.request(TX_SEND_LOCK_NAME, { ifAvailable: true }, async (send) => {
+      if (!send) throw new TxFailedError("busy");
+      return locks.request(TX_LOCK_NAME, {}, () => fn());
+    });
+  }
+  if (moduleSendHeld) throw new TxFailedError("busy");
+  moduleSendHeld = true;
+  try {
+    await acquireModuleTx(true);
+    try {
+      return await fn();
+    } finally {
+      releaseModuleTx();
+    }
+  } finally {
+    moduleSendHeld = false;
   }
 }
 
@@ -142,7 +193,7 @@ async function simulate(rpc: EloteRpc, signer: TransactionSigner, instructions: 
 export async function sendOp(op: PoolOp, ctx: SendContext): Promise<TxResult> {
   assertSignOnly(ctx.signer);
   const locks = ctx.locks === undefined ? browserLocks() : ctx.locks;
-  return withTxLock(() => run(op, ctx), locks);
+  return withSendLock(() => run(op, ctx), locks);
 }
 
 async function run(op: PoolOp, ctx: SendContext): Promise<TxResult> {

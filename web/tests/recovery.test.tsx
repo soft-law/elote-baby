@@ -1,5 +1,6 @@
 import "./support/dom";
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
+import { generateKeyPairSigner, getBase58Decoder } from "@solana/kit";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { AppConfig } from "../src/app/config";
@@ -9,7 +10,7 @@ import { RpcProvider } from "../src/tx/RpcProvider";
 import { useJournalRecovery, type JournalRecovery } from "../src/tx/useJournalRecovery";
 import { sendOp } from "../src/tx/write";
 import { createRpc } from "../src/tx/rpc";
-import { RPC_URL, countingSigner, healthyCluster, startRpc, testPool, type ChainState } from "./support/rpc";
+import { RPC_URL, countingSigner, healthyCluster, signatureOfWire, startRpc, testPool, type ChainState } from "./support/rpc";
 
 const rpcServer = startRpc();
 afterAll(() => rpcServer.close());
@@ -54,7 +55,6 @@ describe("useJournalRecovery", () => {
         await sleep(150);
         const wire = params[0] as string;
         state.sent.push(wire);
-        const { signatureOfWire } = await import("./support/rpc");
         const sig = signatureOfWire(wire);
         state.statuses.set(sig, { err: null, confirmationStatus: "confirmed", slot: 9 });
         return sig;
@@ -73,6 +73,48 @@ describe("useJournalRecovery", () => {
     expect(rpcServer.count("sendTransaction")).toBe(1);
     expect(seen.every((r) => r.pending.length === 0)).toBe(true);
     expect(journal.get(result!.signature)?.status).toBe("confirmed");
+    await unmount();
+  });
+
+  test("while another payer's entry keeps it polling, recovery never re-broadcasts a send in progress", async () => {
+    const journal = createJournal(memoryStore());
+    const { signer } = await countingSigner();
+    const { config, accounts } = await testPool();
+    // An unrelated unresolved entry in the same pool: the hook checks every 10 ms during the send.
+    const other = await generateKeyPairSigner();
+    const otherSig = getBase58Decoder().decode(new Uint8Array(64).fill(7));
+    journal.persistSigned({
+      signature: otherSig,
+      lastValidBlockHeight: "100000",
+      op: "deposit",
+      createdAt: Date.now() - 1_000,
+      pool: config.poolAddress,
+      payer: other.address,
+      signedBase64: "AAAA",
+    });
+    journal.setStatus(otherSig, "sent");
+    rpcServer.use({
+      sendTransaction: async (params) => {
+        await sleep(150);
+        const wire = params[0] as string;
+        state.sent.push(wire);
+        const sig = signatureOfWire(wire);
+        state.statuses.set(sig, { err: null, confirmationStatus: "confirmed", slot: 9 });
+        return sig;
+      },
+    });
+    const { seen, unmount } = await mountRecovery(journal, config.poolAddress);
+    await act(async () => {
+      await sendOp(
+        { kind: "deposit", assets: 2_000_000n, minSharesOut: 1n },
+        { rpc: createRpc(RPC_URL), signer, config, accounts, journal, locks: null, pollMs: 5 },
+      );
+      await sleep(60);
+    });
+    // The hook was polling (the other entry) the whole time, yet the send went out once.
+    expect(rpcServer.count("getSignatureStatuses")).toBeGreaterThan(2);
+    expect(rpcServer.count("sendTransaction")).toBe(1);
+    expect(seen.at(-1)?.pending.map((e) => e.signature)).toEqual([otherSig]);
     await unmount();
   });
 
