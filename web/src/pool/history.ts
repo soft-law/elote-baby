@@ -3,23 +3,30 @@
 // discriminator and fields. This module tries each generated event parser on that payload and
 // ignores anything it does not recognise (other programs, newer events, malformed data).
 //
-// T1 ships the decoder and the types; fetching signatures and transactions comes with the
-// investor history (`["history", kind, address]` query).
+// Fetching signatures and transactions lives in app/history.ts (`["history", kind, address]`).
 import {
   ELOTE_POOL_PROGRAM_ADDRESS,
   parseDepositedEvent,
+  parseLateInterestCollectedEvent,
   parseLineDrawnEvent,
+  parseLineInCollectionEvent,
   parseLineOpenedEvent,
   parseLineRepaidEvent,
+  parseLineScheduledEvent,
   parseLineWrittenOffEvent,
+  parsePoolConfiguredEvent,
   parsePoolInitializedEvent,
   parsePoolPausedEvent,
   parseRedeemedEvent,
   type DepositedEvent,
+  type LateInterestCollectedEvent,
   type LineDrawnEvent,
+  type LineInCollectionEvent,
   type LineOpenedEvent,
   type LineRepaidEvent,
+  type LineScheduledEvent,
   type LineWrittenOffEvent,
+  type PoolConfiguredEvent,
   type PoolInitializedEvent,
   type PoolPausedEvent,
   type RedeemedEvent,
@@ -37,7 +44,11 @@ export type PoolEvent =
   | { kind: "LineOpened"; data: LineOpenedEvent }
   | { kind: "LineDrawn"; data: LineDrawnEvent }
   | { kind: "LineRepaid"; data: LineRepaidEvent }
-  | { kind: "LineWrittenOff"; data: LineWrittenOffEvent };
+  | { kind: "LineWrittenOff"; data: LineWrittenOffEvent }
+  | { kind: "PoolConfigured"; data: PoolConfiguredEvent }
+  | { kind: "LineScheduled"; data: LineScheduledEvent }
+  | { kind: "LateInterestCollected"; data: LateInterestCollectedEvent }
+  | { kind: "LineInCollection"; data: LineInCollectionEvent };
 
 export type PoolEventKind = PoolEvent["kind"];
 
@@ -61,6 +72,10 @@ const PARSERS: readonly Parser[] = [
   (d) => ({ kind: "LineDrawn", data: parseLineDrawnEvent(d) }),
   (d) => ({ kind: "LineRepaid", data: parseLineRepaidEvent(d) }),
   (d) => ({ kind: "LineWrittenOff", data: parseLineWrittenOffEvent(d) }),
+  (d) => ({ kind: "PoolConfigured", data: parsePoolConfiguredEvent(d) }),
+  (d) => ({ kind: "LineScheduled", data: parseLineScheduledEvent(d) }),
+  (d) => ({ kind: "LateInterestCollected", data: parseLateInterestCollectedEvent(d) }),
+  (d) => ({ kind: "LineInCollection", data: parseLineInCollectionEvent(d) }),
 ];
 
 function startsWith(data: ReadonlyUint8Array, prefix: ReadonlyUint8Array): boolean {

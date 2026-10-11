@@ -1,6 +1,7 @@
 // Investor page: your position (shares and their value, test token and SOL balances, test token
 // and test SOL buttons), then the deposit and redeem forms. Without a wallet it shows the connect
 // prompt in place, reusing the header's ConnectButton.
+import type { Address } from "@solana/kit";
 import type { ReactNode } from "react";
 import { ASSET_SYMBOL } from "../../pool/format";
 import { DECIMALS, UNIT } from "../../pool/math";
@@ -12,14 +13,17 @@ import { LOW_SOL_LAMPORTS, formatSol, useBalancesQuery, type Balances } from "..
 import { AirdropButton } from "../components/AirdropButton";
 import { Amount } from "../components/Amount";
 import { FaucetButton } from "../components/FaucetButton";
+import { HistoryBody } from "../components/HistoryList";
 import { Loader } from "../components/Loader";
 import { Notice, RetryButton } from "../components/Notice";
 import { SectionHead } from "../components/SectionHead";
 import { SkeletonGrid } from "../components/SkeletonCard";
 import { StatCard } from "../components/StatCard";
+import { useAppConfig } from "../configContext";
 import { dataState } from "../dataState";
 import { DepositForm } from "../forms/DepositForm";
 import { RedeemForm } from "../forms/RedeemForm";
+import { useHistoryQuery } from "../history";
 import { useLang } from "../lang";
 import { usePoolQuery, type PoolView } from "../queries";
 import { PageBody, PageHead } from "../Shell";
@@ -82,6 +86,19 @@ function Summary({ pool, balances, t, lang }: { pool: PoolView | null; balances:
         </p>
         {lowSol ? <AirdropButton address={balances.owner} t={t} /> : null}
       </div>
+    </section>
+  );
+}
+
+/** The last transactions of the wallet's share account (named by the balances read). */
+function InvestHistory({ owner, shareAccount, t, lang }: { owner: Address; shareAccount: Address; t: Copy; lang: Lang }) {
+  const h = t.app.history;
+  const { poolAddress, explorerCluster } = useAppConfig();
+  const query = useHistoryQuery("shares", shareAccount);
+  return (
+    <section aria-labelledby="invest-history-title" data-testid="invest-history" className="flex flex-col gap-5">
+      <SectionHead id="invest-history-title" title={h.title} sub={h.sub} />
+      <HistoryBody query={query} scope={{ kind: "shares", pool: poolAddress, owner }} t={t} lang={lang} cluster={explorerCluster} label={h.title} />
     </section>
   );
 }
@@ -181,6 +198,7 @@ function Connected({ owner, t, lang }: { owner: NonNullable<ReturnType<typeof us
     <>
       {summary}
       {forms}
+      {balances ? <InvestHistory owner={owner} shareAccount={balances.shareAccount} t={t} lang={lang} /> : null}
     </>
   );
 }

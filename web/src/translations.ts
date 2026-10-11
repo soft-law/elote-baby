@@ -326,6 +326,31 @@ export type Copy = {
       inCollection: string;
       errors: { aboveDue: string; belowLateInterest: string };
     };
+    history: {
+      title: string;
+      sub: string;
+      lineToggle: string;
+      lineSub: string;
+      loading: string;
+      failed: string;
+      stale: string;
+      retry: string;
+      empty: { title: string; body: string };
+      lineEmpty: string;
+      view: string;
+      rows: {
+        deposited: string;
+        redeemed: string;
+        lineOpened: string;
+        lineDrawn: string;
+        lineRepaid: string;
+        lateInterest: string;
+        inCollection: string;
+        writtenOff: string;
+        other: string;
+        failed: string;
+      };
+    };
     newTab: string;
     notFound: { title: string; body: string; home: string };
     error: { title: string; body: string; retry: string };
@@ -765,6 +790,31 @@ export const translations: Record<Lang, Copy> = {
         errors: {
           aboveDue: "This line takes at most {max} tMXN test tokens right now.",
           belowLateInterest: "Pay at least {min} tMXN test tokens: the late interest due on this line comes first.",
+        },
+      },
+      history: {
+        title: "Activity",
+        sub: "Your last 20 transactions with this pool's shares, newest first.",
+        lineToggle: "History",
+        lineSub: "The last 20 transactions of this line, newest first.",
+        loading: "Loading activity",
+        failed: "The activity could not be loaded.",
+        stale: "The activity could not be refreshed. Showing the last list read.",
+        retry: "Try again",
+        empty: { title: "No activity yet", body: "Your deposits and redemptions appear here once they are confirmed." },
+        lineEmpty: "No transactions for this line yet.",
+        view: "View transaction",
+        rows: {
+          deposited: "Deposited {assets} tMXN test tokens for {shares} shares",
+          redeemed: "Redeemed {shares} shares for {assets} tMXN test tokens",
+          lineOpened: "Line opened for {principal} tMXN test tokens",
+          lineDrawn: "Drew {amount} tMXN test tokens",
+          lineRepaid: "Repaid {principal} tMXN test tokens of principal and {interest} of interest",
+          lateInterest: "Paid {amount} tMXN test tokens of late interest",
+          inCollection: "Sent to collection after {missed} missed installments",
+          writtenOff: "Written off with a loss of {loss} tMXN test tokens",
+          other: "Pool transaction",
+          failed: "Failed",
         },
       },
       newTab: "opens in a new tab",
@@ -1221,6 +1271,31 @@ export const translations: Record<Lang, Copy> = {
         errors: {
           aboveDue: "Esta línea recibe como máximo {max} tokens de prueba tMXN en este momento.",
           belowLateInterest: "Paga al menos {min} tokens de prueba tMXN: primero se cubre el interés moratorio de esta línea.",
+        },
+      },
+      history: {
+        title: "Actividad",
+        sub: "Tus últimas 20 transacciones con las participaciones de este pool, de la más reciente a la más antigua.",
+        lineToggle: "Historial",
+        lineSub: "Las últimas 20 transacciones de esta línea, de la más reciente a la más antigua.",
+        loading: "Cargando la actividad",
+        failed: "No se pudo cargar la actividad.",
+        stale: "No se pudo actualizar la actividad. Se muestra la última lista leída.",
+        retry: "Intentar de nuevo",
+        empty: { title: "Aún no hay actividad", body: "Tus depósitos y canjes aparecen aquí cuando se confirman." },
+        lineEmpty: "Aún no hay transacciones de esta línea.",
+        view: "Ver transacción",
+        rows: {
+          deposited: "Depositó {assets} tokens de prueba tMXN por {shares} participaciones",
+          redeemed: "Canjeó {shares} participaciones por {assets} tokens de prueba tMXN",
+          lineOpened: "Línea abierta por {principal} tokens de prueba tMXN",
+          lineDrawn: "Dispuso {amount} tokens de prueba tMXN",
+          lineRepaid: "Pagó {principal} tokens de prueba tMXN de principal y {interest} de interés",
+          lateInterest: "Pagó {amount} tokens de prueba tMXN de interés moratorio",
+          inCollection: "Pasó a cobranza tras {missed} pagos vencidos",
+          writtenOff: "Castigada con una pérdida de {loss} tokens de prueba tMXN",
+          other: "Transacción del pool",
+          failed: "Fallida",
         },
       },
       newTab: "se abre en una pestaña nueva",

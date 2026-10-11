@@ -2,11 +2,13 @@
 // evidence link when the API knows it), the installment schedule and late interest of a scheduled
 // line, and the action the status allows: Draw on an approved line, the repayment form on an
 // active or in-collection line. Lines this code cannot read show the "Unknown" badge and nothing
-// else, so a new layout never breaks the page. Cards at every width, no tables.
+// else, so a new layout never breaks the page. Every known line ends with its history, read only
+// when its disclosure is opened. Cards at every width, no tables.
 import { useQueryClient } from "@tanstack/react-query";
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { fill, fillText } from "../fill";
 import { RepayForm } from "../forms/RepayForm";
+import { useHistoryQuery } from "../history";
 import type { PoolLine, PoolView } from "../queries";
 import { useTxToast } from "../toast/useTxToast";
 import { explorerAddressUrl, formatBps, formatDate, formatDuration, truncateMiddle, type ExplorerCluster } from "../../pool/format";
@@ -19,6 +21,7 @@ import { isTxBusy } from "../txBusy";
 import { AgreementBlock } from "./AgreementBlock";
 import { Amount } from "./Amount";
 import { Field, money } from "./Field";
+import { HistoryBody } from "./HistoryList";
 import { LineStatusBadge, drawnAmount, repaidAmount } from "./LinesTable";
 import { ScheduleBlock } from "./ScheduleBlock";
 
@@ -41,6 +44,59 @@ function LateInterestBlock({ line, pool, now, t, lang }: { line: LineView; pool:
       <p className="m-0 text-[15px] leading-[1.55] text-ink-soft">
         {pool.graceSeconds > 0 ? fillText(l.grace, { grace: formatDuration(pool.graceSeconds, lang) }) : l.noGrace}
       </p>
+    </section>
+  );
+}
+
+// ---- history ----
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`motion-safe:transition-transform ${open ? "rotate-180" : ""}`}
+    >
+      <path d="m4 6 4 4 4-4" />
+    </svg>
+  );
+}
+
+/** The line's last transactions behind a disclosure: nothing is read until it is opened. */
+export function LineHistory({ row, pool, t, lang, cluster }: { row: PoolLine; pool: Pick<PoolView, "address">; t: Copy; lang: Lang; cluster: ExplorerCluster }) {
+  const h = t.app.history;
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const query = useHistoryQuery("line", row.address, { enabled: open });
+  const label = `${h.lineToggle}, ${fillText(t.app.borrow.line, { id: `#${row.lineId.toString()}` })}`;
+  return (
+    <section data-testid="line-history" className="flex flex-col gap-3 border-t-[1.5px] border-line pt-4">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((v) => !v)}
+        data-testid="line-history-toggle"
+        className="inline-flex min-h-[44px] items-center gap-2 self-start font-display text-[17px] font-semibold text-teal-700 hover:text-teal-800"
+      >
+        {h.lineToggle}
+        <Chevron open={open} />
+      </button>
+      <div id={panelId} hidden={!open} className="flex flex-col gap-3">
+        {open ? (
+          <>
+            <p className="m-0 text-[15px] leading-[1.55] text-ink-soft">{h.lineSub}</p>
+            <HistoryBody query={query} scope={{ kind: "line", pool: pool.address, lineId: row.lineId }} t={t} lang={lang} cluster={cluster} label={label} />
+          </>
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -242,6 +298,7 @@ export function LineCard({ row, pool, balance, now, t, lang, cluster, counterpar
           {action ? <div className="min-w-0">{action}</div> : null}
         </div>
       )}
+      {known ? <LineHistory row={row} pool={pool} t={t} lang={lang} cluster={cluster} /> : null}
     </article>
   );
 }

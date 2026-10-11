@@ -1,6 +1,14 @@
 import "./support/dom";
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { ELOTE_POOL_PROGRAM_ADDRESS, LineStatus, findLinePda, getCreditLineEncoder, getPoolEncoder, type CreditLineArgs } from "@elote/pool-client";
+import {
+  ELOTE_POOL_PROGRAM_ADDRESS,
+  LineStatus,
+  findLinePda,
+  getCreditLineEncoder,
+  getLineDrawnEventEncoder,
+  getPoolEncoder,
+  type CreditLineArgs,
+} from "@elote/pool-client";
 import { AccountState, TOKEN_PROGRAM_ADDRESS, getMintEncoder, getTokenEncoder } from "@solana-program/token";
 import { generateKeyPairSigner, getBase64Decoder, none, some, type Address } from "@solana/kit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -16,6 +24,7 @@ import { ataOf } from "../src/tx/ops";
 import { RpcProvider } from "../src/tx/RpcProvider";
 import { translations } from "../src/translations";
 import { WalletContext, type WalletState } from "../src/wallet/useWallet";
+import { eventIxData, fakeSignature, signatureInfo, transactionResult } from "./support/history";
 import { RPC_URL, startRpc, testPool } from "./support/rpc";
 
 const UNIT = 1_000_000n;
@@ -374,6 +383,51 @@ describe("borrow page", () => {
     expect(unknown.textContent).toContain(en.app.borrow.agreement.hash);
     expect(unknown.querySelector('[data-testid="agreement-summary"]')).toBeNull();
     expect(seen.get("02".repeat(32))).toBe(1);
+  });
+
+  test("history: nothing is read until the disclosure opens; then the line's signatures, decoded", async () => {
+    const f = await fixture({ lines: (owner) => [{ args: { borrower: owner, status: LineStatus.Active, drawnAt: BigInt(NOW - DAY) } }, { args: {} }] });
+    serve(f);
+    serveAgreements();
+    const pool = f.config.poolAddress;
+    const [line0] = await findLinePda({ pool, lineId: 0n });
+    const drawSig = fakeSignature(5);
+    const asked: string[] = [];
+    rpcServer.use({
+      getSignaturesForAddress: (params) => {
+        asked.push(params[0] as string);
+        return [signatureInfo(drawSig, NOW - DAY)];
+      },
+      getTransaction: (params) =>
+        transactionResult(params[0] as string, f.owner, [
+          eventIxData(getLineDrawnEventEncoder().encode({ pool, lineId: 0n, amount: 600n * UNIT, outstandingAfter: 600n * UNIT })),
+        ]),
+    });
+    const page = await mount(f.config, wallet(f.owner));
+    await page.until(() => page.card(1) !== null, "line cards");
+    await act(async () => sleep(30));
+    expect(rpcServer.count("getSignaturesForAddress")).toBe(0);
+
+    const toggle = page.card(0)!.querySelector('[data-testid="line-history-toggle"]') as HTMLButtonElement;
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.textContent).toBe(en.app.history.lineToggle);
+    await act(async () => toggle.click());
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    await page.until(() => page.card(0)!.querySelector('[data-testid="history-list"]') !== null, "line history");
+    expect(rpcServer.count("getSignaturesForAddress")).toBe(1);
+    expect(asked).toEqual([line0]);
+    const row = page.card(0)!.querySelector("li[data-signature]")!;
+    expect(row.getAttribute("data-row")).toBe("LineDrawn");
+    expect(row.textContent).toContain("Drew 600 tMXN test tokens");
+    expect(row.querySelector("a")!.getAttribute("href")).toContain(drawSig);
+    // The other line stays closed and unread.
+    expect(page.card(1)!.querySelector('[data-testid="line-history-toggle"]')!.getAttribute("aria-expanded")).toBe("false");
+
+    // Closing and opening again within a minute reads nothing new.
+    await act(async () => toggle.click());
+    await act(async () => toggle.click());
+    await act(async () => sleep(30));
+    expect(rpcServer.count("getSignaturesForAddress")).toBe(1);
   });
 
   test("no lines for this wallet: the empty state with the copy the owner set", async () => {

@@ -1,6 +1,6 @@
 import "./support/dom";
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { ELOTE_POOL_PROGRAM_ADDRESS, getPoolEncoder } from "@elote/pool-client";
+import { ELOTE_POOL_PROGRAM_ADDRESS, getDepositedEventEncoder, getPoolEncoder } from "@elote/pool-client";
 import { AccountState, TOKEN_PROGRAM_ADDRESS, getMintEncoder, getTokenEncoder } from "@solana-program/token";
 import { generateKeyPairSigner, getBase64Decoder, none, some, type Address } from "@solana/kit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -20,6 +20,7 @@ import { createRpc } from "../src/tx/rpc";
 import { RpcProvider } from "../src/tx/RpcProvider";
 import { translations } from "../src/translations";
 import { WalletContext, type WalletState } from "../src/wallet/useWallet";
+import { eventIxData, fakeSignature, signatureInfo, transactionResult } from "./support/history";
 import { RPC_URL, RpcErrorReply, startRpc, testPool } from "./support/rpc";
 
 const UNIT = 1_000_000n;
@@ -106,6 +107,8 @@ async function fixture(opts: { lamports?: bigint; asset?: bigint; shares?: bigin
 function serve(f: Fixture) {
   rpcServer.use({
     getMultipleAccounts: (params) => ({ context: { slot: 77 }, value: (params[0] as string[]).map((a) => f.chain.get(a) ?? null) }),
+    // The activity section reads the share account's signatures: none here.
+    getSignaturesForAddress: () => [],
   });
 }
 
@@ -116,6 +119,10 @@ function wallet(address: Address | null, status: WalletState["status"] = address
 let mounted: { root: Root; host: HTMLElement; client: QueryClient } | null = null;
 afterEach(async () => {
   if (!mounted) return;
+  // Let reads still in flight (the activity section) settle inside act before unmounting.
+  for (let i = 0; i < 100 && mounted.client.isFetching() > 0; i++) await act(async () => sleep(5));
+  // Query notifications are batched on a timer: flush them inside act too.
+  await act(async () => sleep(5));
   await act(async () => mounted!.root.unmount());
   mounted.host.remove();
   mounted.client.clear();
@@ -151,7 +158,11 @@ async function mount(config: AppConfig, w: WalletState, node: ReactNode, entry =
     text: () => host.textContent ?? "",
     async until(check: () => boolean, label: string) {
       for (let i = 0; i < 300; i++) {
-        if (check()) return;
+        // Also waits for reads still in flight (the activity section), so none lands outside act.
+        if (check() && client.isFetching() === 0) {
+          await act(async () => sleep(5));
+          return;
+        }
         await act(async () => sleep(5));
       }
       throw new Error(`timed out waiting for ${label}: ${host.textContent}`);
@@ -371,6 +382,46 @@ describe("invest page", () => {
     await page.until(() => page.q('[data-testid="balances-failed"]') !== null, "balances error");
     expect(page.q('[data-testid="invest-summary"]')).toBeNull();
     expect(page.q('[data-testid="deposit-submit"]')?.hasAttribute("disabled")).toBe(true);
+  });
+
+  test("activity: the share account's last signatures, decoded in order; deposit, unknown and failed rows", async () => {
+    const f = await fixture();
+    serve(f);
+    const shareAccount = await ataOf(f.owner, f.accounts.shareMint);
+    const sigs = [fakeSignature(1), fakeSignature(2), fakeSignature(3)];
+    const deposited = eventIxData(
+      getDepositedEventEncoder().encode({ pool: f.config.poolAddress, depositor: f.owner, assets: 10_000n * UNIT, shares: 9_999_999_000n, navAfter: 0n, supplyAfter: 0n }),
+    );
+    const asked: string[] = [];
+    rpcServer.use({
+      getSignaturesForAddress: (params) => {
+        asked.push(params[0] as string);
+        return [signatureInfo(sigs[0]!, 1_760_000_300), signatureInfo(sigs[1]!, 1_760_000_200), signatureInfo(sigs[2]!, 1_760_000_100, { InstructionError: [0, { Custom: 6013 }] })];
+      },
+      getTransaction: (params) => {
+        const sig = params[0] as string;
+        return transactionResult(sig, f.owner, sig === sigs[0] ? [deposited] : [eventIxData([7, 7, 7, 7, 7, 7, 7, 7, 1])]);
+      },
+    });
+    const page = await mount(f.config, wallet(f.owner), <InvestPage />);
+    await page.until(() => page.q('[data-testid="history-list"]') !== null, "history list");
+    expect(asked).toEqual([shareAccount]);
+    const rows = [...page.host.querySelectorAll('[data-testid="history-list"] li')];
+    expect(rows.map((r) => r.getAttribute("data-signature"))).toEqual(sigs);
+    expect(rows.map((r) => r.getAttribute("data-row"))).toEqual(["Deposited", "other", "failed"]);
+    expect(rows[0]!.textContent).toContain("Deposited 10,000 tMXN test tokens for 9,999.999 shares");
+    // The failed transaction is not fetched: the signature list already says it failed.
+    expect(rpcServer.count("getTransaction")).toBe(2);
+    expect(page.q('[data-testid="invest-history"]')!.textContent).toContain(en.app.history.title);
+  });
+
+  test("activity: no signatures shows the empty state", async () => {
+    const f = await fixture();
+    serve(f);
+    const page = await mount(f.config, wallet(f.owner), <InvestPage />);
+    await page.until(() => page.q('[data-testid="history-empty"]') !== null, "history empty state");
+    expect(page.q('[data-testid="history-empty"]')!.textContent).toContain(en.app.history.empty.title);
+    expect(rpcServer.count("getTransaction")).toBe(0);
   });
 
   test("Spanish copy", async () => {
