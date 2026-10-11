@@ -2,9 +2,10 @@
 // adapter: a status or layout this code does not know shows as "Unknown", and an account it
 // cannot read at all still gets its row with the line id.
 import type { LineStatusView, LineView } from "../../pool/line";
-import { explorerAddressUrl, formatAmount, formatDate, truncateMiddle, type ExplorerCluster } from "../../pool/format";
+import { explorerAddressUrl, formatDate, truncateMiddle, type ExplorerCluster } from "../../pool/format";
 import type { Copy, Lang } from "../../translations";
 import type { PoolLine } from "../queries";
+import { Amount } from "./Amount";
 
 type PoolCopy = Copy["app"]["pool"];
 
@@ -13,7 +14,7 @@ const BADGE: Record<LineStatusView, string> = {
   active: "bg-white text-teal-800 border-teal-700",
   repaid: "bg-green-50 text-green-700 border-green-700/30",
   writtenOff: "bg-mist text-ink-soft border-fog",
-  inCollection: "bg-corn-100 text-ink border-[#e3cf8f]",
+  inCollection: "bg-corn-100 text-ink border-corn-300",
   unknown: "bg-white text-ink-soft border-dashed border-fog-dim",
 };
 
@@ -64,7 +65,7 @@ export type LinesTableProps = {
 export function LinesTable({ rows, t, lang, cluster }: LinesTableProps) {
   const c = t.columns;
   const showSponsor = rows.some((r) => r.view.readable && r.view.sponsor !== null);
-  const amount = (units: bigint) => formatAmount(units, lang);
+  const amount = (units: bigint) => <Amount units={units} lang={lang} />;
   const date = (s: number | null) => (s === null ? t.noDate : formatDate(s, lang));
   const columns = 7 + (showSponsor ? 1 : 0);
   const th = "label px-3 py-3 text-left font-medium text-ink-soft";
@@ -135,7 +136,10 @@ export function LinesTable({ rows, t, lang, cluster }: LinesTableProps) {
               <span className="num font-semibold">
                 {c.line} #{lineId.toString()}
               </span>
-              <LineStatusBadge status={view.status} labels={t.status} />
+              <span className="flex items-center gap-2">
+                <span className="sr-only">{c.status}:</span>
+                <LineStatusBadge status={view.status} labels={t.status} />
+              </span>
             </div>
             {view.readable ? (
               <dl className="m-0 grid grid-cols-2 gap-x-4 gap-y-2 text-[16px]">

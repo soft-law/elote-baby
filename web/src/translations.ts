@@ -378,7 +378,7 @@ export const translations: Record<Lang, Copy> = {
         retry: "Try again",
         mismatch: {
           title: "This pool does not match the app settings",
-          body: "The pool account on Solana is not the one this app was set up for, so nothing is shown. Please try again later.",
+          body: "The pool account on Solana is not the one this app was set up for, so nothing is shown. The site operator needs to update the app settings.",
         },
       },
       invest: {
@@ -624,9 +624,9 @@ export const translations: Record<Lang, Copy> = {
           approved: "Aprobada",
           active: "Activa",
           repaid: "Pagada",
-          writtenOff: "Dada de baja",
+          writtenOff: "Castigada",
           inCollection: "En cobranza",
-          unknown: "Desconocido",
+          unknown: "Desconocida",
         },
         empty: {
           title: "Aún no hay líneas de crédito",
@@ -640,7 +640,7 @@ export const translations: Record<Lang, Copy> = {
         retry: "Intentar de nuevo",
         mismatch: {
           title: "Este pool no coincide con la configuración de la app",
-          body: "La cuenta del pool en Solana no es la que se configuró para esta app, así que no se muestra nada. Inténtalo más tarde.",
+          body: "La cuenta del pool en Solana no es la que se configuró para esta app, así que no se muestra nada. Quien opera el sitio debe actualizar la configuración de la app.",
         },
       },
       invest: {

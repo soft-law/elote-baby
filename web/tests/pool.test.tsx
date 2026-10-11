@@ -19,7 +19,7 @@ import { ConfigContext } from "../src/app/configContext";
 import { dataState } from "../src/app/dataState";
 import { PoolPage } from "../src/app/pages/Pool";
 import { createQueryClient } from "../src/app/providers";
-import { ACCOUNTS_PER_REQUEST, linesQueryKey, poolQueryKey, readLines, readPool, type PoolView } from "../src/app/queries";
+import { ACCOUNTS_PER_REQUEST, PoolAccountsMissingError, linesQueryKey, poolQueryKey, readLines, readPool, type PoolView } from "../src/app/queries";
 import { formatAmount, formatPerShare } from "../src/pool/format";
 import { nav, perShare } from "../src/pool/math";
 import { createRpc } from "../src/tx/rpc";
@@ -205,6 +205,38 @@ describe("readPool", () => {
     expect(await readPool(createRpc(RPC_URL), f.config)).toEqual({ kind: "mismatch", reason: "notAPool" });
   });
 
+  test("a vault or share token not returned yet is a retryable error, not a mismatch", async () => {
+    const f = await fixture();
+    f.chain.delete(f.accounts.vault);
+    serve(f);
+    const error = await readPool(createRpc(RPC_URL), f.config).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(PoolAccountsMissingError);
+    expect((error as PoolAccountsMissingError).missing).toEqual(["vault"]);
+    expect(rpcServer.count("getMultipleAccounts")).toBe(1);
+  });
+
+  test("a vault holding another token is a permanent accountsMismatch", async () => {
+    const f = await fixture();
+    const other = (await generateKeyPairSigner()).address;
+    const vaultBytes = getTokenEncoder().encode({
+      mint: other,
+      owner: f.accounts.pool,
+      amount: VAULT,
+      delegate: none(),
+      state: AccountState.Initialized,
+      isNative: none(),
+      delegatedAmount: 0n,
+      closeAuthority: none(),
+    });
+    f.chain.set(f.accounts.vault, rpcAccount(new Uint8Array(vaultBytes), TOKEN_PROGRAM_ADDRESS));
+    serve(f);
+    expect(await readPool(createRpc(RPC_URL), f.config)).toEqual({ kind: "mismatch", reason: "accountsMismatch" });
+    expect(rpcServer.count("getMultipleAccounts")).toBe(1);
+  });
+
   test("query keys hash without bigint", () => {
     const pool = "BGdJQxxJoHiLH2VS6HAGHe5kQuKKq9dwrPeX7DEEwYyM" as Address;
     expect(poolQueryKey(pool)).toEqual(["pool", pool]);
@@ -336,6 +368,7 @@ describe("pool page", () => {
     expect(table).toContain(en.columns.sponsor);
     // Mobile cards carry the same rows.
     expect(page.host.querySelectorAll("li[data-line]").length).toBe(4);
+    expect(page.host.querySelector("li[data-line] .sr-only")!.textContent).toBe(`${en.columns.status}:`);
 
     // Explorer links for the pool, borrowers and the sponsor, on the configured cluster.
     const hrefs = [...page.host.querySelectorAll("a")].map((a) => a.getAttribute("href"));
@@ -425,6 +458,38 @@ describe("pool page", () => {
     expect(page.host.querySelector('[data-testid="pool-stats"]')).toBeNull();
     await act(async () => sleep(50));
     expect(rpcServer.count("getMultipleAccounts")).toBe(1);
+    await page.unmount();
+  });
+
+  test("a missing share token shows the retry error, then recovers once the node returns it", async () => {
+    const f = await fixture({ lineCount: 0 });
+    const mint = f.chain.get(f.accounts.shareMint)!;
+    f.chain.delete(f.accounts.shareMint);
+    serve(f);
+    const page = await mountPage(f);
+    await page.until(() => page.text().includes(en.loadFailed), "error state");
+    expect(page.host.querySelector('[data-testid="pool-mismatch"]')).toBeNull();
+    f.chain.set(f.accounts.shareMint, mint);
+    const retry = [...page.host.querySelectorAll("button")].find((b) => b.textContent === en.retry)!;
+    await act(async () => retry.click());
+    await page.until(() => page.text().includes(en.empty.title), "recovered");
+    await page.unmount();
+  });
+
+  test("amounts under 0.01 keep their full value in the title and for screen readers", async () => {
+    const f = await fixture({ lineCount: 0 });
+    const poolBytes = new Uint8Array(Buffer.from(f.chain.get(f.accounts.pool)!.data[0] as string, "base64"));
+    // interestCollected sits after discriminator, version and five addresses, then outstandingPrincipal.
+    new DataView(poolBytes.buffer).setBigUint64(8 + 1 + 32 * 5 + 8, 4_000n, true);
+    f.chain.set(f.accounts.pool, rpcAccount(poolBytes, ELOTE_POOL_PROGRAM_ADDRESS));
+    serve(f);
+    const page = await mountPage(f);
+    await page.until(() => page.host.querySelector('[data-testid="pool-stats"]') !== null, "stats");
+    const full = page.host.querySelector('[data-full="0.004"]');
+    expect(full).not.toBeNull();
+    expect(full!.getAttribute("title")).toBe("0.004");
+    expect(full!.querySelector('[aria-hidden="true"]')!.textContent).toBe("0");
+    expect(full!.querySelector(".sr-only")!.textContent).toBe("0.004");
     await page.unmount();
   });
 

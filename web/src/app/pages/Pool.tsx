@@ -1,7 +1,8 @@
 // Public pool page: the pool's figures and every credit line, read from Solana. No wallet needed.
 import type { ReactNode } from "react";
-import { explorerAddressUrl, formatAmount, formatPerShare, truncateMiddle } from "../../pool/format";
+import { explorerAddressUrl, formatPerShare, truncateMiddle } from "../../pool/format";
 import type { Copy, Lang } from "../../translations";
+import { Amount } from "../components/Amount";
 import { EmptyState } from "../components/EmptyState";
 import { LinesTable } from "../components/LinesTable";
 import { Loader } from "../components/Loader";
@@ -20,7 +21,7 @@ const ASSET_SYMBOL = "tMXN";
 type PoolCopy = Copy["app"]["pool"];
 
 function Notice({ tone, role, children }: { tone: "warn" | "error"; role: "status" | "alert"; children: ReactNode }) {
-  const style = tone === "warn" ? "border-[#e3cf8f] bg-corn-100 text-ink" : "border-chili-700/30 bg-chili-50 text-chili-700";
+  const style = tone === "warn" ? "border-corn-300 bg-corn-100 text-ink" : "border-chili-700/30 bg-chili-50 text-chili-700";
   return (
     <div
       role={role}
@@ -44,9 +45,9 @@ function RetryButton({ label, onClick }: { label: string; onClick: () => void })
 }
 
 function PoolStats({ pool, t, lang }: { pool: PoolView; t: PoolCopy; lang: Lang }) {
-  const amount = (units: bigint) => formatAmount(units, lang);
+  const amount = (units: bigint) => <Amount units={units} lang={lang} />;
   const noShares = pool.supply === 0n;
-  const stats: Array<{ label: string; value: string; unit?: string; hint?: string; accent?: boolean }> = [
+  const stats: Array<{ label: string; value: ReactNode; unit?: string; hint?: string; accent?: boolean }> = [
     {
       label: t.perShare,
       value: noShares ? t.noShares : formatPerShare(pool.perShare, lang),

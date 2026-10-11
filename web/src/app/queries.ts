@@ -53,12 +53,18 @@ export type PoolView = {
 };
 
 /** Why the configured pool cannot be shown. A configuration problem, never retried. */
-export type PoolMismatchReason =
-  | "poolMissing"
-  | "notAPool"
-  | "assetMismatch"
-  | "accountsMismatch"
-  | "accountsMissing";
+export type PoolMismatchReason = "poolMissing" | "notAPool" | "assetMismatch" | "accountsMismatch";
+
+/**
+ * The pool exists but its vault or share token was not returned (for example a node that is
+ * behind on a fresh pool). Thrown, so the query retries and the page offers "Try again".
+ */
+export class PoolAccountsMissingError extends Error {
+  constructor(readonly missing: Array<"vault" | "shareMint">) {
+    super(`pool accounts not found: ${missing.join(", ")}`);
+    this.name = "PoolAccountsMissingError";
+  }
+}
 
 export type PoolReadResult = { kind: "ok"; pool: PoolView } | { kind: "mismatch"; reason: PoolMismatchReason };
 
@@ -69,9 +75,9 @@ export const poolQueryKey = (poolAddress: Address) => ["pool", poolAddress] as c
 /** lineCount is a u64; the key holds it as a number because query keys are hashed as JSON. */
 export const linesQueryKey = (poolAddress: Address, lineCount: bigint) => ["lines", poolAddress, Number(lineCount)] as const;
 
-function bytesEqual(a: ReadonlyUint8Array, b: ReadonlyUint8Array): boolean {
-  if (a.length < b.length) return false;
-  for (let i = 0; i < b.length; i++) if (a[i] !== b[i]) return false;
+function startsWith(data: ReadonlyUint8Array, prefix: ReadonlyUint8Array): boolean {
+  if (data.length < prefix.length) return false;
+  for (let i = 0; i < prefix.length; i++) if (data[i] !== prefix[i]) return false;
   return true;
 }
 
@@ -92,7 +98,7 @@ export async function readPool(
   const [poolAccount, vaultAccount, mintAccount] = accounts;
 
   if (!poolAccount?.exists) return { kind: "mismatch", reason: "poolMissing" };
-  if (poolAccount.programAddress !== ELOTE_POOL_PROGRAM_ADDRESS || !bytesEqual(poolAccount.data, POOL_DISCRIMINATOR)) {
+  if (poolAccount.programAddress !== ELOTE_POOL_PROGRAM_ADDRESS || !startsWith(poolAccount.data, POOL_DISCRIMINATOR)) {
     return { kind: "mismatch", reason: "notAPool" };
   }
   let pool: Pool;
@@ -105,7 +111,12 @@ export async function readPool(
   if (pool.vault !== derived.vault || pool.shareMint !== derived.shareMint || pool.deadShares !== derived.deadShares) {
     return { kind: "mismatch", reason: "accountsMismatch" };
   }
-  if (!vaultAccount?.exists || !mintAccount?.exists) return { kind: "mismatch", reason: "accountsMissing" };
+  if (!vaultAccount?.exists || !mintAccount?.exists) {
+    throw new PoolAccountsMissingError([
+      ...(vaultAccount?.exists ? [] : (["vault"] as const)),
+      ...(mintAccount?.exists ? [] : (["shareMint"] as const)),
+    ]);
+  }
 
   let vaultAmount: bigint;
   let supply: bigint;
@@ -145,6 +156,19 @@ export async function readPool(
 
 const UNREADABLE: AnyLineView = { readable: false, status: "unknown" };
 
+// Line addresses never change for a (pool, lineId): derive each once per page load.
+const linePdaCache = new Map<string, Promise<Address>>();
+function lineAddress(pool: Address, lineId: bigint): Promise<Address> {
+  const key = `${pool}:${lineId}`;
+  let hit = linePdaCache.get(key);
+  if (!hit) {
+    hit = findLinePda({ pool, lineId }).then(([pda]) => pda);
+    hit.catch(() => linePdaCache.delete(key));
+    linePdaCache.set(key, hit);
+  }
+  return hit;
+}
+
 /** Reads lines 0..lineCount-1, 100 per request. Zero lines make no request. */
 export async function readLines(
   rpc: EloteRpc,
@@ -154,7 +178,7 @@ export async function readLines(
 ): Promise<PoolLine[]> {
   if (lineCount <= 0n) return [];
   const ids = Array.from({ length: Number(lineCount) }, (_, i) => BigInt(i));
-  const addresses = await Promise.all(ids.map(async (lineId) => (await findLinePda({ pool: poolAddress, lineId }))[0]));
+  const addresses = await Promise.all(ids.map((lineId) => lineAddress(poolAddress, lineId)));
   const rows: PoolLine[] = [];
   for (let start = 0; start < addresses.length; start += ACCOUNTS_PER_REQUEST) {
     const chunk = addresses.slice(start, start + ACCOUNTS_PER_REQUEST);
