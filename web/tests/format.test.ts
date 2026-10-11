@@ -49,4 +49,16 @@ describe("display formatting", () => {
     expect(explorerTxUrl(sig, "devnet")).toBe(`https://explorer.solana.com/tx/${sig}?cluster=devnet`);
     expect(explorerAddressUrl("abc", "mainnet-beta")).toBe("https://explorer.solana.com/address/abc");
   });
+
+  test("localnet links name the validator's RPC URL as a custom cluster", () => {
+    const sig = "5".repeat(88);
+    const local = "?cluster=custom&customUrl=http%3A%2F%2F127.0.0.1%3A8899";
+    expect(explorerTxUrl(sig, "localnet", "http://127.0.0.1:8899")).toBe(`https://explorer.solana.com/tx/${sig}${local}`);
+    expect(explorerAddressUrl("abc", "localnet")).toBe(`https://explorer.solana.com/address/abc${local}`);
+    expect(explorerTxUrl(sig, "localnet", "http://localhost:9000")).toBe(
+      `https://explorer.solana.com/tx/${sig}?cluster=custom&customUrl=http%3A%2F%2Flocalhost%3A9000`,
+    );
+    // Other clusters ignore the RPC URL.
+    expect(explorerTxUrl(sig, "devnet", "http://localhost:9000")).toBe(`https://explorer.solana.com/tx/${sig}?cluster=devnet`);
+  });
 });

@@ -4,6 +4,7 @@
 import type { LineStatusView, LineView } from "../../pool/line";
 import { explorerAddressUrl, formatDate, truncateMiddle, type ExplorerCluster } from "../../pool/format";
 import type { Copy, Lang } from "../../translations";
+import { useExplorerRpcUrl } from "../configContext";
 import type { PoolLine } from "../queries";
 import { Amount } from "./Amount";
 
@@ -41,9 +42,10 @@ export function repaidAmount(line: LineView): bigint {
 }
 
 function AddressLink({ address, cluster, newTab }: { address: string; cluster: ExplorerCluster; newTab: string }) {
+  const rpcUrl = useExplorerRpcUrl();
   return (
     <a
-      href={explorerAddressUrl(address, cluster)}
+      href={explorerAddressUrl(address, cluster, rpcUrl)}
       target="_blank"
       rel="noreferrer"
       title={address}

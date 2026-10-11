@@ -40,7 +40,7 @@ export async function requestSol(
 export function AirdropButton({ address, t, retryDelayMs }: { address: Address; t: Copy; retryDelayMs?: number }) {
   const f = t.app.faucet;
   const rpc = useRpc();
-  const { explorerCluster } = useAppConfig();
+  const { explorerCluster, rpcUrl } = useAppConfig();
   const queryClient = useQueryClient();
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<AirdropResult | null>(null);
@@ -68,7 +68,7 @@ export function AirdropButton({ address, t, retryDelayMs }: { address: Address; 
           <p className="m-0 text-ink">
             {f.solSent}{" "}
             <a
-              href={explorerTxUrl(result.signature, explorerCluster)}
+              href={explorerTxUrl(result.signature, explorerCluster, rpcUrl)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex min-h-[44px] items-center font-semibold text-teal-700 underline underline-offset-4"

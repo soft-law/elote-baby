@@ -11,7 +11,7 @@ const buttonClass =
   "inline-flex min-h-[44px] items-center justify-center self-start rounded-[12px] border-[1.5px] border-teal-700 px-4 font-display text-[15px] font-semibold text-teal-700 hover:bg-teal-50 disabled:opacity-70";
 
 export function PendingTransactionNotice({ t }: { t: Copy }) {
-  const { explorerCluster } = useAppConfig();
+  const { explorerCluster, rpcUrl } = useAppConfig();
   const { pending, unavailable, checking, checkNow, dismissUnavailable } = useJournalRecovery();
   const p = t.app.tx.pending;
   if (!unavailable && pending.length === 0) return null;
@@ -42,7 +42,7 @@ export function PendingTransactionNotice({ t }: { t: Copy }) {
                   <span className="text-ink-soft">: {entry.status === "signed" ? p.signed : p.sent}</span>
                 </span>
                 <a
-                  href={explorerTxUrl(entry.signature, explorerCluster)}
+                  href={explorerTxUrl(entry.signature, explorerCluster, rpcUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="num inline-flex min-h-[44px] items-center text-[14px] text-teal-700"

@@ -30,7 +30,7 @@ export type ConfigResult = { ok: true; config: AppConfig } | { ok: false; proble
 
 type Env = Partial<Record<string, string | boolean | undefined>>;
 
-const CLUSTERS: readonly ExplorerCluster[] = ["devnet", "testnet", "mainnet-beta"];
+const CLUSTERS: readonly ExplorerCluster[] = ["devnet", "testnet", "mainnet-beta", "localnet"];
 
 function text(env: Env, key: ConfigKey): string {
   const value = env[key];

@@ -47,7 +47,7 @@ export const secondaryButton =
 
 export function FaucetButton({ address, t }: { address: Address; t: Copy }) {
   const f = t.app.faucet;
-  const { apiUrl, explorerCluster } = useAppConfig();
+  const { apiUrl, explorerCluster, rpcUrl } = useAppConfig();
   const queryClient = useQueryClient();
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<FaucetResult | null>(null);
@@ -79,7 +79,7 @@ export function FaucetButton({ address, t }: { address: Address; t: Copy }) {
             {message}{" "}
             {result.kind === "sent" ? (
               <a
-                href={explorerTxUrl(result.signature, explorerCluster)}
+                href={explorerTxUrl(result.signature, explorerCluster, rpcUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex min-h-[44px] items-center font-semibold text-teal-700 underline underline-offset-4"

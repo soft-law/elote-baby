@@ -67,16 +67,23 @@ export function truncateMiddle(value: string, head: number = 4, tail: number = 4
   return `${value.slice(0, head)}...${value.slice(-tail)}`;
 }
 
-export type ExplorerCluster = "devnet" | "testnet" | "mainnet-beta";
+/** "localnet" is a local validator (end-to-end runs); its links name the RPC URL as a custom cluster. */
+export type ExplorerCluster = "devnet" | "testnet" | "mainnet-beta" | "localnet";
 
-function explorerQuery(cluster: ExplorerCluster): string {
-  return cluster === "mainnet-beta" ? "" : `?cluster=${cluster}`;
+/** solana-test-validator's default RPC, for localnet links when no RPC URL is given. */
+export const LOCALNET_RPC_URL = "http://127.0.0.1:8899";
+
+function explorerQuery(cluster: ExplorerCluster, rpcUrl: string = LOCALNET_RPC_URL): string {
+  if (cluster === "mainnet-beta") return "";
+  if (cluster === "localnet") return `?cluster=custom&customUrl=${encodeURIComponent(rpcUrl)}`;
+  return `?cluster=${cluster}`;
 }
 
-export function explorerTxUrl(signature: string, cluster: ExplorerCluster): string {
-  return `https://explorer.solana.com/tx/${encodeURIComponent(signature)}${explorerQuery(cluster)}`;
+/** `rpcUrl` only matters for localnet: the explorer reads that validator. */
+export function explorerTxUrl(signature: string, cluster: ExplorerCluster, rpcUrl?: string): string {
+  return `https://explorer.solana.com/tx/${encodeURIComponent(signature)}${explorerQuery(cluster, rpcUrl)}`;
 }
 
-export function explorerAddressUrl(address: string, cluster: ExplorerCluster): string {
-  return `https://explorer.solana.com/address/${encodeURIComponent(address)}${explorerQuery(cluster)}`;
+export function explorerAddressUrl(address: string, cluster: ExplorerCluster, rpcUrl?: string): string {
+  return `https://explorer.solana.com/address/${encodeURIComponent(address)}${explorerQuery(cluster, rpcUrl)}`;
 }

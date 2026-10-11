@@ -5,6 +5,7 @@
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { fill } from "../fill";
+import { useExplorerRpcUrl } from "../configContext";
 import { historyRow, type HistoryRow, type HistoryScope } from "../history";
 import { dataState } from "../dataState";
 import { explorerTxUrl, formatDate, formatDuration, truncateMiddle, type ExplorerCluster } from "../../pool/format";
@@ -74,6 +75,7 @@ function ExternalIcon() {
 }
 
 function Row({ row, t, lang, cluster }: { row: HistoryRow; t: Copy; lang: Lang; cluster: ExplorerCluster }) {
+  const rpcUrl = useExplorerRpcUrl();
   const h = t.app.history;
   let body: ReactNode;
   if (row.kind === "failed") {
@@ -105,7 +107,7 @@ function Row({ row, t, lang, cluster }: { row: HistoryRow; t: Copy; lang: Lang; 
         <p className="m-0 text-[15px] text-ink-soft">{date}</p>
       </div>
       <a
-        href={explorerTxUrl(row.signature, cluster)}
+        href={explorerTxUrl(row.signature, cluster, rpcUrl)}
         target="_blank"
         rel="noreferrer"
         title={row.signature}

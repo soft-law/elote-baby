@@ -34,6 +34,13 @@ describe("app config", () => {
     expect(off.ok && off.config.testWallet).toBe(false);
   });
 
+  test("every explorer cluster is accepted, localnet for a local validator", () => {
+    for (const cluster of ["devnet", "testnet", "mainnet-beta", "localnet"] as const) {
+      const r = readAppConfig({ ...good, VITE_EXPLORER_CLUSTER: cluster });
+      expect(r.ok && r.config.explorerCluster).toBe(cluster);
+    }
+  });
+
   test("empty env lists every required variable as missing", () => {
     const r = readAppConfig({});
     expect(r.ok).toBe(false);
@@ -52,7 +59,7 @@ describe("app config", () => {
       VITE_POOL_ADDRESS: "not-an-address",
       VITE_ASSET_MINT: "0OIl",
       VITE_API_URL: "localhost",
-      VITE_EXPLORER_CLUSTER: "localnet",
+      VITE_EXPLORER_CLUSTER: "localhost",
       VITE_TEST_WALLET: "yes",
     });
     expect(r.ok).toBe(false);

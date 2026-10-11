@@ -47,7 +47,7 @@ function StepIcon({ status }: { status: ToastStep["status"] }) {
 }
 
 function ToastCard({ toast, t, onDismiss }: { toast: Toast; t: Copy; onDismiss: () => void }) {
-  const { explorerCluster } = useAppConfig();
+  const { explorerCluster, rpcUrl } = useAppConfig();
   return (
     <div
       data-testid="toast"
@@ -77,7 +77,7 @@ function ToastCard({ toast, t, onDismiss }: { toast: Toast; t: Copy; onDismiss: 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             {toast.signature ? (
               <a
-                href={explorerTxUrl(toast.signature, explorerCluster)}
+                href={explorerTxUrl(toast.signature, explorerCluster, rpcUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="toast-explorer"

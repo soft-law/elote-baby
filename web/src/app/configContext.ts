@@ -9,3 +9,8 @@ export function useAppConfig(): AppConfig {
   if (!config) throw new Error("useAppConfig outside ConfigContext");
   return config;
 }
+
+/** The RPC URL that localnet explorer links name; undefined outside the app (component tests). */
+export function useExplorerRpcUrl(): string | undefined {
+  return useContext(ConfigContext)?.rpcUrl;
+}

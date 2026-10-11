@@ -125,7 +125,7 @@ function PoolLines({ lineCount, t, lang }: { lineCount: bigint; t: PoolCopy; lan
 export function PoolPage() {
   const { t, lang } = useLang();
   const p = t.app.pool;
-  const { poolAddress, explorerCluster } = useAppConfig();
+  const { poolAddress, explorerCluster, rpcUrl } = useAppConfig();
   const query = usePoolQuery();
   const state = dataState(query);
   const result = query.data;
@@ -187,7 +187,7 @@ export function PoolPage() {
       <p className="m-0 flex flex-wrap items-center gap-x-3 text-[16px] text-ink-soft">
         <span className="label">{p.address}</span>
         <a
-          href={explorerAddressUrl(poolAddress, explorerCluster)}
+          href={explorerAddressUrl(poolAddress, explorerCluster, rpcUrl)}
           target="_blank"
           rel="noreferrer"
           title={poolAddress}

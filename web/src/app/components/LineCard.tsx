@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useId, useState, type ReactNode } from "react";
 import { fill, fillText } from "../fill";
 import { RepayForm } from "../forms/RepayForm";
+import { useExplorerRpcUrl } from "../configContext";
 import { useHistoryQuery } from "../history";
 import type { PoolLine, PoolView } from "../queries";
 import { useTxToast } from "../toast/useTxToast";
@@ -211,9 +212,10 @@ export type LineCardProps = {
 };
 
 function PartyLink({ address, cluster, t }: { address: string; cluster: ExplorerCluster; t: Copy }) {
+  const rpcUrl = useExplorerRpcUrl();
   return (
     <a
-      href={explorerAddressUrl(address, cluster)}
+      href={explorerAddressUrl(address, cluster, rpcUrl)}
       target="_blank"
       rel="noreferrer"
       title={address}

@@ -12,6 +12,8 @@ import { generateKeyPairSigner, getBase58Encoder, type Address } from "@solana/k
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { HistoryList } from "../src/app/components/HistoryList";
+import type { AppConfig } from "../src/app/config";
+import { ConfigContext } from "../src/app/configContext";
 import { HISTORY_LIMIT, historyQueryKey, historyRow, mapLimit, readHistory, type HistoryScope } from "../src/app/history";
 import { decodeEventInstructionData, type HistoryEntry } from "../src/pool/history";
 import { createRpc } from "../src/tx/rpc";
@@ -281,12 +283,13 @@ afterEach(async () => {
   mounted = null;
 });
 
-async function render(entries: HistoryEntry[], scope: HistoryScope, lang: Lang = "en") {
+async function render(entries: HistoryEntry[], scope: HistoryScope, lang: Lang = "en", config?: AppConfig) {
   const host = document.createElement("div");
   document.body.appendChild(host);
   const root = createRoot(host);
   const t = translations[lang];
-  await act(async () => root.render(<HistoryList entries={entries} scope={scope} t={t} lang={lang} cluster="devnet" label={t.app.history.title} />));
+  const list = <HistoryList entries={entries} scope={scope} t={t} lang={lang} cluster={config?.explorerCluster ?? "devnet"} label={t.app.history.title} />;
+  await act(async () => root.render(config ? <ConfigContext.Provider value={config}>{list}</ConfigContext.Provider> : list));
   mounted = { root, host };
   return host;
 }
@@ -331,6 +334,23 @@ describe("HistoryList", () => {
       expect(link.textContent).toContain(en.app.newTab);
     }
     expect(host.textContent).not.toMatch(/NaN|undefined|null/);
+  });
+
+  test("on localnet the explorer link names the configured RPC URL", async () => {
+    const decode = (data: string) => decodeEventInstructionData(getBase58Encoder().encode(data))!;
+    const sig = fakeSignature(45);
+    const config: AppConfig = {
+      rpcUrl: "http://127.0.0.1:8899",
+      poolAddress: pool,
+      assetMint: owner,
+      apiUrl: "http://127.0.0.1:1",
+      explorerCluster: "localnet",
+      testWallet: true,
+    };
+    const host = await render([entry(sig, [decode(depositedData())])], { kind: "shares", pool, owner }, "en", config);
+    expect(host.querySelector("li[data-signature] a")!.getAttribute("href")).toBe(
+      `https://explorer.solana.com/tx/${sig}?cluster=custom&customUrl=http%3A%2F%2F127.0.0.1%3A8899`,
+    );
   });
 
   test("Spanish rows", async () => {
