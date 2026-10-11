@@ -93,6 +93,19 @@ pub fn ata(owner: &Pubkey, mint: &Pubkey) -> Pubkey {
     get_associated_token_address(owner, mint)
 }
 
+/// The fixed agreement hash the tests open lines with.
+pub const AGREEMENT_HASH: [u8; 32] = [0xa7; 32];
+
+/// `open_line` arguments other than the line id.
+#[derive(Clone, Copy, Debug)]
+pub struct LineParams {
+    pub principal: u64,
+    pub rate_bps: u16,
+    pub term_end: i64,
+    pub agreement_hash: [u8; 32],
+    pub sponsor: Option<Pubkey>,
+}
+
 pub struct Env {
     pub svm: LiteSVM,
     pub admin: Keypair,
@@ -408,6 +421,169 @@ impl Env {
 
     pub fn supply(&self, k: &PoolKeys) -> u64 {
         self.mint_supply(&k.share_mint)
+    }
+
+    // -- credit line instructions --------------------------------------------------------------
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn open_line_ix(
+        &self,
+        k: &PoolKeys,
+        admin: &Pubkey,
+        line_id: u64,
+        borrower: &Pubkey,
+        p: &LineParams,
+        sponsor_account: Option<Pubkey>,
+    ) -> Instruction {
+        let (event_authority, program) = event_metas();
+        Instruction {
+            program_id: PROGRAM_ID,
+            accounts: elote_pool::accounts::OpenLine {
+                admin: *admin,
+                borrower: *borrower,
+                sponsor: sponsor_account,
+                pool: k.pool,
+                line: line_pda(&k.pool, line_id).0,
+                system_program: SYSTEM_PROGRAM_ID,
+                event_authority,
+                program,
+            }
+            .to_account_metas(None),
+            data: elote_pool::instruction::OpenLine {
+                line_id,
+                principal: p.principal,
+                rate_bps: p.rate_bps,
+                term_end: p.term_end,
+                agreement_hash: p.agreement_hash,
+                sponsor: p.sponsor,
+            }
+            .data(),
+        }
+    }
+
+    /// Default terms: `principal` at `rate_bps`, 30 days, a fixed agreement hash, no sponsor.
+    pub fn line_params(&self, principal: u64, rate_bps: u16) -> LineParams {
+        LineParams {
+            principal,
+            rate_bps,
+            term_end: self.now() + 30 * 24 * 3600,
+            agreement_hash: AGREEMENT_HASH,
+            sponsor: None,
+        }
+    }
+
+    /// Opens the next line of the pool, signed by the admin, the borrower and (if named) the sponsor.
+    pub fn open_line_with(
+        &mut self,
+        k: &PoolKeys,
+        borrower: &Keypair,
+        p: &LineParams,
+        sponsor: Option<&Keypair>,
+    ) -> (u64, TransactionMetadata) {
+        let admin = self.admin.insecure_clone();
+        let line_id = self.pool(k).line_count;
+        let ix = self.open_line_ix(k, &admin.pubkey(), line_id, &borrower.pubkey(), p, sponsor.map(|s| s.pubkey()));
+        let mut extra: Vec<&Keypair> = vec![borrower];
+        if let Some(s) = sponsor {
+            extra.push(s);
+        }
+        let meta = self.send(ix, &admin, &extra);
+        (line_id, meta)
+    }
+
+    pub fn open_line(&mut self, k: &PoolKeys, borrower: &Keypair, principal: u64, rate_bps: u16) -> u64 {
+        let p = self.line_params(principal, rate_bps);
+        self.open_line_with(k, borrower, &p, None).0
+    }
+
+    /// A funded borrower wallet with an (empty) asset account.
+    pub fn borrower(&mut self, k: &PoolKeys) -> Keypair {
+        let kp = self.funded(10);
+        self.create_ata(&kp.pubkey(), &k.asset_mint);
+        kp
+    }
+
+    pub fn draw_ix(&self, k: &PoolKeys, line_id: u64, borrower: &Pubkey) -> Instruction {
+        let (event_authority, program) = event_metas();
+        Instruction {
+            program_id: PROGRAM_ID,
+            accounts: elote_pool::accounts::Draw {
+                borrower: *borrower,
+                pool: k.pool,
+                line: line_pda(&k.pool, line_id).0,
+                vault: k.vault,
+                borrower_asset_account: ata(borrower, &k.asset_mint),
+                token_program: TOKEN_PROGRAM_ID,
+                event_authority,
+                program,
+            }
+            .to_account_metas(None),
+            data: elote_pool::instruction::Draw {}.data(),
+        }
+    }
+
+    pub fn draw(&mut self, k: &PoolKeys, line_id: u64, borrower: &Keypair) -> elote_pool::events::LineDrawn {
+        let ix = self.draw_ix(k, line_id, &borrower.pubkey());
+        let meta = self.send(ix, borrower, &[]);
+        find_event(&meta).expect("LineDrawn event")
+    }
+
+    pub fn repay_ix(&self, k: &PoolKeys, line_id: u64, payer: &Pubkey, amount: u64) -> Instruction {
+        let (event_authority, program) = event_metas();
+        Instruction {
+            program_id: PROGRAM_ID,
+            accounts: elote_pool::accounts::Repay {
+                payer: *payer,
+                pool: k.pool,
+                line: line_pda(&k.pool, line_id).0,
+                vault: k.vault,
+                payer_asset_account: ata(payer, &k.asset_mint),
+                token_program: TOKEN_PROGRAM_ID,
+                event_authority,
+                program,
+            }
+            .to_account_metas(None),
+            data: elote_pool::instruction::Repay { amount }.data(),
+        }
+    }
+
+    pub fn repay(&mut self, k: &PoolKeys, line_id: u64, payer: &Keypair, amount: u64) -> elote_pool::events::LineRepaid {
+        let ix = self.repay_ix(k, line_id, &payer.pubkey(), amount);
+        let meta = self.send(ix, payer, &[]);
+        find_event(&meta).expect("LineRepaid event")
+    }
+
+    pub fn write_off_ix(&self, k: &PoolKeys, line_id: u64, admin: &Pubkey) -> Instruction {
+        let (event_authority, program) = event_metas();
+        Instruction {
+            program_id: PROGRAM_ID,
+            accounts: elote_pool::accounts::WriteOff {
+                admin: *admin,
+                pool: k.pool,
+                line: line_pda(&k.pool, line_id).0,
+                vault: k.vault,
+                event_authority,
+                program,
+            }
+            .to_account_metas(None),
+            data: elote_pool::instruction::WriteOff {}.data(),
+        }
+    }
+
+    pub fn line(&self, k: &PoolKeys, line_id: u64) -> elote_pool::state::CreditLine {
+        self.anchor_account(&line_pda(&k.pool, line_id).0)
+    }
+
+    /// Opens, draws and fully repays a line of `principal` at `rate_bps`: the pool earns the interest.
+    pub fn lend_and_repay(&mut self, k: &PoolKeys, principal: u64, rate_bps: u16) -> u64 {
+        let borrower = self.borrower(k);
+        let line_id = self.open_line(k, &borrower, principal, rate_bps);
+        self.draw(k, line_id, &borrower);
+        let interest = self.line(k, line_id).interest_due;
+        let admin = self.admin.insecure_clone();
+        self.mint_to(&k.asset_mint, &admin, &borrower.pubkey(), interest);
+        self.repay(k, line_id, &borrower, principal + interest);
+        interest
     }
 
     /// A direct SPL transfer into the vault from a fresh wallet: value enters without new shares.

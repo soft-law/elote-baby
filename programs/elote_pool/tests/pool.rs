@@ -90,9 +90,11 @@ fn deposit_after_interest_mints_fewer_shares() {
     let b = env.investor(&k, UNIT);
     env.deposit(&k, &a, 10 * UNIT);
 
-    // Value enters the vault without new shares, as repaid interest does: NAV 10.4, supply 10.
-    env.donate(&k, 400_000);
+    // A line of 4.0 at 10% is drawn and repaid with its interest: NAV 10.4, supply 10.
+    let interest = env.lend_and_repay(&k, 4 * UNIT, 1_000);
+    assert_eq!(interest, 400_000);
     assert_eq!(env.nav(&k), 10_400_000);
+    assert_eq!(env.supply(&k), 10 * UNIT);
 
     let ev = env.deposit(&k, &b, UNIT);
     // floor(1_000_000 * 10_000_000 / 10_400_000) = floor(961_538.46)
@@ -107,32 +109,52 @@ fn redeem_returns_pro_rata_and_respects_liquidity() {
     let mut env = Env::new();
     let (k, _) = env.setup_pool();
     let a = env.investor(&k, 10 * UNIT);
-    let b = env.investor(&k, 5_500_000);
+    let b = env.investor(&k, 5_200_000);
+    let nobody = env.investor(&k, 0);
     env.deposit(&k, &a, 10 * UNIT);
-    env.donate(&k, UNIT); // NAV 11.0, supply 10.0: 1.1 per share
-    let ev = env.deposit(&k, &b, 5_500_000);
+    env.lend_and_repay(&k, 4 * UNIT, 1_000); // NAV 10.4, supply 10.0: 1.04 per share
+    let ev = env.deposit(&k, &b, 5_200_000);
     assert_eq!(ev.shares, 5 * UNIT);
-    assert_eq!((ev.nav_after, ev.supply_after), (16_500_000, 15 * UNIT));
+    assert_eq!((ev.nav_after, ev.supply_after), (15_600_000, 15 * UNIT));
+
+    // A second line takes 12.0 out of the vault: 3.6 liquid, 12.0 lent.
+    let borrower = env.borrower(&k);
+    let line_id = env.open_line(&k, &borrower, 12 * UNIT, 1_000);
+    env.draw(&k, line_id, &borrower);
+    assert_eq!(env.token_balance(&k.vault), 3_600_000);
+    assert_eq!(env.nav(&k), 15_600_000);
     let before = per_share(env.nav(&k), env.supply(&k));
 
     let ix = env.redeem_ix(&k, &a.pubkey(), 0);
     env.expect_err(ix, &a, &[], E_WRONG_AMOUNT);
 
+    // Everything A holds is worth 10.4: more than the vault has. Nothing is burned.
+    let ix = env.redeem_ix(&k, &a.pubkey(), 10 * UNIT);
+    env.expect_err(ix, &a, &[], E_INSUFFICIENT_LIQUIDITY);
+    assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.share_mint)), 10 * UNIT);
+    assert_eq!(env.supply(&k), 15 * UNIT);
+
+    // What fits is paid pro rata.
     let ev = env.redeem(&k, &a, 3 * UNIT);
     assert_eq!(ev.holder, a.pubkey());
     assert_eq!(ev.shares, 3 * UNIT);
-    assert_eq!(ev.assets, 3_300_000);
-    assert_eq!(ev.nav_after, 13_200_000);
+    assert_eq!(ev.assets, 3_120_000);
+    assert_eq!(ev.nav_after, 12_480_000);
     assert_eq!(ev.supply_after, 12 * UNIT);
-    assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.asset_mint)), 3_300_000);
+    assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.asset_mint)), 3_120_000);
     assert_eq!(env.token_balance(&ata(&a.pubkey(), &k.share_mint)), 7 * UNIT);
     assert_eq!(per_share(env.nav(&k), env.supply(&k)), before, "redeeming leaves the value per share unchanged");
 
+    // 1.0 share is worth 1.04; 0.48 is left in the vault.
+    let ix = env.redeem_ix(&k, &b.pubkey(), UNIT);
+    env.expect_err(ix, &b, &[], E_INSUFFICIENT_LIQUIDITY);
+
     // Shares the holder does not have cannot be burned.
-    let ix = env.redeem_ix(&k, &b.pubkey(), 5 * UNIT + 1);
-    assert!(env.try_send(ix, &b, &[]).is_err());
+    let ix = env.redeem_ix(&k, &nobody.pubkey(), 1);
+    assert!(env.try_send(ix, &nobody, &[]).is_err());
     assert_eq!(env.supply(&k), 12 * UNIT);
 }
+
 
 #[test]
 fn zero_shares_deposit_fails() {

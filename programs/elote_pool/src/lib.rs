@@ -37,6 +37,36 @@ pub mod elote_pool {
         instructions::pool::redeem(ctx, shares)
     }
 
+    /// Approves credit line `line_id` (the next in sequence) for `borrower`; a named sponsor
+    /// co-signs. Moves no money.
+    #[allow(clippy::too_many_arguments)]
+    pub fn open_line(
+        ctx: Context<OpenLine>,
+        line_id: u64,
+        principal: u64,
+        rate_bps: u16,
+        term_end: i64,
+        agreement_hash: [u8; 32],
+        sponsor: Option<Pubkey>,
+    ) -> Result<()> {
+        instructions::lines::open_line(ctx, line_id, principal, rate_bps, term_end, agreement_hash, sponsor)
+    }
+
+    /// Pays the whole principal of an approved line from the vault to the borrower.
+    pub fn draw(ctx: Context<Draw>) -> Result<()> {
+        instructions::lines::draw(ctx)
+    }
+
+    /// Repays `amount` of an active line, principal first, then interest. Anyone may pay.
+    pub fn repay(ctx: Context<Repay>, amount: u64) -> Result<()> {
+        instructions::lines::repay(ctx, amount)
+    }
+
+    /// Recognises the unpaid principal of an active line past its term as a loss.
+    pub fn write_off(ctx: Context<WriteOff>) -> Result<()> {
+        instructions::lines::write_off(ctx)
+    }
+
     /// Pauses or resumes deposits, redemptions, openings, draws and repayments.
     pub fn set_paused(ctx: Context<SetPaused>, paused: bool) -> Result<()> {
         instructions::pool::set_paused(ctx, paused)
