@@ -68,7 +68,10 @@ export function startRpc() {
       calls.length = 0;
       counts.clear();
       handlers = {};
+      server.resetHandlers();
     },
+    /** The msw server, for HTTP handlers beside JSON-RPC (cleared by reset). */
+    server,
     close: () => server.close(),
   };
 }

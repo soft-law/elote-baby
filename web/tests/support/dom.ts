@@ -9,5 +9,9 @@ for (const key of ["window", "document", "HTMLElement", "Node", "Element", "Even
   g[key] = key === "window" ? win : (win as unknown as Record<string, unknown>)[key];
 }
 g.IS_REACT_ACT_ENVIRONMENT = true;
+// React decides once, at load, whether "input" events exist by looking for document.oninput.
+// happy-dom has no such property, so React would fall back to an old-IE polyfill and text inputs
+// would never fire onChange. Every browser the app supports has it.
+if (!("oninput" in win.document)) (win.document as unknown as Record<string, unknown>).oninput = null;
 
 export const domWindow = win;

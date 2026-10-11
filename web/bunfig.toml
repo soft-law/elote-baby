@@ -1,0 +1,4 @@
+[test]
+# happy-dom globals before any test file loads react-dom: React reads the DOM once, at load, to
+# decide how to listen for input events, and bun shares that module between test files.
+preload = ["./tests/support/dom.ts"]
