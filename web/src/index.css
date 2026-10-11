@@ -145,7 +145,23 @@
   }
 }
 
-/* Motion is low: hover and press feedback only, nothing on load, nothing looping except the app loading placeholders above. Reduced motion stops all of it. */
+/* Motion is low: hover and press feedback, plus the app loading placeholders above and one loop, the agreement walkthrough's progress
+   fill (src/AgreementDemo.tsx), which is pausable, stops offscreen and is off under reduce. */
+@keyframes demo-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.demo-fill {
+  transform-origin: left center;
+  animation-name: demo-fill;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

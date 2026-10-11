@@ -54,13 +54,13 @@ describe("translations", () => {
     expect(hits).toEqual([]);
   });
 
-  test("no disputes, dockets or arbitration outside the roadmap chip", () => {
+  test("no disputes, dockets or arbitration anywhere", () => {
     const pattern = /disput|docket|arbitr|award|laudo|expediente/i;
     for (const lang of ["en", "es"] as const) {
       const hits = strings(translations[lang] as unknown as Tree)
         .filter(([, v]) => pattern.test(v))
         .map(([path]) => path);
-      expect(hits).toEqual(["where.chips[3]"]);
+      expect(hits).toEqual([]);
     }
   });
 
@@ -71,14 +71,14 @@ describe("translations", () => {
     }
   });
 
-  test("the compliance line lives in the footer only", () => {
-    expect(translations.en.footer.disclaimer).toBe("Devnet demo with test assets. Not an offer of securities.");
-    expect(translations.es.footer.disclaimer).toBe("Demo en devnet con activos de prueba. No es una oferta de valores.");
+  test("the footer carries only the company name, no disclaimer line", () => {
     for (const lang of ["en", "es"] as const) {
+      expect(translations[lang].footer.powered).toBe("Softlaw SA de CV");
+      expect("disclaimer" in translations[lang].footer).toBe(false);
       const hits = strings(translations[lang] as unknown as Tree)
-        .filter(([, v]) => /not an offer|no es una oferta/i.test(v))
+        .filter(([, v]) => /not an offer|no es una oferta|Soft\.Law|S\.A\. de C\.V\./i.test(v))
         .map(([path]) => path);
-      expect(hits).toEqual(["footer.disclaimer"]);
+      expect(hits).toEqual([]);
     }
   });
 
@@ -90,14 +90,47 @@ describe("translations", () => {
     }
   });
 
-  test("owner removals stay removed (not-on-chain devnet line, partnership note)", () => {
+  test("owner removals stay removed", () => {
+    const removed =
+      /real money|dinero real|government partnership|alianza con ning|written-off loan|pr[eé]stamo perdido|next steps|siguientes pasos|counts only when repaid|solo cuenta cuando/i;
     for (const lang of ["en", "es"] as const) {
-      const hits = strings(translations[lang] as unknown as Tree)
-        .filter(([, v]) => /real money|dinero real|government partnership|alianza con ning/i.test(v))
+      const t = translations[lang];
+      const hits = strings(t as unknown as Tree)
+        .filter(([, v]) => removed.test(v))
         .map(([path]) => path);
       expect(hits).toEqual([]);
-      expect(translations[lang].honesty.off).toHaveLength(2);
-      expect("note" in translations[lang].lines).toBe(false);
+      expect("honesty" in t).toBe(false);
+      expect("writeOff" in t.flow).toBe(false);
+      expect("cardLabel" in t.pool).toBe(false);
+      expect("caption" in t.pool).toBe(false);
+      expect(Object.keys(t.where).sort()).toEqual(["body", "title"]);
+      expect(Object.keys(t.lines).sort()).toEqual(["body", "title"]);
+    }
+  });
+
+  test("credit lines are described as government-supported, never backed or named", () => {
+    expect(translations.en.lines.body).toContain("government support");
+    expect(translations.es.lines.body).toContain("apoyo de gobierno");
+    for (const lang of ["en", "es"] as const) {
+      const { title, body } = translations[lang].lines;
+      expect(`${title} ${body}`).not.toMatch(/back|guarant|respald|garantiz|municip|ayuntamiento|gobierno de |government of /i);
+    }
+  });
+
+  test("the agreement section uses the auto-executable framing", () => {
+    expect(translations.en.agreement.title).toBe("Programmable Real World Credits");
+    expect(translations.en.agreement.body).toContain("Auto-executable legal contracts");
+    expect(translations.es.agreement.body).toContain("Contratos legales autoejecutables");
+    for (const lang of ["en", "es"] as const) {
+      expect(translations[lang].agreement.demo.steps).toHaveLength(5);
+    }
+  });
+
+  test("the pool headline is a single sentence", () => {
+    for (const lang of ["en", "es"] as const) {
+      const title = translations[lang].pool.title;
+      expect(title).not.toMatch(/[.:;?]/);
+      expect(title).toMatch(/100/);
     }
   });
 
@@ -108,11 +141,25 @@ describe("translations", () => {
     expect([translations.es.hero.invest, translations.es.hero.borrow]).toEqual(["Invertir", "Pedir crédito"]);
   });
 
-  test("the example card is labeled as an example", () => {
-    expect(translations.en.pool.cardLabel).toBe("Example");
-    expect(translations.es.pool.cardLabel).toBe("Ejemplo");
-    expect(translations.en.pool.caption).toBe("Interest is fixed when the line opens and counts only when repaid.");
+  test("the landing always calls tMXN a test token, in either language", () => {
+    const hint = { en: /test tokens?/i, es: /tokens? de prueba/i } as const;
+    for (const lang of ["en", "es"] as const) {
+      const hits = strings(translations[lang] as unknown as Tree)
+        .filter(([, v]) => /tMXN/.test(v) && !hint[lang].test(v))
+        .map(([path]) => path);
+      expect(hits).toEqual([]);
+    }
   });
+
+  test("the landing never says mint or Polkadot", () => {
+    for (const lang of ["en", "es"] as const) {
+      const hits = strings(translations[lang] as unknown as Tree)
+        .filter(([, v]) => /\bmint|acu[nñ]a|polkadot/i.test(v))
+        .map(([path]) => path);
+      expect(hits).toEqual([]);
+    }
+  });
+
   test("the app subtree exists in both languages", () => {
     for (const lang of ["en", "es"] as const) {
       expect(keyPaths(translations[lang].app as unknown as Tree).length).toBeGreaterThan(20);

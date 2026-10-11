@@ -4,21 +4,9 @@ import { LangToggle, Logo, SiteFooter } from "./chrome";
 import { META } from "./meta";
 import { CornMark } from "./CornMark";
 import { translations, type Card, type Copy, type Lang } from "./translations";
-import {
-  CheckDot,
-  IconArrowRight,
-  IconBriefcase,
-  IconCheckCircle,
-  IconClose,
-  IconDoc,
-  IconDownload,
-  IconLayers,
-  IconMenu,
-  IconPhoneCheck,
-  IconShop,
-  IconUpload,
-  MinusDot,
-} from "./icons";
+import { IconArrowRight, IconClose, IconMenu } from "./icons";
+import { HeadBorrow, HeadInvest, StepDeposit, StepDraw, StepGrow, StepRedeem, StepRepay, StepSign } from "./stepIcons";
+import { AgreementDemo } from "./AgreementDemo";
 
 function queryLang(): Lang | null {
   const fromQuery = new URLSearchParams(window.location.search).get("lang");
@@ -61,7 +49,6 @@ export function App() {
         <Audiences t={t} />
         <Flow t={t} />
         <Agreement t={t} />
-        <Honesty t={t} />
         <TwoLines t={t} />
         <WhereWeAre t={t} />
       </main>
@@ -93,10 +80,11 @@ function Header({ t, lang, setLang }: { t: Copy; lang: Lang; setLang: (l: Lang) 
 
   return (
     <header>
-      <nav aria-label={t.nav.label} className="mx-auto flex min-h-[68px] max-w-[1200px] items-center justify-between gap-3 px-4 md:min-h-[80px] md:px-8">
+      {/* Full-bleed bar: the lockup sits on the page gutter, not inside the 1200 px content column. */}
+      <nav aria-label={t.nav.label} className="flex min-h-[68px] items-center justify-between gap-3 px-4 md:min-h-[80px] md:px-8">
         <a href="#top" className="flex min-h-[44px] items-center">
           <span className="md:hidden">
-            <Logo height={30} alt={t.nav.home} />
+            <Logo height={34} alt={t.nav.home} />
           </span>
           <span className="hidden md:block">
             <Logo height={44} alt={t.nav.home} />
@@ -211,17 +199,15 @@ function PoolSection({ t }: { t: Copy }) {
   const due = 28000; // principal plus 12% fixed interest
   const repaid = 6200;
   return (
-    <section id="pool" aria-labelledby="pool-title" className="mx-auto grid max-w-[1200px] grid-cols-1 gap-10 px-4 py-14 md:px-8 md:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:gap-16">
-      <div className="flex flex-col gap-5">
-        <h2 id="pool-title" className="m-0 text-[30px] font-bold leading-[1.12] tracking-[-0.02em] md:text-[44px]">
-          {p.title}
-        </h2>
-        <p className="m-0 max-w-[34ch] text-[18px] leading-[1.6] text-ink-soft md:text-[21px]">{p.body}</p>
-      </div>
-      <figure className="m-0 flex flex-col gap-3">
+    <section id="pool" aria-labelledby="pool-title" className="mx-auto grid max-w-[1200px] grid-cols-1 gap-6 px-4 py-14 md:px-8 md:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center lg:gap-x-16 lg:gap-y-10">
+      {/* One message, across the full width so it reads as one line of thought, not a column. */}
+      <h2 id="pool-title" className="m-0 max-w-[26ch] text-[30px] font-bold leading-[1.12] tracking-[-0.02em] md:text-[40px] lg:col-span-2 lg:max-w-none">
+        {p.title}
+      </h2>
+      <p className="m-0 max-w-[34ch] text-[18px] leading-[1.6] text-ink-soft md:text-[21px]">{p.body}</p>
+      <div>
         <div className="rounded-[24px] border-[1.5px] border-line bg-white p-5 shadow-[var(--shadow-soft)] md:p-7">
-          <span className="label inline-flex rounded-full bg-mist px-3 py-1 text-ink-soft">{p.cardLabel}</span>
-          <h3 className="mt-4 mb-1 text-[26px] font-bold leading-tight md:text-[30px]">{p.line}</h3>
+          <h3 className="m-0 mb-1 text-[26px] font-bold leading-tight md:text-[30px]">{p.line}</h3>
           <dl className="m-0 mt-4 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
             <Field term={p.entrepreneur} value={p.entrepreneurValue} wide />
             <Field term={p.principal} value={fmt(principal)} mono />
@@ -250,8 +236,7 @@ function PoolSection({ t }: { t: Copy }) {
             </div>
           </div>
         </div>
-        <figcaption className="text-[15px] leading-[1.5] text-ink-soft">{p.caption}</figcaption>
-      </figure>
+      </div>
     </section>
   );
 }
@@ -272,8 +257,8 @@ function Audiences({ t }: { t: Copy }) {
         id="investors"
         title={t.investors.title}
         cards={t.investors.cards}
-        icons={[IconUpload, IconLayers, IconDownload]}
-        headIcon={IconBriefcase}
+        icons={[StepDeposit, StepGrow, StepRedeem]}
+        headIcon={HeadInvest}
         panel="border-[1.5px] border-line bg-white"
         card="bg-mist"
         chip="bg-teal-50"
@@ -282,8 +267,8 @@ function Audiences({ t }: { t: Copy }) {
         id="entrepreneurs"
         title={t.entrepreneurs.title}
         cards={t.entrepreneurs.cards}
-        icons={[IconPhoneCheck, IconCheckCircle, IconShop]}
-        headIcon={IconShop}
+        icons={[StepSign, StepDraw, StepRepay]}
+        headIcon={HeadBorrow}
         panel="bg-corn-100"
         card="bg-white"
         chip="bg-white"
@@ -317,7 +302,7 @@ function AudienceRow({
     <div id={id} className={`flex flex-col gap-5 rounded-[24px] p-5 md:gap-6 md:p-8 ${panel}`}>
       <div className="flex items-center gap-4">
         <span aria-hidden="true" className={`flex size-12 flex-none items-center justify-center rounded-[18px] md:size-14 ${chip}`}>
-          <Head size={28} />
+          <Head size={36} />
         </span>
         <h2 className="m-0 text-[26px] font-bold leading-[1.15] md:text-[34px]">{title}</h2>
       </div>
@@ -326,7 +311,7 @@ function AudienceRow({
           const Icon = icons[i];
           return (
             <li key={c.title} className={`flex gap-3.5 rounded-[18px] p-4 md:flex-col md:gap-3 md:p-5 ${card}`}>
-              <Icon size={28} className="flex-none text-teal-700" />
+              <Icon size={48} className="flex-none" />
               <div className="flex flex-col gap-1">
                 <h3 className="m-0 text-[19px] font-semibold leading-tight md:text-[21px]">{c.title}</h3>
                 <p className="m-0 text-[17px] leading-[1.5] text-ink-soft">{c.body}</p>
@@ -352,10 +337,6 @@ function Flow({ t }: { t: Copy }) {
             <FlowNode key={i} index={i} name={node} tag={t.flow.tags[i]} last={i === n - 1} />
           ))}
         </ol>
-        <p className="m-0 flex items-start gap-3 text-[17px] leading-[1.5] text-ink">
-          <MinusDot />
-          <span>{t.flow.writeOff}</span>
-        </p>
       </div>
     </section>
   );
@@ -386,70 +367,16 @@ function FlowNode({ index, name, tag, last }: { index: number; name: string; tag
 }
 
 function Agreement({ t }: { t: Copy }) {
-  const icons = [IconDoc, IconPhoneCheck, IconLayers];
+  const a = t.agreement;
   return (
-    <section aria-labelledby="agreement-title" className="mx-auto flex max-w-[1200px] flex-col gap-8 px-4 py-14 md:gap-10 md:px-8 md:py-20">
-      <h2 id="agreement-title" className="m-0 text-[30px] font-bold leading-[1.12] tracking-[-0.02em] md:text-[44px]">
-        {t.agreement.title}
-      </h2>
-      <ol className="m-0 grid list-none grid-cols-1 gap-0 overflow-hidden rounded-[24px] border-[1.5px] border-line bg-white p-0 md:grid-cols-3">
-        {t.agreement.steps.map((s, i) => {
-          const Icon = icons[i];
-          return (
-            <li
-              key={s.title}
-              className={`flex gap-4 p-5 md:flex-col md:p-8 ${i > 0 ? "border-t-[1.5px] border-line md:border-t-0 md:border-l-[1.5px]" : ""}`}
-            >
-              <span aria-hidden="true" className="flex size-12 flex-none items-center justify-center rounded-[14px] bg-teal-50 text-teal-700 md:size-14 md:rounded-[18px]">
-                <Icon size={26} />
-              </span>
-              <div className="flex flex-col gap-1.5">
-                <h3 className="m-0 text-[20px] font-semibold leading-tight md:text-[24px]">
-                  <span className="text-teal-700">{i + 1}.</span> {s.title}
-                </h3>
-                <p className="m-0 text-[17px] leading-[1.55] text-ink-soft">{s.body}</p>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
-
-function Honesty({ t }: { t: Copy }) {
-  const h = t.honesty;
-  return (
-    <section id="onchain" aria-labelledby="onchain-title" className="border-y border-line bg-mist">
-      <div className="mx-auto flex max-w-[1200px] flex-col gap-8 px-4 py-14 md:gap-10 md:px-8 md:py-20">
-        <h2 id="onchain-title" className="m-0 text-[30px] font-bold leading-[1.12] tracking-[-0.02em] md:text-[44px]">
-          {h.title}
+    <section id="agreement" aria-labelledby="agreement-title" className="mx-auto flex max-w-[1200px] flex-col gap-8 px-4 py-14 md:gap-10 md:px-8 md:py-20">
+      <div className="flex max-w-[44rem] flex-col gap-4">
+        <h2 id="agreement-title" className="m-0 text-[30px] font-bold leading-[1.12] tracking-[-0.02em] md:text-[44px]">
+          {a.title}
         </h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
-          <div className="overflow-hidden rounded-[24px] border-[1.5px] border-teal-700 bg-white">
-            <h3 className="label m-0 bg-teal-50 px-5 py-4 text-teal-700 md:px-8">{h.onLabel}</h3>
-            <ul className="m-0 flex list-none flex-col gap-3 px-5 py-5 text-[18px] leading-[1.5] md:px-8 md:py-6 md:text-[19px]">
-              {h.on.map((item) => (
-                <li key={item} className="flex items-start gap-3">
-                  <CheckDot />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="overflow-hidden rounded-[24px] border-[1.5px] border-ink bg-white">
-            <h3 className="label m-0 bg-corn-100 px-5 py-4 text-ink md:px-8">{h.offLabel}</h3>
-            <ul className="m-0 flex list-none flex-col gap-3 px-5 py-5 text-[18px] leading-[1.5] md:px-8 md:py-6 md:text-[19px]">
-              {h.off.map((item) => (
-                <li key={item} className="flex items-start gap-3">
-                  <MinusDot />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        <p className="m-0 text-[18px] leading-[1.6] text-ink-soft md:text-[21px]">{a.body}</p>
       </div>
+      <AgreementDemo d={a.demo} />
     </section>
   );
 }
@@ -457,22 +384,12 @@ function Honesty({ t }: { t: Copy }) {
 function TwoLines({ t }: { t: Copy }) {
   const l = t.lines;
   return (
-    <section id="lines" aria-labelledby="lines-title" className="mx-auto flex max-w-[1200px] flex-col gap-8 px-4 py-14 md:gap-10 md:px-8 md:py-20">
-      <h2 id="lines-title" className="m-0 text-[30px] font-bold leading-[1.12] tracking-[-0.02em] md:text-[44px]">
-        {l.title}
-      </h2>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
-        <article className="flex flex-col gap-4 rounded-[24px] bg-teal-50 p-5 md:p-8">
-          <h3 className="m-0 text-[24px] font-semibold leading-[1.2] md:text-[30px]">{l.govTitle}</h3>
-          <p className="m-0 text-[18px] leading-[1.5] md:text-[19px]">{l.govBody}</p>
-          <span className="inline-flex self-start rounded-full border-[1.5px] border-teal-700 bg-white px-3 py-0.5 font-display text-[15px] font-semibold text-teal-700">
-            {l.chip}
-          </span>
-        </article>
-        <article className="flex flex-col gap-4 rounded-[24px] bg-corn-100 p-5 md:p-8">
-          <h3 className="m-0 text-[24px] font-semibold leading-[1.2] md:text-[30px]">{l.smeTitle}</h3>
-          <p className="m-0 text-[18px] leading-[1.5] md:text-[19px]">{l.smeBody}</p>
-        </article>
+    <section id="lines" aria-labelledby="lines-title" className="mx-auto max-w-[1200px] px-4 pb-14 md:px-8 md:pb-20">
+      <div className="flex flex-col gap-3 rounded-[24px] bg-teal-50 p-6 md:gap-4 md:p-10">
+        <h2 id="lines-title" className="m-0 text-[28px] font-bold leading-[1.15] tracking-[-0.02em] md:text-[40px]">
+          {l.title}
+        </h2>
+        <p className="m-0 max-w-[40em] text-[18px] leading-[1.55] text-ink md:text-[21px]">{l.body}</p>
       </div>
     </section>
   );
@@ -487,18 +404,7 @@ function WhereWeAre({ t }: { t: Copy }) {
           {w.title}
         </h2>
         <p className="m-0 max-w-[38em] text-[18px] leading-[1.6] text-ink-soft md:text-[21px]">{w.body}</p>
-        <div className="flex flex-col gap-3">
-          <h3 className="label m-0 text-ink-soft">{w.nextLabel}</h3>
-          <ul className="m-0 flex list-none flex-wrap gap-2.5 p-0">
-            {w.chips.map((c) => (
-              <li key={c} className="inline-flex min-h-[44px] items-center rounded-full border-[1.5px] border-line bg-white px-4 text-[16px] md:px-5 md:text-[17px]">
-                {c}
-              </li>
-            ))}
-          </ul>
-        </div>
       </div>
     </section>
   );
 }
-

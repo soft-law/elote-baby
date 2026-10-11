@@ -57,17 +57,14 @@ for (const width of widths) {
   r.langBefore = await page.evaluate(() => document.documentElement.lang);
   r.overflowEn = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
-  // Both two-column sections render and are visible.
-  for (const id of ["onchain", "lines"]) {
+  // The agreement walkthrough and the credit-lines statement render and are visible.
+  for (const id of ["agreement", "lines"]) {
     const section = page.locator(`#${id}`);
     await section.scrollIntoViewIfNeeded();
     r[`${id}Visible`] = await section.isVisible();
   }
-  r.linesColumns = await page.evaluate(() => {
-    const cards = [...document.querySelectorAll("#lines article")];
-    const tops = new Set(cards.map((c) => Math.round(c.getBoundingClientRect().top)));
-    return { cards: cards.length, rows: tops.size };
-  });
+  r.demoSteps = await page.locator("#agreement ol button").count();
+  r.footerDisclaimer = await page.locator("footer").getByText(/not an offer|devnet/i).count();
 
   if (shots) await page.screenshot({ path: join(shots, `en-${width}.png`), fullPage: true });
 
@@ -103,8 +100,10 @@ for (const width of widths) {
     r.langAfter === "es" &&
     r.overflowEn <= 0 &&
     r.overflowEs <= 0 &&
-    r.onchainVisible &&
+    r.agreementVisible &&
     r.linesVisible &&
+    r.demoSteps === 5 &&
+    r.footerDisclaimer === 0 &&
     errors.length === 0;
   r.ok = ok;
   if (!ok) failed = true;

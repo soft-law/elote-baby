@@ -9,6 +9,36 @@ export type Lang = "en" | "es";
 // A short block: a few-word title and one line under it.
 export type Card = { title: string; body: string };
 
+// The scripted walkthrough in the agreement section (src/AgreementDemo.tsx). Sample data only.
+export type DemoCopy = {
+  label: string;
+  sample: string;
+  play: string;
+  pause: string;
+  steps: [Card, Card, Card, Card, Card];
+  doc: string;
+  borrower: string;
+  borrowerValue: string;
+  lender: string;
+  lenderValue: string;
+  principal: string;
+  principalValue: string;
+  interest: string;
+  interestValue: string;
+  term: string;
+  termValue: string;
+  signed: string;
+  hash: string;
+  hashNote: string;
+  lineStatus: string;
+  statusOpen: string;
+  statusActive: string;
+  statusRepaid: string;
+  drawn: string;
+  repaid: string;
+  unit: string;
+};
+
 export type Copy = {
   meta: { lang: string; skip: string };
   nav: {
@@ -32,7 +62,6 @@ export type Copy = {
   pool: {
     title: string;
     body: string;
-    cardLabel: string;
     line: string;
     entrepreneur: string;
     entrepreneurValue: string;
@@ -45,7 +74,6 @@ export type Copy = {
     repaid: string;
     status: string;
     statusValue: string;
-    caption: string;
   };
   investors: { title: string; cards: [Card, Card, Card] };
   entrepreneurs: { title: string; cards: [Card, Card, Card] };
@@ -53,36 +81,16 @@ export type Copy = {
     title: string;
     nodes: [string, string, string, string, string];
     tags: [string, string, string, string, string];
-    writeOff: string;
   };
   agreement: {
     title: string;
-    steps: [Card, Card, Card];
-  };
-  honesty: {
-    title: string;
-    onLabel: string;
-    on: [string, string, string];
-    offLabel: string;
-    off: [string, string];
-  };
-  lines: {
-    title: string;
-    govTitle: string;
-    govBody: string;
-    chip: string;
-    smeTitle: string;
-    smeBody: string;
-  };
-  where: {
-    title: string;
     body: string;
-    nextLabel: string;
-    chips: [string, string, string, string];
+    demo: DemoCopy;
   };
+  lines: { title: string; body: string };
+  where: { title: string; body: string };
   footer: {
     powered: string;
-    disclaimer: string;
     legal: string;
     terms: string;
     privacy: string;
@@ -235,9 +243,8 @@ export const translations: Record<Lang, Copy> = {
       borrow: "Borrow",
     },
     pool: {
-      title: "One pool, many credit lines",
+      title: "The first pool opens soon with 100 credit lines for small businesses",
       body: "Every deposit joins one pool. Each credit line is opened from it and repaid into it.",
-      cardLabel: "Example",
       line: "Line #12",
       entrepreneur: "Entrepreneur",
       entrepreneurValue: "panadería (illustrative)",
@@ -250,7 +257,6 @@ export const translations: Record<Lang, Copy> = {
       repaid: "Repaid",
       status: "Status",
       statusValue: "Active",
-      caption: "Interest is fixed when the line opens and counts only when repaid.",
     },
     investors: {
       title: "If you invest",
@@ -272,40 +278,55 @@ export const translations: Record<Lang, Copy> = {
       title: "How the money moves",
       nodes: ["Your deposit", "The pool", "Panadería line", "Repayment", "Your shares"],
       tags: ["share token", "one vault", "fixed interest", "anyone can pay", "worth more"],
-      writeOff: "A written-off loan makes every share worth less.",
     },
     agreement: {
-      title: "The agreement",
-      steps: [
-        { title: "Draft", body: "An agent drafts it from a pilot template under legal review." },
-        { title: "Sign", body: "You and the pool sign; the agent holds no keys." },
-        { title: "Open", body: "Your line stores its hash on Solana." },
-      ],
-    },
-    honesty: {
-      title: "What the chain sees",
-      onLabel: "On chain",
-      on: ["Deposits, shares, redemptions.", "Lines, repayments, write-offs.", "The hash of each signed agreement."],
-      offLabel: "Not on chain",
-      off: ["Identity and credit checks.", "The signed original."],
+      title: "Programmable Real World Credits",
+      body: "Auto-executable legal contracts. Each party signs the agreement with their own wallet, its hash opens the credit line on Solana, and the program carries out draws, repayments and write-offs by those terms.",
+      demo: {
+        label: "How a credit line runs, with sample data",
+        sample: "Sample data",
+        play: "Play walkthrough",
+        pause: "Pause walkthrough",
+        steps: [
+          { title: "Draft", body: "The agreement is drafted from a pilot template under legal review." },
+          { title: "Sign", body: "The borrower and the pool each sign with their own wallet." },
+          { title: "Hash on chain", body: "The hash of the signed agreement opens the line on Solana." },
+          { title: "Draw", body: "The borrower draws the money, within the signed terms." },
+          { title: "Repay", body: "Repayments go back to the pool, as the agreement says." },
+        ],
+        doc: "Credit line agreement",
+        borrower: "Borrower",
+        borrowerValue: "Panadería La Espiga",
+        lender: "Lender",
+        lenderValue: "The pool",
+        principal: "Principal",
+        principalValue: "25,000 tMXN test tokens",
+        interest: "Fixed interest",
+        interestValue: "12% of principal",
+        term: "Term",
+        termValue: "180 days",
+        signed: "Signed with their wallet",
+        hash: "Agreement hash",
+        hashNote: "Stored with the line. Only the hash goes on chain, not the document.",
+        lineStatus: "Line status",
+        statusOpen: "Open",
+        statusActive: "Active",
+        statusRepaid: "Repaid",
+        drawn: "Drawn",
+        repaid: "Repaid",
+        unit: "tMXN test tokens",
+      },
     },
     lines: {
-      title: "Two kinds of lines",
-      govTitle: "Government-supported",
-      govBody: "A public program may sign with you and pay part of the interest.",
-      chip: "Subsidized",
-      smeTitle: "People and small businesses",
-      smeBody: "Funded by the pool and repaid from your wallet.",
+      title: "For small businesses, with government support",
+      body: "Every credit line we offer is for a small or medium business and comes with government support.",
     },
     where: {
       title: "Where we are",
       body: "Early talks with a municipal program in Baja California; nothing signed.",
-      nextLabel: "Next steps",
-      chips: ["Regulated lender", "Treasury in Mexican bills", "Operator credentials", "Human arbitrator for disputes"],
     },
     footer: {
-      powered: "Powered by Soft.Law. Softlaw S.A. de C.V.",
-      disclaimer: "Devnet demo with test assets. Not an offer of securities.",
+      powered: "Softlaw SA de CV",
       legal: "Legal",
       terms: "Terms",
       privacy: "Privacy",
@@ -497,9 +518,8 @@ export const translations: Record<Lang, Copy> = {
       borrow: "Pedir crédito",
     },
     pool: {
-      title: "Un pool, muchas líneas de crédito",
+      title: "El primer pool abre pronto con 100 líneas de crédito para negocios pequeños",
       body: "Cada depósito entra a un solo pool. Cada línea de crédito se abre desde ahí y se paga de vuelta ahí.",
-      cardLabel: "Ejemplo",
       line: "Línea #12",
       entrepreneur: "Emprendedor",
       entrepreneurValue: "panadería (ilustrativo)",
@@ -512,7 +532,6 @@ export const translations: Record<Lang, Copy> = {
       repaid: "Pagado",
       status: "Estado",
       statusValue: "Activa",
-      caption: "El interés se fija al abrir la línea y solo cuenta cuando se paga.",
     },
     investors: {
       title: "Si inviertes",
@@ -534,40 +553,55 @@ export const translations: Record<Lang, Copy> = {
       title: "Cómo se mueve el dinero",
       nodes: ["Tu depósito", "El pool", "Línea de la panadería", "El pago", "Tus participaciones"],
       tags: ["token de participación", "una bóveda", "interés fijo", "cualquiera puede pagar", "valen más"],
-      writeOff: "Un préstamo perdido hace que cada participación valga menos.",
     },
     agreement: {
-      title: "El contrato",
-      steps: [
-        { title: "Redactar", body: "Un agente lo redacta con una plantilla piloto en revisión legal." },
-        { title: "Firmar", body: "Tú y el pool firman; el agente no guarda llaves." },
-        { title: "Abrir", body: "Tu línea guarda su hash en Solana." },
-      ],
-    },
-    honesty: {
-      title: "Lo que ve la cadena",
-      onLabel: "On chain",
-      on: ["Depósitos, participaciones, canjes.", "Líneas, pagos, préstamos perdidos.", "El hash de cada contrato firmado."],
-      offLabel: "Fuera de la cadena",
-      off: ["Verificación de identidad y de crédito.", "El contrato original firmado."],
+      title: "Créditos programables del mundo real",
+      body: "Contratos legales autoejecutables. Cada parte firma el contrato con su propia wallet, su hash abre la línea de crédito en Solana y el programa ejecuta disposiciones, pagos y castigos según esos términos.",
+      demo: {
+        label: "Cómo funciona una línea de crédito, con datos de muestra",
+        sample: "Datos de muestra",
+        play: "Reproducir recorrido",
+        pause: "Pausar recorrido",
+        steps: [
+          { title: "Redactar", body: "El contrato se redacta con una plantilla piloto en revisión legal." },
+          { title: "Firmar", body: "Quien pide el crédito y el pool firman, cada uno con su propia wallet." },
+          { title: "Hash en la cadena", body: "El hash del contrato firmado abre la línea en Solana." },
+          { title: "Disponer", body: "Quien pide el crédito dispone del dinero, dentro de los términos firmados." },
+          { title: "Pagar", body: "Los pagos regresan al pool, como dice el contrato." },
+        ],
+        doc: "Contrato de línea de crédito",
+        borrower: "Acreditado",
+        borrowerValue: "Panadería La Espiga",
+        lender: "Acreedor",
+        lenderValue: "El pool",
+        principal: "Principal",
+        principalValue: "25,000 tokens de prueba tMXN",
+        interest: "Interés fijo",
+        interestValue: "12% del principal",
+        term: "Plazo",
+        termValue: "180 días",
+        signed: "Firmó con su wallet",
+        hash: "Hash del contrato",
+        hashNote: "Se guarda con la línea. Solo el hash va a la cadena, no el documento.",
+        lineStatus: "Estado de la línea",
+        statusOpen: "Abierta",
+        statusActive: "Activa",
+        statusRepaid: "Pagada",
+        drawn: "Dispuesto",
+        repaid: "Pagado",
+        unit: "tokens de prueba tMXN",
+      },
     },
     lines: {
-      title: "Dos tipos de líneas",
-      govTitle: "Con apoyo de gobierno",
-      govBody: "Un programa público puede firmar contigo y pagar parte del interés.",
-      chip: "Subsidiada",
-      smeTitle: "Personas y negocios pequeños",
-      smeBody: "Con fondos del pool y pagada desde tu wallet.",
+      title: "Para pymes, con apoyo de gobierno",
+      body: "Todas las líneas de crédito que ofrecemos son para pequeñas y medianas empresas y cuentan con apoyo de gobierno.",
     },
     where: {
       title: "Dónde estamos",
       body: "Pláticas iniciales con un programa municipal en Baja California; nada firmado.",
-      nextLabel: "Siguientes pasos",
-      chips: ["Entidad de crédito regulada", "Tesorería en Cetes", "Credenciales de operador", "Árbitro humano para disputas"],
     },
     footer: {
-      powered: "Con tecnología de Soft.Law. Softlaw S.A. de C.V.",
-      disclaimer: "Demo en devnet con activos de prueba. No es una oferta de valores.",
+      powered: "Softlaw SA de CV",
       legal: "Legal",
       terms: "Términos",
       privacy: "Privacidad",
