@@ -247,9 +247,9 @@ issue.push(await getCreateAssociatedTokenIdempotentInstructionAsync({ payer: adm
 await send("issue tMXN (devnet test token, no value): A 10,000, B 5,000, sponsor 720", admin, issue);
 
 async function snapshot() {
-  const p = await fetchPool(rpc, pool);
-  const v = await fetchToken(rpc, vault);
-  const s = await fetchMint(rpc, shareMint);
+  const p = await fetchPool(rpc, pool, { commitment: "confirmed" });
+  const v = await fetchToken(rpc, vault, { commitment: "confirmed" });
+  const s = await fetchMint(rpc, shareMint, { commitment: "confirmed" });
   const nav = v.data.amount + p.data.outstandingPrincipal;
   const supply = s.data.supply;
   const perShare = supply === 0n ? 0n : (nav * UNIT) / supply;
@@ -282,7 +282,7 @@ await deposit("investor B deposits 5,000 tMXN (devnet test token, no value)", in
 const before = await snapshot();
 
 console.log(`\nCredit line: 6,000 tMXN (devnet test token, no value) at 12%${withSponsor ? ", co-signed by the sponsor" : ""}`);
-const { lineCount } = (await fetchPool(rpc, pool)).data;
+const { lineCount } = (await fetchPool(rpc, pool, { commitment: "confirmed" })).data;
 const [line] = await findLinePda({ pool, lineId: lineCount });
 const termEnd = BigInt(Math.floor(Date.now() / 1000) + 90 * 86_400);
 await send("open_line", admin, [
@@ -319,7 +319,7 @@ await send("repay by the sponsor: 720 tMXN (devnet test token, no value) of inte
   }),
 ]);
 const repaid = await snapshot();
-const status = (await fetchCreditLine(rpc, line)).data.status;
+const status = (await fetchCreditLine(rpc, line, { commitment: "confirmed" })).data.status;
 
 console.log("\nRedemption");
 const redeemShares = 4_000n * UNIT;

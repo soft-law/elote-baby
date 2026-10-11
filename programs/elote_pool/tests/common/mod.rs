@@ -46,6 +46,9 @@ pub const E_WRONG_ACCOUNT: u32 = ERR_BASE + 10; // PoolError::WrongAccount
 pub const E_SLIPPAGE_EXCEEDED: u32 = ERR_BASE + 11; // PoolError::SlippageExceeded
 pub const E_TERM_ENDED: u32 = ERR_BASE + 12; // PoolError::TermEnded
 
+/// SPL Token's `TokenError::InsufficientFunds`, surfaced as custom error 1 by a failed CPI.
+pub const SPL_TOKEN_INSUFFICIENT_FUNDS: u32 = 1;
+
 /// `state::DEAD_SHARES`: locked by the first deposit.
 pub const DEAD_SHARES: u64 = 1_000;
 

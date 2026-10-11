@@ -246,8 +246,9 @@ fn dead_shares_stop_redeem_then_donate_inflation() {
     let ev = env.deposit(&k, &attacker, UNIT);
     assert_eq!(ev.shares, UNIT - DEAD_SHARES);
     // The old attack redeemed 999,999 and kept 1 share; the attacker now holds only 999,000.
+    // The program's checks pass (999,999 assets fit in the vault); SPL Token's burn refuses it.
     let ix = env.redeem_ix(&k, &attacker.pubkey(), 999_999);
-    assert!(env.try_send(ix, &attacker, &[]).is_err());
+    env.expect_err(ix, &attacker, &[], SPL_TOKEN_INSUFFICIENT_FUNDS);
     let ev = env.redeem(&k, &attacker, UNIT - DEAD_SHARES);
     assert_eq!(ev.assets, UNIT - DEAD_SHARES);
     assert_eq!(env.supply(&k), DEAD_SHARES);
