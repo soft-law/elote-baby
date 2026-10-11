@@ -34,6 +34,42 @@ values; with a missing or invalid value the app shows a configuration screen ins
 The landing (`src/App.tsx`, `src/main.tsx`, `scripts/prerender.tsx`) never imports `src/app`,
 `src/pool`, `src/wallet` or `src/tx`; `tests/isolation.test.ts` enforces it.
 
+### End-to-end run against a local validator
+
+```sh
+PLAYWRIGHT_FROM=/path/with/playwright bun run e2e   # or: node scripts/e2e.mjs [--port 4322]
+```
+
+`scripts/e2e.mjs` runs the pool app against a throwaway local chain, start to finish:
+
+1. starts `solana-test-validator` with a fresh ledger in the OS temp dir and the built program
+   from `target/deploy/elote_pool.so`, and waits for `getHealth`;
+2. runs `scripts/demo-pool.ts --cluster local --sponsor --grace-seconds 432000` from the repo root
+   and reads the test token and pool addresses it prints; then `scripts/e2e-setup.ts` gives a
+   freshly generated e2e wallet test tokens (the demo admin is the token authority locally) and
+   opens an approved credit line for it, signed by the admin and the wallet;
+3. builds with `VITE_EXPLORER_CLUSTER=localnet`, the local pool, `VITE_TEST_WALLET=1` and the e2e
+   wallet's key, and `VITE_API_URL` pointing nowhere so the test token button must degrade;
+4. serves the build with `vite preview` on `E2E_PORT` or `--port` (default 4322, else the next unused
+   port, printed);
+5. drives Chromium with Playwright: connect the test wallet, pool figures, the test token button
+   without a faucet, deposit 100 tMXN, redeem 10 shares, the activity list, draw and repay 50 on
+   the wallet's line, its history, then Pool, Invest and Borrow at 375 px with screenshots. Any
+   console or page error fails the run, except the refused requests to the unreachable API;
+6. always stops the preview and the validator and deletes the e2e build from `dist/`, since it
+   holds the throwaway key. Run `bun run build` afterwards for a normal build.
+
+Every step is logged with a timestamp; the exit code is non-zero on the first failed step, named
+in the last line. Logs (validator, demo, build, preview) and screenshots go to a temp dir printed
+at the end (`E2E_SHOTS_DIR` overrides the screenshots dir).
+
+Needs: `solana-test-validator` on `PATH` with port 8899 unused, the program built into
+`target/deploy`, the repo root's `node_modules` (the demo runs with `npx tsx`), bun, and
+Playwright with Chromium (a `web/` dependency or `PLAYWRIGHT_FROM`, as for the smoke test). The
+e2e wallet key is generated per run and lives only in memory and in that build. The SOL for the
+demo admin and the e2e wallet is set at genesis (`--account`), because the local faucet behind
+`requestAirdrop` fails on some macOS hosts. Not part of `bun test`.
+
 ## Copy
 
 Every visible string is in `src/translations.ts`, with identical keys for `en` and `es`.

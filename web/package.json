@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test tests",
     "brand": "bun scripts/brand-assets.ts",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "e2e": "node scripts/e2e.mjs"
   },
   "dependencies": {
     "@elote/pool-client": "file:../clients/js",
