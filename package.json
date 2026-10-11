@@ -7,6 +7,8 @@
   "scripts": {
     "test": "cargo test -p elote_pool",
     "codama": "node codama.mjs",
+    "demo": "tsx scripts/demo-pool.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
     "check:client": "node codama.mjs && git diff --exit-code --stat clients/js/src/generated"
@@ -14,8 +16,14 @@
   "devDependencies": {
     "@codama/nodes-from-anchor": "^1.5.6",
     "@codama/renderers-js": "^2.5.0",
+    "@solana-program/system": "^0.15.0",
+    "@solana-program/token": "^0.17.0",
+    "@solana/kit": "^8.3.0",
+    "@solana/program-client-core": "^8.3.0",
+    "@types/node": "^20.0.0",
     "codama": "^1.11.0",
     "prettier": "^2.6.2",
+    "tsx": "^4.23.13",
     "typescript": "^5.7.3"
   }
 }
