@@ -5,17 +5,18 @@
 //      then scripts/e2e-setup.ts gives a fresh e2e wallet SOL and test tokens and opens an approved
 //      line for it, signed by the admin and the wallet
 //   c. bun run build with VITE_* for the local pool and the keypair test wallet (VITE_TEST_WALLET=1)
-//   d. vite preview on a free port (E2E_PORT or --port, default 4322, else the next free one)
+//   d. vite preview on a port that is not in use (E2E_PORT or --port, default 4322, else the next one)
 //   e. Playwright (chromium headless): connect, pool stats, faucet unavailable, deposit 100,
 //      redeem 10 shares, history, draw and repay 50 on the wallet's line, line history, a 375 px
 //      pass with screenshots, and no console or page errors
-//   f. teardown of the preview and the validator, always; the e2e build is removed from dist/
+//   f. teardown, always (also on SIGINT and SIGTERM): browser, every child process group, the e2e
+//      build in dist/ and the scratch dir (KEEP_E2E_ARTIFACTS=1 keeps logs and screenshots)
 //
 // The e2e wallet is generated here, kept in memory and passed to the build and the setup through
 // the environment only. Run `node scripts/e2e.mjs` (or `bun run e2e`) from web/.
 // Needs: solana-test-validator on PATH, the built program in target/deploy, the repo root's
 // node_modules (npx tsx for the demo), and Playwright (web/ dependency or PLAYWRIGHT_FROM, as in
-// scripts/smoke.mjs). Env: E2E_PORT, E2E_SHOTS_DIR, ELOTE_ADMIN_KEYPAIR (as the demo).
+// scripts/smoke.mjs). Env: E2E_PORT, E2E_SHOTS_DIR, KEEP_E2E_ARTIFACTS, ELOTE_ADMIN_KEYPAIR (as the demo).
 import { spawn } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
 import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -74,6 +75,13 @@ function check(condition, message) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** A failure that no amount of waiting fixes: `until` rethrows it at once. */
+class Fatal extends Error {}
+
+function fatal(condition, message) {
+  if (!condition) throw new Fatal(message);
+}
+
 async function until(what, fn, timeoutMs = 60_000, everyMs = 500) {
   const end = Date.now() + timeoutMs;
   let last;
@@ -82,6 +90,7 @@ async function until(what, fn, timeoutMs = 60_000, everyMs = 500) {
       const value = await fn();
       if (value) return value;
     } catch (error) {
+      if (error instanceof Fatal) throw error;
       last = error;
     }
     await sleep(everyMs);
@@ -91,21 +100,37 @@ async function until(what, fn, timeoutMs = 60_000, everyMs = 500) {
 
 // ---- processes --------------------------------------------------------------------------------
 
+// Every child runs in its own process group (detached), so a group kill reaches what it spawned
+// (bun run build starts tsc and vite; bunx starts vite). Teardown and the exit hook stop them all.
 const children = new Set();
 
-/** Long-running child in its own process group, output to a log file in the scratch dir. */
-function startProcess(name, cmd, args, opts) {
-  const out = createWriteStream(join(scratch, `${name}.log`));
-  const child = spawn(cmd, args, { ...opts, detached: true, stdio: ["ignore", "pipe", "pipe"] });
-  child.stdout.pipe(out);
-  child.stderr.pipe(out);
+function track(child) {
   child.exitCodeOrSignal = null;
   child.on("exit", (code, signal) => {
     child.exitCodeOrSignal = code ?? signal;
+    children.delete(child);
   });
   children.add(child);
   return child;
 }
+
+/** Long-running child in its own process group, output to a log file in the scratch dir. */
+function startProcess(name, cmd, args, opts) {
+  const out = createWriteStream(join(scratch, `${name}.log`));
+  const child = track(spawn(cmd, args, { ...opts, detached: true, stdio: ["ignore", "pipe", "pipe"] }));
+  child.stdout.pipe(out);
+  child.stderr.pipe(out);
+  return child;
+}
+
+// Last resort when the process exits by any path: SIGKILL every group still alive.
+process.on("exit", () => {
+  for (const child of children) {
+    try {
+      process.kill(-child.pid, "SIGKILL");
+    } catch {}
+  }
+});
 
 function stopProcess(child) {
   if (child.exitCodeOrSignal !== null || child.pid === undefined) return Promise.resolve();
@@ -133,7 +158,7 @@ function stopProcess(child) {
 function run(name, cmd, args, opts) {
   return new Promise((resolveRun, reject) => {
     const out = createWriteStream(join(scratch, `${name}.log`));
-    const child = spawn(cmd, args, { ...opts, stdio: ["ignore", "pipe", "pipe"] });
+    const child = track(spawn(cmd, args, { ...opts, detached: true, stdio: ["ignore", "pipe", "pipe"] }));
     let stdout = "";
     let all = "";
     child.stdout.on("data", (d) => {
@@ -146,7 +171,7 @@ function run(name, cmd, args, opts) {
       out.write(d);
     });
     child.on("error", reject);
-    child.on("exit", (code) => {
+    child.on("close", (code) => {
       out.end();
       if (code === 0) resolveRun(stdout);
       else reject(new Error(`${cmd} exited with ${code}; log ${join(scratch, `${name}.log`)}\n${all.slice(-2_000)}`));
@@ -177,7 +202,7 @@ async function choosePort() {
     if (!(await portBusy(port))) return port;
     log(`      port ${port} is busy`);
   }
-  throw new Error(`no free port from ${wanted}`);
+  throw new Error(`no port that is not in use from ${wanted}`);
 }
 
 // ---- RPC --------------------------------------------------------------------------------------
@@ -298,7 +323,7 @@ async function confirmToast(page, action, label) {
     `${label}: toast reaches Updated`,
     async () => {
       const tone = await toast.getAttribute("data-tone").catch(() => null);
-      if (tone === "error") throw new Error(`${label} failed: ${await toast.innerText()}`);
+      if (tone === "error") throw new Fatal(`${label} failed: ${(await toast.innerText()).replace(/\s+/g, " ")}`);
       return (await page.locator('[data-testid="toast"][data-tone="success"]').count()) > before;
     },
     90_000,
@@ -327,6 +352,38 @@ let browser = null;
 let page = null;
 let built = false;
 let failure = null;
+const keep = process.env.KEEP_E2E_ARTIFACTS === "1";
+
+let tearingDown = null;
+/**
+ * Stops the browser and every child group, then removes the e2e build (it carries the throwaway
+ * key) and the scratch dir (kept with KEEP_E2E_ARTIFACTS=1). Idempotent: the finally block and the
+ * signal handlers share one run.
+ */
+function teardown() {
+  tearingDown ??= (async () => {
+    log("START f. teardown");
+    if (browser) await browser.close().catch(() => undefined);
+    // Children first: a build still running would write dist/ again after it is removed.
+    await Promise.all([...children].map(stopProcess));
+    if (built) rmSync(join(WEB, "dist"), { recursive: true, force: true });
+    if (keep) rmSync(join(scratch, "ledger"), { recursive: true, force: true });
+    else rmSync(scratch, { recursive: true, force: true });
+    const kept = keep ? `; logs and screenshots kept in ${scratch}` : "; scratch dir removed (KEEP_E2E_ARTIFACTS=1 keeps logs and screenshots)";
+    log(`OK    f. teardown${built ? " (removed the e2e build from dist/)" : ""}${kept}`);
+  })();
+  return tearingDown;
+}
+
+for (const [signal, code] of [
+  ["SIGINT", 130],
+  ["SIGTERM", 143],
+]) {
+  process.once(signal, () => {
+    log(`${signal}: stopping`);
+    void teardown().finally(() => process.exit(code));
+  });
+}
 
 // The demo's admin key (the demo creates it on a first run; created here the same way when missing,
 // so its address can be funded at genesis) and the e2e wallet, which lives only in memory.
@@ -352,7 +409,7 @@ try {
     );
     validator.on("error", (e) => log(`validator: ${e.message}`));
     await until("getHealth ok", async () => {
-      check(validator.exitCodeOrSignal === null, `the validator exited (${validator.exitCodeOrSignal}); log ${join(scratch, "validator.log")}`);
+      fatal(validator.exitCodeOrSignal === null, `the validator exited (${validator.exitCodeOrSignal}); log ${join(scratch, "validator.log")}`);
       return (await rpcCall("getHealth")) === "ok";
     }, 90_000);
     const program = await rpcCall("getAccountInfo", [PROGRAM_ID, { encoding: "base64" }]);
@@ -411,15 +468,17 @@ try {
     preview = startProcess("preview", "bunx", ["vite", "preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort"], { cwd: WEB });
     const url = `http://127.0.0.1:${port}`;
     await until("the preview answers", async () => {
-      check(preview.exitCodeOrSignal === null, `the preview exited; log ${join(scratch, "preview.log")}`);
+      fatal(preview.exitCodeOrSignal === null, `the preview exited; log ${join(scratch, "preview.log")}`);
       return (await fetch(`${url}/app`, { signal: AbortSignal.timeout(2_000) })).ok;
     }, 30_000);
     log(`      ${url}/app`);
     return url;
   });
 
-  const { chromium } = loadPlaywright();
-  browser = await chromium.launch({ headless: true });
+  await step("e0. browser", async () => {
+    const { chromium } = loadPlaywright();
+    browser = await chromium.launch({ headless: true });
+  });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   page = await context.newPage();
   watch(page);
@@ -578,19 +637,13 @@ try {
     for (const p of problems) log(`      ${p}`);
   }
 } finally {
-  log("START f. teardown");
-  if (browser) await browser.close().catch(() => undefined);
-  if (preview) await stopProcess(preview);
-  if (validator) await stopProcess(validator);
-  // The e2e build carries the throwaway key; never leave it where a deploy could pick it up.
-  if (built) rmSync(join(WEB, "dist"), { recursive: true, force: true });
-  rmSync(join(scratch, "ledger"), { recursive: true, force: true });
-  log(`OK    f. teardown${built ? " (removed the e2e build from dist/)" : ""}; logs and screenshots in ${scratch}`);
+  await teardown();
 }
 
 if (failure) {
   console.error(`E2E FAIL at ${failure.step ?? "setup"}: ${failure.message}`);
   process.exit(1);
 }
-console.log(`E2E PASS in ${((Date.now() - started) / 1000).toFixed(1)}s; screenshots in ${shotsDir}`);
+const shotsKept = keep || Boolean(process.env.E2E_SHOTS_DIR);
+console.log(`E2E PASS in ${((Date.now() - started) / 1000).toFixed(1)}s; ${shotsKept ? `screenshots in ${shotsDir}` : "screenshots removed with the scratch dir (KEEP_E2E_ARTIFACTS=1 keeps them)"}`);
 process.exit(0);

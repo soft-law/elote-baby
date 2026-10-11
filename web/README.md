@@ -56,12 +56,14 @@ PLAYWRIGHT_FROM=/path/with/playwright bun run e2e   # or: node scripts/e2e.mjs [
    without a faucet, deposit 100 tMXN, redeem 10 shares, the activity list, draw and repay 50 on
    the wallet's line, its history, then Pool, Invest and Borrow at 375 px with screenshots. Any
    console or page error fails the run, except the refused requests to the unreachable API;
-6. always stops the preview and the validator and deletes the e2e build from `dist/`, since it
-   holds the throwaway key. Run `bun run build` afterwards for a normal build.
+6. always stops the browser and every child process, also on Ctrl-C or SIGTERM (exit 130 or 143),
+   and deletes the e2e build from `dist/`, since it holds the throwaway key. Run `bun run build`
+   afterwards for a normal build.
 
 Every step is logged with a timestamp; the exit code is non-zero on the first failed step, named
-in the last line. Logs (validator, demo, build, preview) and screenshots go to a temp dir printed
-at the end (`E2E_SHOTS_DIR` overrides the screenshots dir).
+in the last line. Logs (validator, demo, build, preview) and screenshots go to a temp dir that
+teardown removes; set `KEEP_E2E_ARTIFACTS=1` to keep it (its path is printed), or `E2E_SHOTS_DIR`
+to write the screenshots somewhere else.
 
 Needs: `solana-test-validator` on `PATH` with port 8899 unused, the program built into
 `target/deploy`, the repo root's `node_modules` (the demo runs with `npx tsx`), bun, and

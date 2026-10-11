@@ -5,7 +5,7 @@
 // else, so a new layout never breaks the page. Every known line ends with its history, read only
 // when its disclosure is opened. Cards at every width, no tables.
 import { useQueryClient } from "@tanstack/react-query";
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { fill, fillText } from "../fill";
 import { RepayForm } from "../forms/RepayForm";
 import { useExplorerRpcUrl } from "../configContext";
@@ -134,9 +134,10 @@ export type DrawActionProps = {
  * The toasts of a line's draw and repayment. They live on the card, not on DrawAction or
  * RepayForm: a confirmed draw turns the line active and a full repayment turns it repaid, and the
  * refetch that shows it unmounts the action before its run reaches "done". "Try again" resets the
- * run and refreshes the figures; it never resends.
+ * run and refreshes the figures; it never resends. On a repayment it also returns focus to the
+ * amount field inside `card`, when the form is still there.
  */
-export function useLineTxToasts(drawTx: UseTx, repayTx: UseTx, t: Copy): void {
+export function useLineTxToasts(drawTx: UseTx, repayTx: UseTx, t: Copy, card: RefObject<HTMLElement | null>): void {
   const queryClient = useQueryClient();
   const refresh = () => {
     for (const key of ["pool", "lines", "balances"]) void queryClient.invalidateQueries({ queryKey: [key] });
@@ -155,6 +156,7 @@ export function useLineTxToasts(drawTx: UseTx, repayTx: UseTx, t: Copy): void {
     onRetry: () => {
       repayTx.reset();
       refresh();
+      card.current?.querySelector<HTMLInputElement>('[data-testid="repay-form"] input')?.focus();
     },
   });
 }
@@ -275,7 +277,8 @@ export function LineCard({ row, pool, balance, now, t, lang, cluster, counterpar
   // Both hooks run on every card so hook order never depends on the status.
   const drawTx = useTx();
   const repayTx = useTx();
-  useLineTxToasts(drawTx, repayTx, t);
+  const cardRef = useRef<HTMLElement>(null);
+  useLineTxToasts(drawTx, repayTx, t, cardRef);
   const { view } = row;
   const known = view.readable && view.status !== "unknown";
 
@@ -288,6 +291,7 @@ export function LineCard({ row, pool, balance, now, t, lang, cluster, counterpar
 
   return (
     <article
+      ref={cardRef}
       aria-labelledby={titleId}
       data-line={row.lineId.toString()}
       data-status={view.status}

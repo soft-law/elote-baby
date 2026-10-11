@@ -2,7 +2,7 @@ import "./support/dom";
 import { afterEach, describe, expect, test } from "bun:test";
 import type { Address } from "@solana/kit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, useState, useSyncExternalStore, type ReactNode } from "react";
+import { act, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { agreementQueryKey, fetchAgreementByHash, parseAgreementSummary, type AgreementLookup } from "../src/app/agreement";
 import { AgreementBlock, COPIED_RESET_MS, agreementCreatedSeconds } from "../src/app/components/AgreementBlock";
@@ -29,7 +29,7 @@ import {
   type ScheduleTerms,
 } from "../src/pool/schedule";
 import type { PoolOp } from "../src/tx/ops";
-import type { TxError, TxResult } from "../src/tx/tx";
+import { TxFailedError, type TxError, type TxResult } from "../src/tx/tx";
 import type { TxStep, UseTx } from "../src/tx/useTx";
 import { translations, type Copy } from "../src/translations";
 
@@ -302,7 +302,13 @@ function fakeTx(behavior?: (op: PoolOp) => Promise<TxResult>) {
     ops.push(op);
     set({ step: "signing" });
     if (!behavior) return new Promise<TxResult>(() => undefined);
-    const result = await behavior(op);
+    let result: TxResult;
+    try {
+      result = await behavior(op);
+    } catch (thrown) {
+      set({ step: "error", error: thrown as TxError });
+      throw thrown;
+    }
     set({ step: "done", signature: result.signature });
     return result;
   };
@@ -468,13 +474,14 @@ describe("line toasts", () => {
     hide = () => setShown(false);
     const drawTx = draw.useFake();
     const repayTx = repay.useFake();
-    useLineTxToasts(drawTx, repayTx, en);
+    const cardRef = useRef<HTMLDivElement>(null);
+    useLineTxToasts(drawTx, repayTx, en, cardRef);
     if (!shown) return <p data-testid="action-gone" />;
-    return action === "draw" ? (
+    return <div ref={cardRef}>{action === "draw" ? (
       <DrawAction line={lineView({ lineId: 4n, status: "approved", drawnAt: null, termEnd: 4_000_000_000 })} pool={{ paused: false, vaultAmount: 10_000n * UNIT }} now={2_000_000_000} tx={drawTx} t={en} lang="en" />
     ) : (
       <RepayForm line={lineView({ lineId: 4n })} graceSeconds={0} balance={1_000n * UNIT} now={1_250} tx={repayTx} t={en} lang="en" />
-    );
+    )}</div>;
   }
   const settle = (signature: string) => async () => {
     hide();
@@ -501,6 +508,27 @@ describe("line toasts", () => {
     expect(toasts()).toHaveLength(1);
     expect(toasts()[0]!.getAttribute("data-tone")).toBe("success");
     expect(toasts()[0]!.querySelector('[data-testid="toast-explorer"]')!.getAttribute("href")).toContain("/tx/RepaySig2");
+  });
+
+  test("Try again on a failed repayment resets the run and returns focus to the amount field", async () => {
+    const page = await mount(
+      <Card
+        draw={fakeTx()}
+        repay={fakeTx(async () => {
+          throw new TxFailedError("unknown");
+        })}
+        action="repay"
+      />,
+    );
+    await page.type("25");
+    await page.click(page.q('[data-testid="repay-submit"]'));
+    expect(toasts()).toHaveLength(1);
+    expect(toasts()[0]!.getAttribute("data-tone")).toBe("error");
+    const retry = [...toasts()[0]!.querySelectorAll("button")].find((b) => b.textContent === en.app.toast.retry)!;
+    (document.activeElement as HTMLElement | null)?.blur();
+    await page.click(retry);
+    expect(document.activeElement === page.q('[data-testid="repay-form"] input')).toBe(true);
+    expect(toasts()).toHaveLength(0);
   });
 });
 
