@@ -1,6 +1,7 @@
 // Routes of the pool app, relative to the /app basename.
 import type { RouteObject } from "react-router";
 import { HomePage } from "./pages/Home";
+import { InvestPage } from "./pages/Invest";
 import { NotFoundPage } from "./pages/NotFound";
 import { PlaceholderPage } from "./pages/Placeholder";
 import { PoolPage } from "./pages/Pool";
@@ -17,7 +18,7 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <HomePage />, errorElement: <RouteError /> },
       { path: "pool", element: <PoolPage />, errorElement: <RouteError /> },
-      { path: "invest", element: <PlaceholderPage page="invest" />, errorElement: <RouteError /> },
+      { path: "invest", element: <InvestPage />, errorElement: <RouteError /> },
       { path: "borrow", element: <PlaceholderPage page="borrow" />, errorElement: <RouteError /> },
       { path: "*", element: <NotFoundPage /> },
     ],

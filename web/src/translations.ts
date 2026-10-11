@@ -144,7 +144,94 @@ export type Copy = {
       retry: string;
       mismatch: { title: string; body: string };
     };
-    invest: { title: string; sub: string };
+    invest: {
+      title: string;
+      sub: string;
+      connectTitle: string;
+      connectBody: string;
+      wrongChainTitle: string;
+      summaryTitle: string;
+      summaryNote: string;
+      yourShares: string;
+      sharesValue: string;
+      sharesValueHint: string;
+      assetBalance: string;
+      solBalance: string;
+      solHint: string;
+      solLow: string;
+      loading: string;
+      balancesFailed: string;
+      balancesStale: string;
+      poolFailed: string;
+      retry: string;
+      paused: string;
+      shareUnit: string;
+      deposit: {
+        title: string;
+        sub: string;
+        label: string;
+        available: string;
+        max: string;
+        maxLabel: string;
+        preview: string;
+        previewEmpty: string;
+        firstNote: string;
+        submit: string;
+      };
+      redeem: {
+        title: string;
+        sub: string;
+        label: string;
+        available: string;
+        max: string;
+        maxLabel: string;
+        preview: string;
+        previewEmpty: string;
+        liquidityCap: string;
+        noLiquidity: string;
+        submit: string;
+      };
+      errors: {
+        summary: string;
+        required: string;
+        invalid: string;
+        tooManyDecimals: string;
+        tooLarge: string;
+        zero: string;
+        aboveBalance: string;
+        aboveShares: string;
+        aboveLiquidity: string;
+        tooSmall: string;
+        notReady: string;
+      };
+    };
+    faucet: {
+      get: string;
+      getting: string;
+      sent: string;
+      limited: string;
+      unavailable: string;
+      failed: string;
+      sol: string;
+      solGetting: string;
+      solSent: string;
+      solFailed: string;
+      solFaucet: string;
+      newTab: string;
+      viewExplorer: string;
+    };
+    toast: {
+      region: string;
+      dismiss: string;
+      sign: string;
+      confirming: string;
+      updated: string;
+      progress: string;
+      done: string;
+      failed: string;
+      cancelled: string;
+      retry: string;
+    };
     borrow: { title: string; sub: string };
     placeholder: string;
     notFound: { title: string; body: string; home: string };
@@ -400,6 +487,92 @@ export const translations: Record<Lang, Copy> = {
       invest: {
         title: "Invest",
         sub: "Deposit tMXN test tokens for shares, or redeem shares when the pool has enough on hand.",
+        connectTitle: "Connect a wallet to invest",
+        connectBody: "Your shares and balances are read from the wallet you connect. Nothing is sent until you sign.",
+        wrongChainTitle: "Switch networks to continue",
+        summaryTitle: "Your position",
+        summaryNote: "Amounts in tMXN, a test token.",
+        yourShares: "Your shares",
+        sharesValue: "Value of your shares",
+        sharesValueHint: "Your shares times the value per share.",
+        assetBalance: "Test token balance",
+        solBalance: "SOL balance",
+        solHint: "Pays the network fee of each transaction.",
+        solLow: "Your SOL balance is low. You need a little SOL to pay network fees.",
+        loading: "Loading your balances",
+        balancesFailed: "Your balances could not be read from Solana. Try again.",
+        balancesStale: "Your balances could not be refreshed. They show the last values read.",
+        poolFailed: "The pool could not be read from Solana, so deposits and redemptions are on hold. Try again.",
+        retry: "Try again",
+        paused: "The pool is paused. Deposits and redemptions are on hold until it resumes.",
+        shareUnit: "shares",
+        deposit: {
+          title: "Deposit",
+          sub: "Deposit tMXN test tokens and receive pool shares.",
+          label: "Amount to deposit",
+          available: "Available: {amount} tMXN test tokens",
+          max: "Max",
+          maxLabel: "Use your whole balance",
+          preview: "You receive about {expected} shares, minimum {min}.",
+          previewEmpty: "Enter an amount to see the shares you receive.",
+          firstNote:
+            "This is the first deposit in the pool. It must be at least 1 tMXN test token, and 1,000 base units of shares (0.001 share) stay locked in the pool for good, so its value per share can never be reset.",
+          submit: "Deposit",
+        },
+        redeem: {
+          title: "Redeem",
+          sub: "Return shares to the pool and receive tMXN test tokens from its liquidity.",
+          label: "Shares to redeem",
+          available: "Your shares: {amount}",
+          max: "Max",
+          maxLabel: "Use the most you can redeem now",
+          preview: "You receive about {expected} tMXN test tokens, minimum {min}.",
+          previewEmpty: "Enter a number of shares to see what you receive.",
+          liquidityCap:
+            "The pool has {liquidity} tMXN test tokens on hand, so you can redeem up to {max} shares now. More can be redeemed as loans are repaid.",
+          noLiquidity: "The pool has no liquidity on hand right now. Shares can be redeemed as loans are repaid.",
+          submit: "Redeem",
+        },
+        errors: {
+          summary: "Check this before continuing:",
+          required: "Enter an amount.",
+          invalid: "Enter a number, such as 25 or 25.5.",
+          tooManyDecimals: "Use at most 6 decimals.",
+          tooLarge: "This amount is too large.",
+          zero: "Enter an amount greater than zero.",
+          aboveBalance: "This is more than your balance of tMXN test tokens.",
+          aboveShares: "This is more than the shares you hold.",
+          aboveLiquidity: "The pool can pay out up to {max} shares right now.",
+          tooSmall: "This is too few shares to receive any test tokens.",
+          notReady: "Your balances are still loading. Try again in a moment.",
+        },
+      },
+      faucet: {
+        get: "Get test tokens",
+        getting: "Requesting…",
+        sent: "Test tokens are on their way. They show in your balance in a few seconds.",
+        limited: "One request per wallet per day. Try again tomorrow.",
+        unavailable: "Test tokens are not available right now. Try again later.",
+        failed: "The request did not go through. Check your connection and try again.",
+        sol: "Get test SOL",
+        solGetting: "Requesting…",
+        solSent: "Test SOL requested. It shows in your balance in a few seconds.",
+        solFailed: "The network did not send test SOL right now. Use the Solana faucet instead.",
+        solFaucet: "Open the Solana faucet",
+        newTab: "opens in a new tab",
+        viewExplorer: "View on Solana Explorer",
+      },
+      toast: {
+        region: "Notifications",
+        dismiss: "Dismiss",
+        sign: "Sign in wallet",
+        confirming: "Confirming",
+        updated: "Updated",
+        progress: "{op} in progress",
+        done: "{op} confirmed",
+        failed: "{op} did not go through",
+        cancelled: "{op} cancelled",
+        retry: "Try again",
       },
       borrow: { title: "Borrow", sub: "Draw your approved line and repay it from your wallet." },
       placeholder: "This section is under construction.",
@@ -671,6 +844,92 @@ export const translations: Record<Lang, Copy> = {
       invest: {
         title: "Invertir",
         sub: "Deposita tokens de prueba tMXN a cambio de participaciones, o canjéalas cuando el pool tenga liquidez.",
+        connectTitle: "Conecta una wallet para invertir",
+        connectBody: "Tus participaciones y saldos se leen de la wallet que conectes. No se envía nada hasta que firmes.",
+        wrongChainTitle: "Cambia de red para continuar",
+        summaryTitle: "Tu posición",
+        summaryNote: "Montos en tMXN, un token de prueba.",
+        yourShares: "Tus participaciones",
+        sharesValue: "Valor de tus participaciones",
+        sharesValueHint: "Tus participaciones por el valor de cada una.",
+        assetBalance: "Saldo en tokens de prueba",
+        solBalance: "Saldo de SOL",
+        solHint: "Paga la comisión de red de cada transacción.",
+        solLow: "Tu saldo de SOL es bajo. Necesitas un poco de SOL para pagar las comisiones de la red.",
+        loading: "Cargando tus saldos",
+        balancesFailed: "No se pudieron leer tus saldos en Solana. Inténtalo de nuevo.",
+        balancesStale: "No se pudieron actualizar tus saldos. Muestran los últimos valores leídos.",
+        poolFailed: "No se pudo leer el pool en Solana, así que los depósitos y canjes están detenidos. Inténtalo de nuevo.",
+        retry: "Intentar de nuevo",
+        paused: "El pool está en pausa. Los depósitos y canjes están detenidos hasta que se reanude.",
+        shareUnit: "participaciones",
+        deposit: {
+          title: "Depositar",
+          sub: "Deposita tokens de prueba tMXN y recibe participaciones del pool.",
+          label: "Monto a depositar",
+          available: "Disponible: {amount} tokens de prueba tMXN",
+          max: "Máx.",
+          maxLabel: "Usar todo tu saldo",
+          preview: "Recibes alrededor de {expected} participaciones, mínimo {min}.",
+          previewEmpty: "Escribe un monto para ver las participaciones que recibes.",
+          firstNote:
+            "Este es el primer depósito del pool. Debe ser de al menos 1 token de prueba tMXN, y 1,000 unidades base de participaciones (0.001 participación) quedan bloqueadas en el pool para siempre, para que su valor por participación nunca pueda reiniciarse.",
+          submit: "Depositar",
+        },
+        redeem: {
+          title: "Canjear",
+          sub: "Devuelve participaciones al pool y recibe tokens de prueba tMXN de su liquidez.",
+          label: "Participaciones a canjear",
+          available: "Tus participaciones: {amount}",
+          max: "Máx.",
+          maxLabel: "Usar lo máximo que puedes canjear ahora",
+          preview: "Recibes alrededor de {expected} tokens de prueba tMXN, mínimo {min}.",
+          previewEmpty: "Escribe un número de participaciones para ver lo que recibes.",
+          liquidityCap:
+            "El pool tiene {liquidity} tokens de prueba tMXN disponibles, así que ahora puedes canjear hasta {max} participaciones. Podrás canjear más conforme se paguen los préstamos.",
+          noLiquidity: "El pool no tiene liquidez disponible en este momento. Las participaciones se pueden canjear conforme se paguen los préstamos.",
+          submit: "Canjear",
+        },
+        errors: {
+          summary: "Revisa esto antes de continuar:",
+          required: "Escribe un monto.",
+          invalid: "Escribe un número, como 25 o 25.5.",
+          tooManyDecimals: "Usa como máximo 6 decimales.",
+          tooLarge: "Este monto es demasiado grande.",
+          zero: "Escribe un monto mayor que cero.",
+          aboveBalance: "Es más que tu saldo de tokens de prueba tMXN.",
+          aboveShares: "Es más que las participaciones que tienes.",
+          aboveLiquidity: "El pool puede pagar hasta {max} participaciones en este momento.",
+          tooSmall: "Son muy pocas participaciones para recibir tokens de prueba.",
+          notReady: "Tus saldos aún se están cargando. Inténtalo de nuevo en un momento.",
+        },
+      },
+      faucet: {
+        get: "Obtener tokens de prueba",
+        getting: "Solicitando…",
+        sent: "Los tokens de prueba van en camino. Aparecen en tu saldo en unos segundos.",
+        limited: "Una solicitud por wallet al día. Inténtalo de nuevo mañana.",
+        unavailable: "Los tokens de prueba no están disponibles por ahora. Inténtalo más tarde.",
+        failed: "La solicitud no se completó. Revisa tu conexión e inténtalo de nuevo.",
+        sol: "Obtener SOL de prueba",
+        solGetting: "Solicitando…",
+        solSent: "SOL de prueba solicitado. Aparece en tu saldo en unos segundos.",
+        solFailed: "La red no envió SOL de prueba en este momento. Usa el faucet de Solana.",
+        solFaucet: "Abrir el faucet de Solana",
+        newTab: "se abre en una pestaña nueva",
+        viewExplorer: "Ver en Solana Explorer",
+      },
+      toast: {
+        region: "Notificaciones",
+        dismiss: "Cerrar",
+        sign: "Firma en tu wallet",
+        confirming: "Confirmando",
+        updated: "Actualizado",
+        progress: "{op} en curso",
+        done: "{op}: transacción confirmada",
+        failed: "{op}: la transacción no se completó",
+        cancelled: "{op}: cancelaste la solicitud",
+        retry: "Intentar de nuevo",
       },
       borrow: { title: "Pedir crédito", sub: "Retira el crédito de tu línea aprobada y págalo desde tu wallet." },
       placeholder: "Esta sección está en construcción.",

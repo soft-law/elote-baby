@@ -8,6 +8,7 @@ import type { Copy, Lang } from "../translations";
 import { PendingTransactionNotice } from "../tx/PendingTransactionNotice";
 import { ConnectButton } from "../wallet/ConnectButton";
 import { useLang } from "./lang";
+import { ToastProvider } from "./toast/Toast";
 
 export function Frame({
   t,
@@ -101,7 +102,9 @@ export function Shell() {
   const { lang, t, setLang, to } = useLang();
   return (
     <Frame t={t} lang={lang} setLang={setLang} nav={<AppNav t={t} to={to} />} actions={<ConnectButton t={t} />}>
-      <Outlet />
+      <ToastProvider t={t}>
+        <Outlet />
+      </ToastProvider>
       <PendingTransactionNotice t={t} />
     </Frame>
   );
