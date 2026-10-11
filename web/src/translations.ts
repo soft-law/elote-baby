@@ -92,7 +92,51 @@ export type Copy = {
     nav: { label: string; home: string; pool: string; invest: string; borrow: string; backToSite: string };
     header: { network: string; connect: string };
     home: { title: string; sub: string; invest: Card; borrow: Card; poolLink: string; connectPrompt: string };
-    pool: { title: string; sub: string };
+    pool: {
+      title: string;
+      sub: string;
+      address: string;
+      viewAddress: string;
+      newTab: string;
+      statsTitle: string;
+      statsNote: string;
+      perShare: string;
+      perShareHint: string;
+      noShares: string;
+      nav: string;
+      navHint: string;
+      liquidity: string;
+      liquidityHint: string;
+      outstanding: string;
+      interestCollected: string;
+      losses: string;
+      lines: string;
+      paused: string;
+      linesTitle: string;
+      linesSub: string;
+      linesCaption: string;
+      columns: {
+        line: string;
+        borrower: string;
+        status: string;
+        principal: string;
+        drawn: string;
+        repaid: string;
+        due: string;
+        sponsor: string;
+      };
+      noSponsor: string;
+      noDate: string;
+      unreadable: string;
+      status: { approved: string; active: string; repaid: string; writtenOff: string; inCollection: string; unknown: string };
+      empty: { title: string; body: string; link: string };
+      loading: string;
+      loadFailed: string;
+      linesFailed: string;
+      stale: string;
+      retry: string;
+      mismatch: { title: string; body: string };
+    };
     invest: { title: string; sub: string };
     borrow: { title: string; sub: string };
     placeholder: string;
@@ -278,7 +322,65 @@ export const translations: Record<Lang, Copy> = {
         poolLink: "See the pool",
         connectPrompt: "Connect a wallet to start.",
       },
-      pool: { title: "The pool", sub: "Value per share, liquidity and every credit line, read from Solana." },
+      pool: {
+        title: "The pool",
+        sub: "Value per share, liquidity and every credit line, read from Solana.",
+        address: "Pool account",
+        viewAddress: "View on Solana Explorer",
+        newTab: "opens in a new tab",
+        statsTitle: "Pool figures",
+        statsNote: "Amounts in tMXN, a test token.",
+        perShare: "Value per share",
+        perShareHint: "Pool value divided by all shares.",
+        noShares: "No shares yet",
+        nav: "Pool value",
+        navHint: "Liquidity plus principal lent out.",
+        liquidity: "Liquidity",
+        liquidityHint: "On hand for redemptions and draws.",
+        outstanding: "Principal lent out",
+        interestCollected: "Interest collected",
+        losses: "Losses recognized",
+        lines: "Credit lines",
+        paused: "The pool is paused. Deposits, redemptions and draws are on hold. Repayments still go through.",
+        linesTitle: "Credit lines",
+        linesSub: "Every line the pool has opened, newest last.",
+        linesCaption: "Credit lines of this pool",
+        columns: {
+          line: "Line",
+          borrower: "Borrower",
+          status: "Status",
+          principal: "Principal",
+          drawn: "Drawn",
+          repaid: "Repaid",
+          due: "Due date",
+          sponsor: "Sponsor",
+        },
+        noSponsor: "None",
+        noDate: "Not set",
+        unreadable: "This line could not be read.",
+        status: {
+          approved: "Approved",
+          active: "Active",
+          repaid: "Repaid",
+          writtenOff: "Written off",
+          inCollection: "In collection",
+          unknown: "Unknown",
+        },
+        empty: {
+          title: "No credit lines yet",
+          body: "A line is opened by the pool administrator after the agreement is signed.",
+          link: "How a line is opened",
+        },
+        loading: "Loading the pool",
+        loadFailed: "The pool could not be read from Solana. Check your connection and try again.",
+        linesFailed: "The credit lines could not be read from Solana. Try again.",
+        stale: "These figures could not be refreshed. They show the last values read.",
+        retry: "Try again",
+        mismatch: {
+          title: "This pool does not match the app settings",
+          body: "The pool account on Solana is not the one this app was set up for, so nothing is shown. Please try again later.",
+        },
+      },
       invest: {
         title: "Invest",
         sub: "Deposit tMXN test tokens for shares, or redeem shares when the pool has enough on hand.",
@@ -482,7 +584,65 @@ export const translations: Record<Lang, Copy> = {
         poolLink: "Ver el pool",
         connectPrompt: "Conecta una wallet para empezar.",
       },
-      pool: { title: "El pool", sub: "Valor por participación, liquidez y cada línea de crédito, leídos de Solana." },
+      pool: {
+        title: "El pool",
+        sub: "Valor por participación, liquidez y cada línea de crédito, leídos de Solana.",
+        address: "Cuenta del pool",
+        viewAddress: "Ver en Solana Explorer",
+        newTab: "se abre en una pestaña nueva",
+        statsTitle: "Cifras del pool",
+        statsNote: "Montos en tMXN, un token de prueba.",
+        perShare: "Valor por participación",
+        perShareHint: "Valor del pool dividido entre todas las participaciones.",
+        noShares: "Aún no hay participaciones",
+        nav: "Valor del pool",
+        navHint: "Liquidez más el principal prestado.",
+        liquidity: "Liquidez",
+        liquidityHint: "Disponible para canjes y disposiciones.",
+        outstanding: "Principal prestado",
+        interestCollected: "Interés cobrado",
+        losses: "Pérdidas reconocidas",
+        lines: "Líneas de crédito",
+        paused: "El pool está en pausa. Depósitos, canjes y disposiciones están detenidos. Los pagos siguen entrando.",
+        linesTitle: "Líneas de crédito",
+        linesSub: "Cada línea que ha abierto el pool, la más reciente al final.",
+        linesCaption: "Líneas de crédito de este pool",
+        columns: {
+          line: "Línea",
+          borrower: "Acreditado",
+          status: "Estado",
+          principal: "Principal",
+          drawn: "Dispuesto",
+          repaid: "Pagado",
+          due: "Vencimiento",
+          sponsor: "Patrocinador",
+        },
+        noSponsor: "Ninguno",
+        noDate: "Sin fecha",
+        unreadable: "No se pudo leer esta línea.",
+        status: {
+          approved: "Aprobada",
+          active: "Activa",
+          repaid: "Pagada",
+          writtenOff: "Dada de baja",
+          inCollection: "En cobranza",
+          unknown: "Desconocido",
+        },
+        empty: {
+          title: "Aún no hay líneas de crédito",
+          body: "El administrador del pool abre una línea después de que se firma el contrato.",
+          link: "Cómo se abre una línea",
+        },
+        loading: "Cargando el pool",
+        loadFailed: "No se pudo leer el pool en Solana. Revisa tu conexión e inténtalo de nuevo.",
+        linesFailed: "No se pudieron leer las líneas de crédito en Solana. Inténtalo de nuevo.",
+        stale: "No se pudieron actualizar estas cifras. Muestran los últimos valores leídos.",
+        retry: "Intentar de nuevo",
+        mismatch: {
+          title: "Este pool no coincide con la configuración de la app",
+          body: "La cuenta del pool en Solana no es la que se configuró para esta app, así que no se muestra nada. Inténtalo más tarde.",
+        },
+      },
       invest: {
         title: "Invertir",
         sub: "Deposita tokens de prueba tMXN a cambio de participaciones, o canjéalas cuando el pool tenga liquidez.",

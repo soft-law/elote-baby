@@ -1,0 +1,194 @@
+// Reads of the public pool state. Each query is one RPC request per refresh: the pool, its vault
+// token account and its share token in one getMultipleAccounts; the credit lines in another
+// (chunks of 100 addresses, so one request up to 100 lines). Lines are decoded through the
+// tolerant adapter in pool/line.ts, never the generated CreditLine decoder, so a status or layout
+// this code does not know renders as "unknown" instead of failing the page.
+import {
+  ELOTE_POOL_PROGRAM_ADDRESS,
+  POOL_DISCRIMINATOR,
+  findLinePda,
+  getPoolDecoder,
+  type Pool,
+} from "@elote/pool-client";
+import { getMintDecoder, getTokenDecoder } from "@solana-program/token";
+import { parseBase64RpcAccount, type Address, type MaybeEncodedAccount, type ReadonlyUint8Array } from "@solana/kit";
+import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { decodeLineView, type AnyLineView } from "../pool/line";
+import { nav, perShare } from "../pool/math";
+import type { EloteRpc } from "../tx/rpc";
+import { useRpc } from "../tx/RpcProvider";
+import { derivePoolAccounts, poolMatchesConfig, type AppConfig } from "./config";
+import { useAppConfig } from "./configContext";
+import { QUERY_REFETCH_MS } from "./providers";
+
+/** Addresses per getMultipleAccounts request (the RPC limit). */
+export const ACCOUNTS_PER_REQUEST = 100;
+
+/** The pool as the pages show it. Amounts in base units of the test token (6 decimals). */
+export type PoolView = {
+  address: Address;
+  version: number;
+  admin: Address;
+  assetMint: Address;
+  vault: Address;
+  shareMint: Address;
+  deadShares: Address;
+  /** Test tokens in the vault: the liquidity on hand. */
+  vaultAmount: bigint;
+  /** Total share supply, including the locked dead shares. */
+  supply: bigint;
+  /** Principal drawn and neither repaid nor written off. */
+  outstandingPrincipal: bigint;
+  /** vaultAmount + outstandingPrincipal (pool/math `nav`). */
+  nav: bigint;
+  /** Value of one whole share in base units (pool/math `perShare`); 0 while supply is 0. */
+  perShare: bigint;
+  interestCollected: bigint;
+  /** Principal written off so far: the losses the pool has recognized. */
+  writtenOff: bigint;
+  lineCount: bigint;
+  paused: boolean;
+  /** Slot the read was served at. */
+  slot: bigint;
+};
+
+/** Why the configured pool cannot be shown. A configuration problem, never retried. */
+export type PoolMismatchReason =
+  | "poolMissing"
+  | "notAPool"
+  | "assetMismatch"
+  | "accountsMismatch"
+  | "accountsMissing";
+
+export type PoolReadResult = { kind: "ok"; pool: PoolView } | { kind: "mismatch"; reason: PoolMismatchReason };
+
+/** One row of the lines list. `view` is never null: missing or unreadable accounts are "unknown". */
+export type PoolLine = { lineId: bigint; address: Address; view: AnyLineView };
+
+export const poolQueryKey = (poolAddress: Address) => ["pool", poolAddress] as const;
+/** lineCount is a u64; the key holds it as a number because query keys are hashed as JSON. */
+export const linesQueryKey = (poolAddress: Address, lineCount: bigint) => ["lines", poolAddress, Number(lineCount)] as const;
+
+function bytesEqual(a: ReadonlyUint8Array, b: ReadonlyUint8Array): boolean {
+  if (a.length < b.length) return false;
+  for (let i = 0; i < b.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+async function fetchRaw(rpc: EloteRpc, addresses: Address[], abortSignal?: AbortSignal) {
+  const { context, value } = await rpc.getMultipleAccounts(addresses, { encoding: "base64" }).send({ abortSignal });
+  const accounts: MaybeEncodedAccount[] = addresses.map((a, i) => parseBase64RpcAccount(a, value[i] ?? null));
+  return { slot: context.slot, accounts };
+}
+
+/** Reads the pool, its vault and its share token in one request and checks them against the config. */
+export async function readPool(
+  rpc: EloteRpc,
+  config: Pick<AppConfig, "poolAddress" | "assetMint">,
+  abortSignal?: AbortSignal,
+): Promise<PoolReadResult> {
+  const derived = await derivePoolAccounts(config.poolAddress);
+  const { slot, accounts } = await fetchRaw(rpc, [derived.pool, derived.vault, derived.shareMint], abortSignal);
+  const [poolAccount, vaultAccount, mintAccount] = accounts;
+
+  if (!poolAccount?.exists) return { kind: "mismatch", reason: "poolMissing" };
+  if (poolAccount.programAddress !== ELOTE_POOL_PROGRAM_ADDRESS || !bytesEqual(poolAccount.data, POOL_DISCRIMINATOR)) {
+    return { kind: "mismatch", reason: "notAPool" };
+  }
+  let pool: Pool;
+  try {
+    pool = getPoolDecoder().decode(poolAccount.data);
+  } catch {
+    return { kind: "mismatch", reason: "notAPool" };
+  }
+  if (!poolMatchesConfig(pool, config)) return { kind: "mismatch", reason: "assetMismatch" };
+  if (pool.vault !== derived.vault || pool.shareMint !== derived.shareMint || pool.deadShares !== derived.deadShares) {
+    return { kind: "mismatch", reason: "accountsMismatch" };
+  }
+  if (!vaultAccount?.exists || !mintAccount?.exists) return { kind: "mismatch", reason: "accountsMissing" };
+
+  let vaultAmount: bigint;
+  let supply: bigint;
+  try {
+    const vault = getTokenDecoder().decode(vaultAccount.data);
+    if (vault.mint !== pool.assetMint) return { kind: "mismatch", reason: "accountsMismatch" };
+    vaultAmount = vault.amount;
+    supply = getMintDecoder().decode(mintAccount.data).supply;
+  } catch {
+    return { kind: "mismatch", reason: "accountsMismatch" };
+  }
+
+  const navValue = nav(vaultAmount, pool.outstandingPrincipal);
+  return {
+    kind: "ok",
+    pool: {
+      address: derived.pool,
+      version: pool.version,
+      admin: pool.admin,
+      assetMint: pool.assetMint,
+      vault: pool.vault,
+      shareMint: pool.shareMint,
+      deadShares: pool.deadShares,
+      vaultAmount,
+      supply,
+      outstandingPrincipal: pool.outstandingPrincipal,
+      nav: navValue,
+      perShare: perShare(navValue, supply),
+      interestCollected: pool.interestCollected,
+      writtenOff: pool.writtenOff,
+      lineCount: pool.lineCount,
+      paused: pool.paused,
+      slot,
+    },
+  };
+}
+
+const UNREADABLE: AnyLineView = { readable: false, status: "unknown" };
+
+/** Reads lines 0..lineCount-1, 100 per request. Zero lines make no request. */
+export async function readLines(
+  rpc: EloteRpc,
+  poolAddress: Address,
+  lineCount: bigint,
+  abortSignal?: AbortSignal,
+): Promise<PoolLine[]> {
+  if (lineCount <= 0n) return [];
+  const ids = Array.from({ length: Number(lineCount) }, (_, i) => BigInt(i));
+  const addresses = await Promise.all(ids.map(async (lineId) => (await findLinePda({ pool: poolAddress, lineId }))[0]));
+  const rows: PoolLine[] = [];
+  for (let start = 0; start < addresses.length; start += ACCOUNTS_PER_REQUEST) {
+    const chunk = addresses.slice(start, start + ACCOUNTS_PER_REQUEST);
+    const { accounts } = await fetchRaw(rpc, chunk, abortSignal);
+    accounts.forEach((account, i) => {
+      const lineId = ids[start + i]!;
+      const view =
+        account.exists && account.programAddress === ELOTE_POOL_PROGRAM_ADDRESS ? decodeLineView(account.data) : UNREADABLE;
+      rows.push({ lineId, address: chunk[i]!, view });
+    });
+  }
+  return rows;
+}
+
+/** The configured pool. A mismatch is data (kind "mismatch"), not an error, so it is never retried. */
+export function usePoolQuery(): UseQueryResult<PoolReadResult> {
+  const rpc = useRpc();
+  const config = useAppConfig();
+  return useQuery({
+    queryKey: poolQueryKey(config.poolAddress),
+    queryFn: ({ signal }) => readPool(rpc, config, signal),
+    // A configuration problem does not fix itself: stop polling once seen.
+    refetchInterval: (query) => (query.state.data?.kind === "mismatch" ? false : QUERY_REFETCH_MS),
+  });
+}
+
+/** Lines of the configured pool. Pass the lineCount from usePoolQuery; disabled until it is known. */
+export function useLinesQuery(lineCount: bigint | undefined): UseQueryResult<PoolLine[]> {
+  const rpc = useRpc();
+  const { poolAddress } = useAppConfig();
+  return useQuery({
+    queryKey: linesQueryKey(poolAddress, lineCount ?? 0n),
+    queryFn: ({ signal }) => readLines(rpc, poolAddress, lineCount ?? 0n, signal),
+    enabled: lineCount !== undefined,
+    placeholderData: keepPreviousData,
+  });
+}
