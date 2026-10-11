@@ -4,6 +4,8 @@
 //            FirstDepositTooSmall), <= balance, and enough to receive at least one share
 //   redeem   shares > 0, at most 6 decimals, <= shares held, <= the liquidity cap
 //            floor(vault * supply / nav), and enough to receive at least one base unit
+// Both refuse an amount whose floor (minSharesOut / minAssetsOut) would round down to 0, so a
+// transaction never goes out without a real minimum.
 import {
   MIN_FIRST_DEPOSIT,
   assetsForRedeem,
@@ -24,7 +26,9 @@ export type FieldError =
   | { code: "zeroShares" }
   | { code: "aboveShares" }
   | { code: "aboveLiquidity"; max: bigint }
-  | { code: "tooSmall" };
+  | { code: "tooSmall" }
+  /** The floor sent with the transaction would be 0: too small to be worth sending. */
+  | { code: "dust" };
 
 /** A checked amount: what is sent (`units`), what is expected back, and the floor sent with it. */
 export type Checked = { ok: true; units: bigint; expected: bigint; min: bigint } | { ok: false; error: FieldError };
@@ -47,7 +51,9 @@ export function checkDeposit(input: string, pool: PoolFigures, balance: bigint):
   if (assets > balance) return { ok: false, error: { code: "aboveBalance" } };
   const expected = sharesForDeposit(assets, pool.nav, pool.supply);
   if (expected === 0n) return { ok: false, error: { code: "zeroShares" } };
-  return { ok: true, units: assets, expected, min: withTolerance(expected) };
+  const min = withTolerance(expected);
+  if (min === 0n) return { ok: false, error: { code: "dust" } };
+  return { ok: true, units: assets, expected, min };
 }
 
 /** The redeem Max: the shares held, or fewer when the vault cannot pay them all right now. */
@@ -66,5 +72,7 @@ export function checkRedeem(input: string, pool: PoolFigures, shares: bigint): C
   if (amount > cap) return { ok: false, error: { code: "aboveLiquidity", max: cap } };
   const expected = assetsForRedeem(amount, pool.nav, pool.supply);
   if (expected === 0n) return { ok: false, error: { code: "tooSmall" } };
-  return { ok: true, units: amount, expected, min: withTolerance(expected) };
+  const min = withTolerance(expected);
+  if (min === 0n) return { ok: false, error: { code: "dust" } };
+  return { ok: true, units: amount, expected, min };
 }

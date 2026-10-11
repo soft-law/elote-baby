@@ -53,6 +53,8 @@ export function AmountForm(props: AmountFormProps) {
   const errorId = `${inputId}-error`;
   const previewId = `${inputId}-preview`;
   const titleId = `${inputId}-title`;
+  const notesId = `${inputId}-notes`;
+  const maxHintId = `${inputId}-max-hint`;
   const inputRef = useRef<HTMLInputElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
 
@@ -106,7 +108,8 @@ export function AmountForm(props: AmountFormProps) {
     }
   };
 
-  const describedBy = [showError ? errorId : null, previewId].filter(Boolean).join(" ");
+  const hasNotes = props.notes !== null && props.notes !== undefined && props.notes !== false;
+  const describedBy = [showError ? errorId : null, previewId, hasNotes ? notesId : null].filter(Boolean).join(" ");
 
   return (
     <section aria-labelledby={titleId} className="flex h-full flex-col rounded-[24px] border-[1.5px] border-line bg-white shadow-[var(--shadow-soft)]">
@@ -184,12 +187,17 @@ export function AmountForm(props: AmountFormProps) {
                   setInput(format(props.max ?? 0n));
                   setTouched(true);
                 }}
-                aria-label={props.maxLabel}
+                aria-describedby={maxHintId}
                 data-testid={`${name}-max`}
                 className="inline-flex min-h-[52px] min-w-[64px] items-center justify-center rounded-[14px] border-[1.5px] border-teal-700 bg-white px-4 font-display text-[16px] font-semibold text-teal-700 hover:bg-teal-50"
               >
                 {props.maxText}
               </button>
+            ) : null}
+            {props.max !== null ? (
+              <span id={maxHintId} className="sr-only">
+                {props.maxLabel}
+              </span>
             ) : null}
           </div>
           {showError && error ? (
@@ -202,7 +210,11 @@ export function AmountForm(props: AmountFormProps) {
           </p>
         </div>
 
-        {props.notes}
+        {hasNotes ? (
+          <div id={notesId} data-testid={`${name}-notes`}>
+            {props.notes}
+          </div>
+        ) : null}
 
         <div className="sticky bottom-0 -mx-5 mt-auto bg-white/95 px-5 pt-2 pb-4 md:static md:mx-0 md:bg-transparent md:p-0">
           <button

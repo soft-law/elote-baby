@@ -84,7 +84,7 @@ function ToastCard({ toast, t, onDismiss }: { toast: Toast; t: Copy; onDismiss: 
                 className="inline-flex min-h-[44px] items-center text-[15px] font-semibold text-teal-700 underline decoration-teal-700/40 underline-offset-4 hover:decoration-teal-700"
               >
                 {t.app.tx.viewExplorer}
-                <span className="num sr-only">{` ${truncateMiddle(toast.signature, 6, 6)}, ${t.app.faucet.newTab}`}</span>
+                <span className="num sr-only">{` ${truncateMiddle(toast.signature, 6, 6)}, ${t.app.newTab}`}</span>
               </a>
             ) : null}
             {toast.action ? (

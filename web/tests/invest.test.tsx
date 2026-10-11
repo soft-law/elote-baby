@@ -183,6 +183,8 @@ describe("validation", () => {
     expect(code("1", EMPTY_POOL)).toBe("ok");
     // One base unit buys no share at 1.0666 per share.
     expect(code("0.000001")).toBe("zeroShares");
+    // Two base units buy one share, whose 0.10% floor rounds down to 0: refused, never sent with 0.
+    expect(code("0.000002")).toBe("dust");
   });
 
   test("the deposit floor is withTolerance of the expected shares", () => {
@@ -207,6 +209,8 @@ describe("validation", () => {
     expect(code(format(cap + 1n))).toBe("aboveLiquidity");
     expect(code(format(cap))).toBe("ok");
     expect(code("0")).toBe("zero");
+    // One base unit of shares pays one base unit, whose floor rounds down to 0.
+    expect(code("0.000001")).toBe("dust");
   });
 });
 
@@ -319,7 +323,7 @@ describe("Review Focus 3: redeem without enough liquidity", () => {
 
     await page.type("redeem", format(cap + 1n));
     await page.blur("redeem");
-    expect(page.q('[data-testid="redeem-error"]')!.textContent).toBe(en.app.invest.errors.aboveLiquidity.replace("{max}", "9,375"));
+    expect(page.q('[data-testid="redeem-error"]')!.textContent).toBe("You can redeem up to 9,375 shares right now.");
     await page.submit("redeem");
     expect(tx.ops).toEqual([]);
   });
@@ -374,6 +378,52 @@ describe("form validation display", () => {
     // A valid amount clears it.
     await page.type("deposit", "10");
     expect(page.q('[data-testid="deposit-error-summary"]')).toBeNull();
+  });
+
+  test("deposit: a dust amount whose floor would be 0 is refused here", async () => {
+    const tx = fakeTx();
+    const page = await mount(<Deposit tx={tx} />);
+    await page.type("deposit", "0.000002");
+    await page.blur("deposit");
+    expect(page.q('[data-testid="deposit-error"]')!.textContent).toBe(en.app.invest.errors.dust);
+    expect(page.q('[data-testid="deposit-quote"]')).toBeNull();
+    await page.submit("deposit");
+    expect(tx.ops).toEqual([]);
+  });
+
+  test("redeem: a dust amount whose floor would be 0 is refused here", async () => {
+    const tx = fakeTx();
+    const page = await mount(<Redeem tx={tx} shares={100n * UNIT} />);
+    await page.type("redeem", "0.000001");
+    await page.blur("redeem");
+    expect(page.q('[data-testid="redeem-error"]')!.textContent).toBe(en.app.invest.errors.dust);
+    await page.submit("redeem");
+    expect(tx.ops).toEqual([]);
+  });
+
+  test("Max: the visible word is the accessible name; the explanation is its description", async () => {
+    const page = await mount(<Deposit tx={fakeTx()} />);
+    const max = page.q('[data-testid="deposit-max"]')!;
+    expect(max.textContent).toBe(en.app.invest.deposit.max);
+    expect(max.hasAttribute("aria-label")).toBe(false);
+    const hint = page.host.querySelector(`[id="${max.getAttribute("aria-describedby")}"]`)!;
+    expect(hint.textContent).toBe(en.app.invest.deposit.maxLabel);
+    expect(max.contains(hint)).toBe(false);
+  });
+
+  test("the first-deposit note and the liquidity notice describe the field", async () => {
+    const describedText = (name: string) =>
+      (page.input(name).getAttribute("aria-describedby") ?? "")
+        .split(" ")
+        .map((id) => page.host.querySelector(`[id="${id}"]`)?.textContent ?? "")
+        .join(" ");
+    let page = await mount(<Deposit tx={fakeTx()} pool={EMPTY_POOL} balance={10n * UNIT} />);
+    expect(describedText("deposit")).toContain(en.app.invest.deposit.firstNote);
+    await act(async () => mounted!.root.unmount());
+    mounted!.host.remove();
+    mounted = null;
+    page = await mount(<Redeem tx={fakeTx()} shares={12_000n * UNIT} />);
+    expect(describedText("redeem")).toContain(page.q('[data-testid="liquidity-notice"]')!.textContent!);
   });
 
   test("a paused pool disables submit", async () => {

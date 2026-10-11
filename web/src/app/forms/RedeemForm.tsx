@@ -8,7 +8,7 @@ import { DECIMALS } from "../../pool/math";
 import type { Copy, Lang } from "../../translations";
 import type { UseTx } from "../../tx/useTx";
 import { AmountForm } from "./AmountForm";
-import { fieldErrorText } from "./DepositForm";
+import { fieldErrorText } from "./errors";
 import { checkRedeem, redeemLimit, type PoolFigures } from "./validation";
 
 export type RedeemFormProps = {

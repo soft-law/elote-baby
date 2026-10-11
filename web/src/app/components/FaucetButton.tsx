@@ -85,7 +85,7 @@ export function FaucetButton({ address, t }: { address: Address; t: Copy }) {
                 className="inline-flex min-h-[44px] items-center font-semibold text-teal-700 underline underline-offset-4"
               >
                 {f.viewExplorer}
-                <span className="sr-only"> ({f.newTab})</span>
+                <span className="sr-only"> ({t.app.newTab})</span>
               </a>
             ) : null}
           </p>

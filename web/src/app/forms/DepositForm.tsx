@@ -8,24 +8,10 @@ import { DECIMALS } from "../../pool/math";
 import type { Copy, Lang } from "../../translations";
 import type { UseTx } from "../../tx/useTx";
 import { AmountForm } from "./AmountForm";
-import { checkDeposit, type FieldError, type PoolFigures } from "./validation";
+import { fieldErrorText } from "./errors";
+import { checkDeposit, type PoolFigures } from "./validation";
 
 export const ASSET_SYMBOL = "tMXN";
-
-/** Field message for a validation error. Shared by both forms. */
-export function fieldErrorText(error: FieldError, t: Copy, lang: Lang): string {
-  const e = t.app.invest.errors;
-  switch (error.code) {
-    case "firstDepositTooSmall":
-      return t.app.tx.errors.program.firstDepositTooSmall;
-    case "zeroShares":
-      return t.app.tx.errors.program.zeroShares;
-    case "aboveLiquidity":
-      return e.aboveLiquidity.replace("{max}", formatAmount(error.max, lang, DECIMALS));
-    default:
-      return e[error.code];
-  }
-}
 
 export type DepositFormProps = {
   pool: PoolFigures & { paused: boolean };

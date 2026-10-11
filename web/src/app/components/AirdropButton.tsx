@@ -74,7 +74,7 @@ export function AirdropButton({ address, t, retryDelayMs }: { address: Address; 
               className="inline-flex min-h-[44px] items-center font-semibold text-teal-700 underline underline-offset-4"
             >
               {f.viewExplorer}
-              <span className="sr-only"> ({f.newTab})</span>
+              <span className="sr-only"> ({t.app.newTab})</span>
             </a>
           </p>
         ) : result?.kind === "failed" ? (
@@ -87,7 +87,7 @@ export function AirdropButton({ address, t, retryDelayMs }: { address: Address; 
               className="inline-flex min-h-[44px] items-center font-semibold text-teal-700 underline underline-offset-4"
             >
               {f.solFaucet}
-              <span className="sr-only"> ({f.newTab})</span>
+              <span className="sr-only"> ({t.app.newTab})</span>
             </a>
           </p>
         ) : null}

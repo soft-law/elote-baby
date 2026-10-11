@@ -339,6 +339,9 @@ describe("invest page", () => {
     expect(summary).toContain("500");
     expect(summary).toContain("2");
     expect(page.q('[data-testid="sol-low"]')).toBeNull();
+    // The status region is mounted and empty, ready to announce the warning.
+    expect(page.q('[data-testid="sol-status"]')!.getAttribute("role")).toBe("status");
+    expect(page.q('[data-testid="sol-status"]')!.textContent).toBe("");
     expect(page.q('[data-testid="faucet-button"]')).not.toBeNull();
     expect(page.q('[data-testid="deposit-form"]')!.textContent).toContain("500");
     // Pool and balances: two requests, one each.
@@ -351,6 +354,7 @@ describe("invest page", () => {
     const page = await mount(f.config, wallet(f.owner), <InvestPage />);
     await page.until(() => page.q('[data-testid="sol-low"]') !== null, "SOL warning");
     expect(page.q('[data-testid="sol-low"]')!.textContent).toContain(en.app.invest.solLow);
+    expect(page.q('[data-testid="sol-status"]')!.textContent).toBe(en.app.invest.solLow);
     expect(page.q('[data-testid="airdrop-button"]')!.textContent).toBe(en.app.faucet.sol);
   });
 

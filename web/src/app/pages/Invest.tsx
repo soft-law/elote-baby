@@ -70,7 +70,16 @@ function Summary({ pool, balances, t, lang }: { pool: PoolView | null; balances:
         <li>
           <StatCard
             label={i.sharesValue}
-            value={pool ? <Amount units={sharesValue(balances.shares, pool.perShare)} lang={lang} /> : "..."}
+            value={
+              pool ? (
+                <Amount units={sharesValue(balances.shares, pool.perShare)} lang={lang} />
+              ) : (
+                <span data-testid="shares-value-loading">
+                  <span aria-hidden="true" className="skeleton inline-block h-7 w-28 rounded-[8px] bg-mist align-middle" />
+                  <span className="sr-only">{t.app.pool.loading}</span>
+                </span>
+              )
+            }
             unit={ASSET_SYMBOL}
             hint={i.sharesValueHint}
           />
@@ -82,14 +91,20 @@ function Summary({ pool, balances, t, lang }: { pool: PoolView | null; balances:
           <StatCard label={i.solBalance} value={formatSol(balances.lamports, lang)} unit="SOL" hint={i.solHint} />
         </li>
       </ul>
-      {lowSol ? (
-        <div data-testid="sol-low" className="flex flex-col gap-3 rounded-[18px] border-[1.5px] border-corn-300 bg-corn-100 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-          <p role="status" className="m-0 text-[17px] leading-[1.5] text-ink">
-            {i.solLow}
-          </p>
-          <AirdropButton address={balances.owner} t={t} />
-        </div>
-      ) : null}
+      {/* The status region stays mounted so the warning is announced when it appears. */}
+      <div
+        data-testid={lowSol ? "sol-low" : undefined}
+        className={
+          lowSol
+            ? "flex flex-col gap-3 rounded-[18px] border-[1.5px] border-corn-300 bg-corn-100 px-4 py-3 sm:flex-row sm:items-start sm:justify-between"
+            : "sr-only"
+        }
+      >
+        <p role="status" data-testid="sol-status" className="m-0 text-[17px] leading-[1.5] text-ink">
+          {lowSol ? i.solLow : ""}
+        </p>
+        {lowSol ? <AirdropButton address={balances.owner} t={t} /> : null}
+      </div>
     </section>
   );
 }

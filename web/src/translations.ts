@@ -202,7 +202,7 @@ export type Copy = {
         aboveShares: string;
         aboveLiquidity: string;
         tooSmall: string;
-        notReady: string;
+        dust: string;
       };
     };
     faucet: {
@@ -217,7 +217,6 @@ export type Copy = {
       solSent: string;
       solFailed: string;
       solFaucet: string;
-      newTab: string;
       viewExplorer: string;
     };
     toast: {
@@ -234,6 +233,7 @@ export type Copy = {
     };
     borrow: { title: string; sub: string };
     placeholder: string;
+    newTab: string;
     notFound: { title: string; body: string; home: string };
     error: { title: string; body: string; retry: string };
     config: { title: string; body: string; back: string };
@@ -542,9 +542,9 @@ export const translations: Record<Lang, Copy> = {
           zero: "Enter an amount greater than zero.",
           aboveBalance: "This is more than your balance of tMXN test tokens.",
           aboveShares: "This is more than the shares you hold.",
-          aboveLiquidity: "The pool can pay out up to {max} shares right now.",
+          aboveLiquidity: "You can redeem up to {max} shares right now.",
           tooSmall: "This is too few shares to receive any test tokens.",
-          notReady: "Your balances are still loading. Try again in a moment.",
+          dust: "This amount is too small to be worth sending.",
         },
       },
       faucet: {
@@ -559,7 +559,6 @@ export const translations: Record<Lang, Copy> = {
         solSent: "Test SOL requested. It shows in your balance in a few seconds.",
         solFailed: "The network did not send test SOL right now. Use the Solana faucet instead.",
         solFaucet: "Open the Solana faucet",
-        newTab: "opens in a new tab",
         viewExplorer: "View on Solana Explorer",
       },
       toast: {
@@ -576,6 +575,7 @@ export const translations: Record<Lang, Copy> = {
       },
       borrow: { title: "Borrow", sub: "Draw your approved line and repay it from your wallet." },
       placeholder: "This section is under construction.",
+      newTab: "opens in a new tab",
       notFound: { title: "Page not found", body: "This address does not match any page of the app.", home: "Go to the start" },
       error: { title: "Something went wrong", body: "This page could not load. Try again.", retry: "Try again" },
       config: {
@@ -899,9 +899,9 @@ export const translations: Record<Lang, Copy> = {
           zero: "Escribe un monto mayor que cero.",
           aboveBalance: "Es más que tu saldo de tokens de prueba tMXN.",
           aboveShares: "Es más que las participaciones que tienes.",
-          aboveLiquidity: "El pool puede pagar hasta {max} participaciones en este momento.",
+          aboveLiquidity: "Ahora puedes canjear hasta {max} participaciones.",
           tooSmall: "Son muy pocas participaciones para recibir tokens de prueba.",
-          notReady: "Tus saldos aún se están cargando. Inténtalo de nuevo en un momento.",
+          dust: "Este monto es demasiado pequeño para que valga la pena enviarlo.",
         },
       },
       faucet: {
@@ -914,9 +914,8 @@ export const translations: Record<Lang, Copy> = {
         sol: "Obtener SOL de prueba",
         solGetting: "Solicitando…",
         solSent: "SOL de prueba solicitado. Aparece en tu saldo en unos segundos.",
-        solFailed: "La red no envió SOL de prueba en este momento. Usa el faucet de Solana.",
-        solFaucet: "Abrir el faucet de Solana",
-        newTab: "se abre en una pestaña nueva",
+        solFailed: "La red no envió SOL de prueba en este momento. Usa el grifo de Solana.",
+        solFaucet: "Abrir el grifo de Solana",
         viewExplorer: "Ver en Solana Explorer",
       },
       toast: {
@@ -933,6 +932,7 @@ export const translations: Record<Lang, Copy> = {
       },
       borrow: { title: "Pedir crédito", sub: "Retira el crédito de tu línea aprobada y págalo desde tu wallet." },
       placeholder: "Esta sección está en construcción.",
+      newTab: "se abre en una pestaña nueva",
       notFound: { title: "Página no encontrada", body: "Esta dirección no corresponde a ninguna página de la app.", home: "Ir al inicio" },
       error: { title: "Algo salió mal", body: "No se pudo cargar esta página. Inténtalo de nuevo.", retry: "Reintentar" },
       config: {
