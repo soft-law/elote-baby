@@ -17,7 +17,7 @@ bun run typecheck  # tsc --noEmit
 bun run build      # typecheck + vite build into dist/
 bun run preview    # serves dist/ on http://localhost:4322
 bun run smoke      # Playwright smoke test against the preview server (see below)
-bun run logo       # regenerates public/logo.webp from public/logo.png
+bun run brand      # regenerates the lockup icon, favicons and apple-touch-icon from public/corn-mark.png
 ```
 
 The smoke test (`scripts/smoke.mjs`) runs under Node, starts nothing by itself and expects

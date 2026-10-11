@@ -1,18 +1,29 @@
-// Brand pieces shared by the landing page and the app: logo, language toggle and footer.
+// Brand pieces shared by the landing page and the app: logo lockup, language toggle and footer.
 // Pure render, no window access, so the prerender of the landing can import them.
 import { BRAND, PRIVACY_URL, TERMS_URL } from "./config";
 import { translations, type Copy, type Lang } from "./translations";
 
 const LANGS: Lang[] = ["en", "es"];
 
+// Lockup: the corn mark as the icon, the brand as Lexend text. Only ever shown on night (#131313).
+// `height` is the icon height; the wordmark scales with it. `alt` names the whole lockup (it is
+// usually the only content of a home link), so the visible wordmark is hidden from assistive tech.
 export function Logo({ height, alt }: { height: number; alt: string }) {
-  // The logo is only ever shown on night (#131313). 1208x300 source ratio.
-  const width = Math.round((height * 1208) / 300);
+  const width = Math.round((height * 60) / 96); // public/corn-icon.* is 60x96
   return (
-    <picture>
-      <source srcSet="/logo.webp" type="image/webp" />
-      <img src="/logo.png" alt={alt} width={width} height={height} className="block h-auto" style={{ width, maxWidth: "100%" }} />
-    </picture>
+    <span className="inline-flex items-center" style={{ gap: Math.round(height * 0.24) }}>
+      <picture className="flex-none">
+        <source srcSet="/corn-icon.webp" type="image/webp" />
+        <img src="/corn-icon.png" alt={alt} width={width} height={height} className="block" style={{ width, height }} />
+      </picture>
+      <span
+        aria-hidden="true"
+        className="font-display font-bold leading-none tracking-[-0.02em] whitespace-nowrap text-white"
+        style={{ fontSize: Math.round(height * 0.6) }}
+      >
+        {BRAND}
+      </span>
+    </span>
   );
 }
 
@@ -59,7 +70,6 @@ export function SiteFooter({ t }: { t: Copy }) {
               {f.privacy}
             </a>
           </nav>
-          <p className="m-0 text-[15px] leading-[1.5] text-fog">{f.disclaimer}</p>
         </div>
       </div>
     </footer>
