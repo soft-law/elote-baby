@@ -2,11 +2,11 @@ import "./support/dom";
 import { afterEach, describe, expect, test } from "bun:test";
 import type { Address } from "@solana/kit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, useSyncExternalStore, type ReactNode } from "react";
+import { act, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { agreementQueryKey, fetchAgreementByHash, parseAgreementSummary, type AgreementLookup } from "../src/app/agreement";
 import { AgreementBlock, COPIED_RESET_MS, agreementCreatedSeconds } from "../src/app/components/AgreementBlock";
-import { DrawAction, drawBlock } from "../src/app/components/LineCard";
+import { DrawAction, drawBlock, useLineTxToasts } from "../src/app/components/LineCard";
 import type { AppConfig } from "../src/app/config";
 import { ConfigContext } from "../src/app/configContext";
 import { RepayForm, repayLimits } from "../src/app/forms/RepayForm";
@@ -455,6 +455,52 @@ describe("draw action", () => {
     expect(button.getAttribute("aria-describedby")).toBe(page.q('[data-testid="draw-note"]')!.id);
     await page.click(button);
     expect(tx.ops).toEqual([]);
+  });
+});
+
+describe("line toasts", () => {
+  // Mirrors LineCard: the card holds both runs and their toasts; the action shows while the line
+  // allows it. A confirmed draw (line turns active) or a full repayment (line turns repaid)
+  // unmounts the action while its run is still finishing, as the refetch in useTx does.
+  let hide: () => void = () => undefined;
+  function Card({ draw, repay, action }: { draw: ReturnType<typeof fakeTx>; repay: ReturnType<typeof fakeTx>; action: "draw" | "repay" }) {
+    const [shown, setShown] = useState(true);
+    hide = () => setShown(false);
+    const drawTx = draw.useFake();
+    const repayTx = repay.useFake();
+    useLineTxToasts(drawTx, repayTx, en);
+    if (!shown) return <p data-testid="action-gone" />;
+    return action === "draw" ? (
+      <DrawAction line={lineView({ lineId: 4n, status: "approved", drawnAt: null, termEnd: 4_000_000_000 })} pool={{ paused: false, vaultAmount: 10_000n * UNIT }} now={2_000_000_000} tx={drawTx} t={en} lang="en" />
+    ) : (
+      <RepayForm line={lineView({ lineId: 4n })} graceSeconds={0} balance={1_000n * UNIT} now={1_250} tx={repayTx} t={en} lang="en" />
+    );
+  }
+  const settle = (signature: string) => async () => {
+    hide();
+    await sleep(0);
+    return { signature };
+  };
+  const toasts = () => [...document.querySelectorAll('[data-testid="toast"]')] as HTMLElement[];
+
+  test("the draw toast reaches Updated after the confirmed draw unmounts the button", async () => {
+    const page = await mount(<Card draw={fakeTx(settle("DrawSig2"))} repay={fakeTx()} action="draw" />);
+    await page.click(page.q('[data-testid="draw-submit"]'));
+    expect(page.q('[data-testid="action-gone"]')).not.toBeNull();
+    expect(toasts()).toHaveLength(1);
+    expect(toasts()[0]!.getAttribute("data-tone")).toBe("success");
+    expect([...toasts()[0]!.querySelectorAll('[data-testid="toast-steps"] li')].map((li) => li.getAttribute("data-status"))).toEqual(["done", "done", "done"]);
+    expect(toasts()[0]!.querySelector('[data-testid="toast-explorer"]')!.getAttribute("href")).toContain("/tx/DrawSig2");
+  });
+
+  test("a full repayment that unmounts the form still ends in one Updated toast", async () => {
+    const page = await mount(<Card draw={fakeTx()} repay={fakeTx(settle("RepaySig2"))} action="repay" />);
+    await page.click(page.q('[data-testid="repay-max"]'));
+    await page.click(page.q('[data-testid="repay-submit"]'));
+    expect(page.q('[data-testid="action-gone"]')).not.toBeNull();
+    expect(toasts()).toHaveLength(1);
+    expect(toasts()[0]!.getAttribute("data-tone")).toBe("success");
+    expect(toasts()[0]!.querySelector('[data-testid="toast-explorer"]')!.getAttribute("href")).toContain("/tx/RepaySig2");
   });
 });
 

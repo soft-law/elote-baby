@@ -3,6 +3,8 @@
 // line takes at most what remains. A scheduled (v2) line first settles its late interest, so the
 // amount must cover the late interest estimated at this moment; it takes at most what is due and
 // the rest stays in the wallet. "Due now" and late interest come from pool/schedule at `now`.
+// The line card shows the transaction toast: a full repayment turns the line repaid, which
+// unmounts this form before the run settles.
 import { Amount } from "../components/Amount";
 import { fill } from "../fill";
 import { ASSET_SYMBOL } from "../../pool/format";
@@ -82,6 +84,7 @@ export function RepayForm({ line, graceSeconds, balance, now, tx, t, lang }: Rep
       submitText={r.submit}
       toOp={({ units }) => ({ kind: "repay", lineId: line.lineId, amount: units })}
       tx={tx}
+      toastInParent
     />
   );
 }

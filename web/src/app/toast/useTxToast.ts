@@ -37,9 +37,11 @@ export type TxToastOptions = {
   t: Copy;
   /** "Try again": return the person to the form. Never resubmits on its own. */
   onRetry: () => void;
+  /** False when a longer-lived parent shows this run's toast instead (default true). */
+  enabled?: boolean;
 };
 
-export function useTxToast(tx: Pick<UseTx, "step" | "signature" | "error">, { op, t, onRetry }: TxToastOptions): void {
+export function useTxToast(tx: Pick<UseTx, "step" | "signature" | "error">, { op, t, onRetry, enabled = true }: TxToastOptions): void {
   const { show, update, dismiss } = useToast();
   const idRef = useRef<string | null>(null);
   const lastActive = useRef<TxStep | null>(null);
@@ -50,6 +52,7 @@ export function useTxToast(tx: Pick<UseTx, "step" | "signature" | "error">, { op
   const { step, signature, error } = tx;
 
   useEffect(() => {
+    if (!enabled) return;
     const c = t.app.toast;
     const opLabel = t.app.tx.ops[op];
     if (step === "idle") {
@@ -106,5 +109,5 @@ export function useTxToast(tx: Pick<UseTx, "step" | "signature" | "error">, { op
     }
     idRef.current = null;
     settled.current = true;
-  }, [step, signature, error, op, t, show, update, dismiss]);
+  }, [enabled, step, signature, error, op, t, show, update, dismiss]);
 }

@@ -130,26 +130,44 @@ export type DrawActionProps = {
   lang: Lang;
 };
 
-/** Draw the whole principal. The wallet signature is the confirmation; the toast follows the steps. */
+/**
+ * The toasts of a line's draw and repayment. They live on the card, not on DrawAction or
+ * RepayForm: a confirmed draw turns the line active and a full repayment turns it repaid, and the
+ * refetch that shows it unmounts the action before its run reaches "done". "Try again" resets the
+ * run and refreshes the figures; it never resends.
+ */
+export function useLineTxToasts(drawTx: UseTx, repayTx: UseTx, t: Copy): void {
+  const queryClient = useQueryClient();
+  const refresh = () => {
+    for (const key of ["pool", "lines", "balances"]) void queryClient.invalidateQueries({ queryKey: [key] });
+  };
+  useTxToast(drawTx, {
+    op: "draw",
+    t,
+    onRetry: () => {
+      drawTx.reset();
+      refresh();
+    },
+  });
+  useTxToast(repayTx, {
+    op: "repay",
+    t,
+    onRetry: () => {
+      repayTx.reset();
+      refresh();
+    },
+  });
+}
+
+/** Draw the whole principal. The wallet signature is the confirmation; the card shows the toast. */
 export function DrawAction({ line, pool, now, tx, t, lang }: DrawActionProps) {
   const d = t.app.borrow.draw;
-  const queryClient = useQueryClient();
   const noteId = useId();
   const titleId = useId();
   const busy = isTxBusy(tx.step);
   const block = drawBlock(line, pool, now);
   const note =
     block === "paused" ? d.pausedNote : block === "liquidity" ? d.liquidityNote : block === "termEnded" ? d.termEndedNote : block === "schedule" ? d.scheduleNote : null;
-
-  useTxToast(tx, {
-    op: "draw",
-    t,
-    onRetry: () => {
-      tx.reset();
-      void queryClient.invalidateQueries({ queryKey: ["pool"] });
-      void queryClient.invalidateQueries({ queryKey: ["lines"] });
-    },
-  });
 
   const onDraw = async () => {
     if (busy || block) return;
@@ -257,6 +275,7 @@ export function LineCard({ row, pool, balance, now, t, lang, cluster, counterpar
   // Both hooks run on every card so hook order never depends on the status.
   const drawTx = useTx();
   const repayTx = useTx();
+  useLineTxToasts(drawTx, repayTx, t);
   const { view } = row;
   const known = view.readable && view.status !== "unknown";
 

@@ -44,6 +44,8 @@ export type AmountFormProps = {
   tx: UseTx;
   /** Level of the form title; h2 when the form sits under the page heading (default). */
   headingLevel?: "h2" | "h3" | "h4";
+  /** The parent shows the transaction toast, because a confirmed run may unmount this form. */
+  toastInParent?: boolean;
 };
 
 export function AmountForm(props: AmountFormProps) {
@@ -83,6 +85,7 @@ export function AmountForm(props: AmountFormProps) {
   useTxToast(tx, {
     op: name,
     t,
+    enabled: !props.toastInParent,
     onRetry: () => {
       tx.reset();
       void queryClient.invalidateQueries({ queryKey: ["pool"] });
