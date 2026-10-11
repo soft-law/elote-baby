@@ -1,0 +1,57 @@
+// Shows transactions from an earlier visit that are still settling, with explorer links, so a
+// person who closed the tab mid-transaction knows not to repeat it.
+import { useAppConfig } from "../app/configContext";
+import { truncateMiddle } from "../pool/format";
+import type { Copy } from "../translations";
+import { explorerTxUrl } from "./explorer";
+import { useJournalRecovery } from "./useJournalRecovery";
+
+export function PendingTransactionNotice({ t }: { t: Copy }) {
+  const { explorerCluster } = useAppConfig();
+  const { pending, unavailable, checking, checkNow } = useJournalRecovery();
+  const p = t.app.tx.pending;
+  if (!unavailable && pending.length === 0) return null;
+
+  return (
+    <aside
+      role="status"
+      aria-live="polite"
+      className="fixed right-4 bottom-4 left-4 z-30 flex flex-col gap-3 rounded-[18px] border-[1.5px] border-teal-700 bg-white p-4 text-ink shadow-[var(--shadow-soft)] sm:left-auto sm:w-[min(26rem,calc(100vw-2rem))]"
+    >
+      <p className="m-0 font-display text-[17px] font-bold">{unavailable ? p.unavailable : p.title}</p>
+      {unavailable ? null : (
+        <>
+          <p className="m-0 text-[15px] leading-[1.5] text-ink-soft">{p.body}</p>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            {pending.map((entry) => (
+              <li key={entry.signature} className="flex flex-wrap items-center justify-between gap-x-3 text-[15px]">
+                <span>
+                  <span className="font-semibold">{t.app.tx.ops[entry.op]}</span>
+                  <span className="text-ink-soft">: {entry.status === "signed" ? p.signed : p.sent}</span>
+                </span>
+                <a
+                  href={explorerTxUrl(entry.signature, explorerCluster)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="num inline-flex min-h-[44px] items-center text-[14px] text-teal-700"
+                >
+                  {truncateMiddle(entry.signature, 6, 6)}
+                  <span className="sr-only">, {t.app.tx.viewExplorer}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={() => void checkNow()}
+            disabled={checking}
+            aria-busy={checking}
+            className="inline-flex min-h-[44px] items-center justify-center self-start rounded-[12px] border-[1.5px] border-teal-700 px-4 font-display text-[15px] font-semibold text-teal-700 hover:bg-teal-50 disabled:opacity-70"
+          >
+            {checking ? p.checking : p.check}
+          </button>
+        </>
+      )}
+    </aside>
+  );
+}

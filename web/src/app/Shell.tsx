@@ -1,9 +1,12 @@
-// App layout: header (logo, devnet badge, language, connect), page, footer. The connect button is
-// a disabled placeholder until the wallet work lands.
+// App layout: header (logo, devnet badge, language, wallet), page, footer. Frame also wraps the
+// configuration screen, which renders outside the wallet providers, so the wallet control comes
+// in through the `actions` slot.
 import { useEffect, type ReactNode } from "react";
 import { NavLink, Outlet } from "react-router";
 import { LangToggle, Logo, SiteFooter } from "../chrome";
 import type { Copy, Lang } from "../translations";
+import { PendingTransactionNotice } from "../tx/PendingTransactionNotice";
+import { ConnectButton } from "../wallet/ConnectButton";
 import { useLang } from "./lang";
 
 export function Frame({
@@ -11,12 +14,15 @@ export function Frame({
   lang,
   setLang,
   nav,
+  actions,
   children,
 }: {
   t: Copy;
   lang: Lang;
   setLang: (l: Lang) => void;
   nav?: ReactNode;
+  /** Header controls after the language toggle (the wallet button in the app). */
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -47,7 +53,7 @@ export function Frame({
           </div>
           <div className="flex items-center gap-2 md:gap-3">
             <LangToggle t={t} lang={lang} setLang={setLang} />
-            <ConnectPlaceholder t={t} />
+            {actions}
           </div>
         </div>
         {nav}
@@ -57,22 +63,6 @@ export function Frame({
       </main>
       <SiteFooter t={t} />
     </div>
-  );
-}
-
-function ConnectPlaceholder({ t }: { t: Copy }) {
-  return (
-    <button
-      type="button"
-      disabled
-      aria-describedby="connect-soon"
-      className="inline-flex min-h-[44px] cursor-not-allowed items-center rounded-[12px] border-[1.5px] border-night-line px-3.5 font-display text-[15px] font-semibold text-fog-dim"
-    >
-      {t.app.header.connect}
-      <span id="connect-soon" className="sr-only">
-        {t.app.header.connectSoon}
-      </span>
-    </button>
   );
 }
 
@@ -110,8 +100,9 @@ function AppNav({ t, to }: { t: Copy; to: ReturnType<typeof useLang>["to"] }) {
 export function Shell() {
   const { lang, t, setLang, to } = useLang();
   return (
-    <Frame t={t} lang={lang} setLang={setLang} nav={<AppNav t={t} to={to} />}>
+    <Frame t={t} lang={lang} setLang={setLang} nav={<AppNav t={t} to={to} />} actions={<ConnectButton t={t} />}>
       <Outlet />
+      <PendingTransactionNotice t={t} />
     </Frame>
   );
 }

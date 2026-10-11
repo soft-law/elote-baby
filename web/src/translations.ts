@@ -90,7 +90,7 @@ export type Copy = {
   app: {
     meta: { title: string };
     nav: { label: string; home: string; pool: string; invest: string; borrow: string; backToSite: string };
-    header: { network: string; connect: string; connectSoon: string };
+    header: { network: string; connect: string };
     home: { title: string; sub: string; invest: Card; borrow: Card; poolLink: string; connectPrompt: string };
     pool: { title: string; sub: string };
     invest: { title: string; sub: string };
@@ -100,6 +100,66 @@ export type Copy = {
     error: { title: string; body: string; retry: string };
     config: { title: string; body: string; back: string };
     configDev: { body: string; missing: string; invalid: string };
+    wallet: {
+      choose: string;
+      none: string;
+      getWallet: string;
+      connecting: string;
+      connectFailed: string;
+      connectedAs: string;
+      menu: string;
+      copy: string;
+      copied: string;
+      disconnect: string;
+      close: string;
+      wrongChain: string;
+    };
+    tx: {
+      steps: { simulating: string; signing: string; sending: string; confirming: string; done: string };
+      signingButton: string;
+      viewExplorer: string;
+      retry: string;
+      dismiss: string;
+      ops: { deposit: string; redeem: string; draw: string; repay: string };
+      pending: {
+        title: string;
+        body: string;
+        signed: string;
+        sent: string;
+        check: string;
+        checking: string;
+        unavailable: string;
+      };
+      errors: {
+        rejected: string;
+        expired: string;
+        uncertain: string;
+        insufficientSol: string;
+        insufficientTokens: string;
+        guard: string;
+        busy: string;
+        journal: string;
+        network: string;
+        noWallet: string;
+        generic: string;
+        programGeneric: string;
+        program: {
+          paused: string;
+          unauthorized: string;
+          wrongAmount: string;
+          insufficientLiquidity: string;
+          lineStatus: string;
+          termNotEnded: string;
+          overflow: string;
+          sponsorRequired: string;
+          zeroShares: string;
+          firstDepositTooSmall: string;
+          wrongAccount: string;
+          slippageExceeded: string;
+          termEnded: string;
+        };
+      };
+    };
   };
 };
 
@@ -203,7 +263,7 @@ export const translations: Record<Lang, Copy> = {
     app: {
       meta: { title: `App | ${BRAND}` },
       nav: { label: "App", home: "Start", pool: "Pool", invest: "Invest", borrow: "Borrow", backToSite: `Back to ${BRAND}` },
-      header: { network: "Devnet", connect: "Connect wallet", connectSoon: "Wallet connection is coming soon" },
+      header: { network: "Devnet", connect: "Connect wallet" },
       home: {
         title: "What would you like to do?",
         sub: "Choose a role. You can switch at any time.",
@@ -230,6 +290,73 @@ export const translations: Record<Lang, Copy> = {
         body: "These settings are missing or invalid. Set them in the environment and build again.",
         missing: "missing",
         invalid: "invalid",
+      },
+      wallet: {
+        choose: "Choose a wallet",
+        none: "No Solana wallet was found in this browser. Install one, such as Phantom, then reload this page.",
+        getWallet: "Get Phantom",
+        connecting: "Connecting…",
+        connectFailed: "The wallet did not connect. Try again.",
+        connectedAs: "Connected wallet",
+        menu: "Wallet options",
+        copy: "Copy address",
+        copied: "Address copied",
+        disconnect: "Disconnect",
+        close: "Close",
+        wrongChain: "This wallet account is not on the Solana test network. Switch networks in your wallet and connect again.",
+      },
+      tx: {
+        steps: {
+          simulating: "Checking the transaction",
+          signing: "Sign in your wallet",
+          sending: "Sending",
+          confirming: "Confirming",
+          done: "Updated",
+        },
+        signingButton: "Signing…",
+        viewExplorer: "View on Solana Explorer",
+        retry: "Try again",
+        dismiss: "Dismiss",
+        ops: { deposit: "Deposit", redeem: "Redemption", draw: "Draw", repay: "Repayment" },
+        pending: {
+          title: "A transaction is still settling",
+          body: "This browser signed a transaction whose result is not known yet. It is checked again every few seconds. You do not need to sign again.",
+          signed: "Signed, not sent yet",
+          sent: "Sent, waiting for confirmation",
+          check: "Check now",
+          checking: "Checking",
+          unavailable: "This browser cannot read its transaction record. Keep the site data and do not repeat the transaction.",
+        },
+        errors: {
+          rejected: "You declined the request in your wallet. Nothing was sent.",
+          expired: "The transaction expired before it was confirmed. Nothing changed. Try again.",
+          uncertain: "An earlier transaction is still settling. Wait for its result before sending another one.",
+          insufficientSol: "Not enough SOL to pay the network fee. Get test SOL and try again.",
+          insufficientTokens: "Your wallet does not have enough tMXN test tokens for this.",
+          guard: "The wallet returned a different transaction than the one prepared, so nothing was sent.",
+          busy: "Another transaction is in progress in this browser. Wait for it to finish.",
+          journal: "This browser could not save the transaction record, so nothing was sent. Allow site storage and try again.",
+          network: "The Solana network could not be reached. Check your connection and try again.",
+          noWallet: "Connect a wallet first.",
+          generic: "The transaction could not be completed. Try again.",
+          programGeneric: "The pool rejected this operation.",
+          program: {
+            paused: "The pool is paused. Deposits, redemptions and draws are on hold.",
+            unauthorized: "This wallet is not allowed to do this.",
+            wrongAmount: "The amount is zero or more than what is due.",
+            insufficientLiquidity: "The pool does not have enough liquidity on hand for this right now.",
+            lineStatus: "This credit line is not in a status that allows this.",
+            termNotEnded: "The term of this line has not ended yet.",
+            overflow: "The amount is too large.",
+            sponsorRequired: "The sponsor named on this line must sign.",
+            zeroShares: "This deposit is too small to receive any shares.",
+            firstDepositTooSmall: "The first deposit in the pool must be at least 1 tMXN test token.",
+            wrongAccount: "A token account does not match this pool.",
+            slippageExceeded:
+              "The pool value changed since you reviewed this, so you would receive less than the minimum shown. Review the new amounts and try again.",
+            termEnded: "The term of this line has ended.",
+          },
+        },
       },
     },
   },
@@ -332,7 +459,7 @@ export const translations: Record<Lang, Copy> = {
     app: {
       meta: { title: `App | ${BRAND}` },
       nav: { label: "App", home: "Inicio", pool: "Pool", invest: "Invertir", borrow: "Pedir crédito", backToSite: `Volver a ${BRAND}` },
-      header: { network: "Devnet", connect: "Conectar wallet", connectSoon: "La conexión de wallet llega pronto" },
+      header: { network: "Devnet", connect: "Conectar wallet" },
       home: {
         title: "¿Qué quieres hacer?",
         sub: "Elige un rol. Puedes cambiarlo cuando quieras.",
@@ -359,6 +486,73 @@ export const translations: Record<Lang, Copy> = {
         body: "Faltan estos ajustes o no son válidos. Defínelos en el entorno y vuelve a compilar.",
         missing: "falta",
         invalid: "no válido",
+      },
+      wallet: {
+        choose: "Elige una wallet",
+        none: "No encontramos una wallet de Solana en este navegador. Instala una, como Phantom, y vuelve a cargar esta página.",
+        getWallet: "Obtener Phantom",
+        connecting: "Conectando…",
+        connectFailed: "La wallet no se conectó. Inténtalo de nuevo.",
+        connectedAs: "Wallet conectada",
+        menu: "Opciones de la wallet",
+        copy: "Copiar dirección",
+        copied: "Dirección copiada",
+        disconnect: "Desconectar",
+        close: "Cerrar",
+        wrongChain: "Esta cuenta de la wallet no está en la red de prueba de Solana. Cambia de red en tu wallet y vuelve a conectar.",
+      },
+      tx: {
+        steps: {
+          simulating: "Revisando la transacción",
+          signing: "Firma en tu wallet",
+          sending: "Enviando",
+          confirming: "Confirmando",
+          done: "Actualizado",
+        },
+        signingButton: "Firmando…",
+        viewExplorer: "Ver en Solana Explorer",
+        retry: "Reintentar",
+        dismiss: "Cerrar",
+        ops: { deposit: "Depósito", redeem: "Canje", draw: "Disposición", repay: "Pago" },
+        pending: {
+          title: "Una transacción sigue en curso",
+          body: "Este navegador firmó una transacción cuyo resultado aún no se conoce. Se revisa de nuevo cada pocos segundos. No necesitas firmar otra vez.",
+          signed: "Firmada, aún sin enviar",
+          sent: "Enviada, esperando confirmación",
+          check: "Revisar ahora",
+          checking: "Revisando",
+          unavailable: "Este navegador no puede leer su registro de transacciones. Conserva los datos del sitio y no repitas la transacción.",
+        },
+        errors: {
+          rejected: "Rechazaste la solicitud en tu wallet. No se envió nada.",
+          expired: "La transacción venció antes de confirmarse. No cambió nada. Inténtalo de nuevo.",
+          uncertain: "Una transacción anterior sigue en curso. Espera su resultado antes de enviar otra.",
+          insufficientSol: "No tienes SOL suficiente para la comisión de la red. Consigue SOL de prueba e inténtalo de nuevo.",
+          insufficientTokens: "Tu wallet no tiene suficientes tokens de prueba tMXN para esto.",
+          guard: "La wallet devolvió una transacción distinta a la preparada, así que no se envió nada.",
+          busy: "Hay otra transacción en curso en este navegador. Espera a que termine.",
+          journal: "Este navegador no pudo guardar el registro de la transacción, así que no se envió nada. Permite el almacenamiento del sitio e inténtalo de nuevo.",
+          network: "No se pudo conectar con la red de Solana. Revisa tu conexión e inténtalo de nuevo.",
+          noWallet: "Primero conecta una wallet.",
+          generic: "No se pudo completar la transacción. Inténtalo de nuevo.",
+          programGeneric: "El pool rechazó esta operación.",
+          program: {
+            paused: "El pool está en pausa. Depósitos, canjes y disposiciones están detenidos.",
+            unauthorized: "Esta wallet no tiene permiso para hacer esto.",
+            wrongAmount: "El monto es cero o mayor que lo adeudado.",
+            insufficientLiquidity: "El pool no tiene liquidez suficiente para esto en este momento.",
+            lineStatus: "Esta línea de crédito no está en un estado que lo permita.",
+            termNotEnded: "El plazo de esta línea aún no termina.",
+            overflow: "El monto es demasiado grande.",
+            sponsorRequired: "El patrocinador nombrado en esta línea debe firmar.",
+            zeroShares: "Este depósito es demasiado pequeño para recibir participaciones.",
+            firstDepositTooSmall: "El primer depósito del pool debe ser de al menos 1 token de prueba tMXN.",
+            wrongAccount: "Una cuenta de tokens no corresponde a este pool.",
+            slippageExceeded:
+              "El valor del pool cambió desde que lo revisaste y recibirías menos que el mínimo mostrado. Revisa los nuevos montos e inténtalo de nuevo.",
+            termEnded: "El plazo de esta línea terminó.",
+          },
+        },
       },
     },
   },
