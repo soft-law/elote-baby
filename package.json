@@ -1,0 +1,21 @@
+{
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.18"
+  },
+  "scripts": {
+    "test": "cargo test -p elote_pool",
+    "codama": "node codama.mjs",
+    "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
+    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
+    "check:client": "node codama.mjs && git diff --exit-code --stat clients/js/src/generated"
+  },
+  "devDependencies": {
+    "@codama/nodes-from-anchor": "^1.5.6",
+    "@codama/renderers-js": "^2.5.0",
+    "codama": "^1.11.0",
+    "prettier": "^2.6.2",
+    "typescript": "^5.7.3"
+  }
+}

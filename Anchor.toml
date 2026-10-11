@@ -1,0 +1,17 @@
+[toolchain]
+package_manager = "npm"
+anchor_version = "1.1.2"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+elote_pool = "BGdJQxxJoHiLH2VS6HAGHe5kQuKKq9dwrPeX7DEEwYyM"
+
+[programs.devnet]
+elote_pool = "BGdJQxxJoHiLH2VS6HAGHe5kQuKKq9dwrPeX7DEEwYyM"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
