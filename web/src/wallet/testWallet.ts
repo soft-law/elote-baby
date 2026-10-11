@@ -107,11 +107,46 @@ export function createTestWallet(signer: KeyPairSigner, chain: SolanaChain): Wal
   return wallet;
 }
 
-/** Registers the test wallet; returns the unregister function. */
+// One registration per (chain, secret), shared by every caller and counted. React StrictMode runs
+// the providers' effect twice (mount, cleanup, mount) before the first async registration has
+// resolved; without sharing, the wallet list would hold "Elote Test Wallet" twice for a moment.
+type Shared = { users: number; registration: Promise<() => void> };
+const shared = new Map<string, Shared>();
+
+/** Registers the test wallet; returns this caller's release function. */
 export async function registerTestWallet(secret: string | undefined, chain: SolanaChain): Promise<() => void> {
   if (!secret) throw new Error("VITE_TEST_WALLET_SECRET is not set");
-  const signer = await createKeyPairSignerFromBytes(parseSecret(secret));
-  return getWallets().register(createTestWallet(signer, chain));
+  const key = `${chain}\n${secret}`;
+  let entry = shared.get(key);
+  if (!entry) {
+    const registration = createKeyPairSignerFromBytes(parseSecret(secret)).then((signer) =>
+      getWallets().register(createTestWallet(signer, chain)),
+    );
+    entry = { users: 0, registration };
+    shared.set(key, entry);
+    registration.catch(() => {
+      if (shared.get(key) === entry) shared.delete(key);
+    });
+  }
+  const current = entry;
+  current.users += 1;
+  let unregister: () => void;
+  try {
+    unregister = await current.registration;
+  } catch (error) {
+    current.users -= 1;
+    throw error;
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    current.users -= 1;
+    if (current.users === 0 && shared.get(key) === current) {
+      shared.delete(key);
+      unregister();
+    }
+  };
 }
 
 /** Reads VITE_TEST_WALLET_SECRET here so the value only ever sits in this lazily loaded module. */
