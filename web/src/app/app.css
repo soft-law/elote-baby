@@ -177,7 +177,11 @@
     cursor: pointer;
     transition:
       background-color 0.15s ease,
-      color 0.15s ease;
+      color 0.15s ease,
+      transform 0.1s ease;
+  }
+  .app-btn:active:not(:disabled) {
+    transform: translateY(1px);
   }
   .app-btn-neon {
     background: var(--color-neon);
