@@ -118,7 +118,8 @@ describe("translations", () => {
   });
 
   test("the agreement section uses the auto-executable framing", () => {
-    expect(translations.en.agreement.title).toBe("Programmable Real World Credits");
+    expect(translations.en.agreement.title).toBe("Programmable Loans Contracts");
+    expect(translations.es.agreement.title).toBe("Contratos de préstamo programables");
     expect(translations.en.agreement.body).toContain("Auto-executable legal contracts");
     expect(translations.es.agreement.body).toContain("Contratos legales autoejecutables");
     for (const lang of ["en", "es"] as const) {

@@ -45,10 +45,10 @@ export function App() {
         <Hero t={t} />
       </div>
       <main id="main" className="flex-1">
+        <Agreement t={t} />
         <PoolSection t={t} />
         <Audiences t={t} />
         <Flow t={t} />
-        <Agreement t={t} />
         <TwoLines t={t} />
       </main>
       <SiteFooter t={t} />
