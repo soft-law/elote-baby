@@ -12,6 +12,7 @@ import { ConfigContext } from "../src/app/configContext";
 import { DepositForm } from "../src/app/forms/DepositForm";
 import { ToastProvider } from "../src/app/toast/Toast";
 import { createJournal, memoryStore, type TxJournal } from "../src/tx/journal";
+import { PendingTransactionNotice } from "../src/tx/PendingTransactionNotice";
 import { RpcProvider } from "../src/tx/RpcProvider";
 import { useJournalRecovery } from "../src/tx/useJournalRecovery";
 import { TX_INVALIDATES, useTx } from "../src/tx/useTx";
@@ -218,6 +219,43 @@ describe("a transaction whose result is pending", () => {
     expect(page.hasRetry()).toBe(true);
     expect(page.submitButton().disabled).toBe(false);
     expect(page.invalidated()).toEqual([true, true, true, true]);
+  });
+
+  test("the pending notice refreshes the affected queries when an entry settles, with no form on screen", async () => {
+    const journal = createJournal(memoryStore());
+    const { config: base } = await testPool();
+    const config: AppConfig = { rpcUrl: RPC_URL, poolAddress: base.poolAddress, assetMint: base.assetMint, apiUrl: "http://api.test", explorerCluster: "devnet", testWallet: false };
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, refetchInterval: false } } });
+    for (const [key] of TX_INVALIDATES) client.setQueryData([key, "seed"], 1);
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    mounted = { root, host, client };
+    const sig = getBase58Decoder().decode(new Uint8Array(64).fill(4));
+    await act(async () => {
+      journal.persistSigned({ signature: sig, lastValidBlockHeight: "100000", op: "deposit", createdAt: Date.now(), pool: config.poolAddress, payer: "payer", signedBase64: "AAAA" });
+      journal.setStatus(sig, "sent");
+      root.render(
+        <ConfigContext.Provider value={config}>
+          <QueryClientProvider client={client}>
+            <RpcProvider url={RPC_URL}>
+              <PendingTransactionNotice t={en} recovery={{ journal, intervalMs: 10 }} />
+            </RpcProvider>
+          </QueryClientProvider>
+        </ConfigContext.Provider>,
+      );
+    });
+    const invalidated = () => TX_INVALIDATES.map(([key]) => client.getQueryState([key, "seed"])?.isInvalidated ?? false);
+    expect(host.textContent).toContain(en.app.tx.pending.title);
+    expect(invalidated()).toEqual([false, false, false, false]);
+    state.statuses.set(sig, { err: null, confirmationStatus: "confirmed", slot: 400 });
+    statusesDown = false;
+    for (let i = 0; i < 200 && journal.get(sig)?.status !== "confirmed"; i++) await act(async () => sleep(5));
+    await act(async () => sleep(5));
+    expect(journal.get(sig)?.status).toBe("confirmed");
+    expect(host.textContent).toBe("");
+    expect(invalidated()).toEqual([true, true, true, true]);
+    await unmount();
   });
 
   test("an earlier unresolved transaction blocks a new one as an error for this op, never as its pending result", async () => {

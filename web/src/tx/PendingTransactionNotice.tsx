@@ -1,19 +1,35 @@
 // Shows transactions from an earlier visit that are still settling, with explorer links, so a
 // person who closed the tab mid-transaction knows not to repeat it. Also says when part of the
-// record could not be read and was set aside.
+// record could not be read and was set aside. When an entry settles it refreshes the reads a
+// transaction changes, also when the form that sent it is no longer on screen.
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { useAppConfig } from "../app/configContext";
 import { truncateMiddle } from "../pool/format";
 import type { Copy } from "../translations";
 import { explorerTxUrl } from "./explorer";
-import { useJournalRecovery } from "./useJournalRecovery";
+import { useJournalRecovery, type JournalRecoveryOptions } from "./useJournalRecovery";
+import { TX_INVALIDATES } from "./useTx";
 
 const buttonClass =
   "inline-flex min-h-[44px] items-center justify-center self-start rounded-[12px] border-[1.5px] border-teal-700 px-4 font-display text-[15px] font-semibold text-teal-700 hover:bg-teal-50 disabled:opacity-70";
 
-export function PendingTransactionNotice({ t }: { t: Copy }) {
+export function PendingTransactionNotice({ t, recovery }: { t: Copy; recovery?: JournalRecoveryOptions }) {
   const { explorerCluster, rpcUrl } = useAppConfig();
-  const { pending, unavailable, checking, checkNow, dismissUnavailable } = useJournalRecovery();
+  const { pending, unavailable, checking, checkNow, dismissUnavailable } = useJournalRecovery(recovery);
+  const queryClient = useQueryClient();
   const p = t.app.tx.pending;
+
+  // An entry that left the list was settled (confirmed, expired or failed): refresh what it changes.
+  const listed = pending.map((e) => e.signature).join(",");
+  const previous = useRef<string[]>([]);
+  useEffect(() => {
+    const now = listed === "" ? [] : listed.split(",");
+    const settled = previous.current.some((sig) => !now.includes(sig));
+    previous.current = now;
+    if (settled) for (const queryKey of TX_INVALIDATES) void queryClient.invalidateQueries({ queryKey: [...queryKey] });
+  }, [listed, queryClient]);
+
   if (!unavailable && pending.length === 0) return null;
 
   return (
