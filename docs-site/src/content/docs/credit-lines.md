@@ -80,4 +80,4 @@ A line can name a sponsor, such as a public support program for small businesses
 
 ## Agreement hash
 
-The line stores the hash of the credit agreement every party signed with their own wallet, and the `LineOpened` event repeats it. Anyone holding the agreement can hash it and compare. The document itself never goes on chain, and nothing personal is stored on the line besides the borrower's wallet address.
+The line stores the hash of the credit agreement every party signed with their own wallet, and the `LineOpened` event repeats it. Anyone holding the signed agreement, or its evidence package, can recompute the hash and compare it with the line. The document itself never goes on chain, and nothing personal is stored on the line besides the borrower's wallet address.

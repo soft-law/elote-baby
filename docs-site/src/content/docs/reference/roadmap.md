@@ -24,19 +24,19 @@ elote.baby is a devnet demo. The program has not been audited yet. This page lis
 
 ## Planned before a pilot
 
-These come from a review of what a first pool of about 100 real credit lines needs. Capacity is not the issue: nothing in the program iterates over lines, each line is its own account, and 100 lines cost about 0.19 SOL of rent. The work is about fit.
+These come from a review of what a first pool of real credit lines needs. Capacity is not the issue: nothing in the program iterates over lines and each line is its own account. The work is about fit.
 
 | Plan | Why |
 |---|---|
 | **Two-step origination.** The admin offers a line alone; the borrower accepts it later from their own wallet, confirming the agreement hash. Sponsor confirmation becomes optional and separate. | Today the admin and the borrower must sign the same transaction, which does not work with a multisig admin or with borrowers who sign days later. |
 | **Amortisation table that fits the signed agreement.** Each line carries its installment table (due date, principal and interest per installment) from the same document whose hash it stores, with payments applied per installment and prepayment as the agreement says. | Today interest is a flat amount fixed at opening, installments are level and count from the draw. A real agreement uses interest on the outstanding balance and calendar due dates, so the chain and the contract would state different amounts. |
 | **Multisig** as pool admin and as program upgrade authority, with separate roles: an operator for offers within per-line and per-pool limits, a pauser that cannot unpause. | Removes the single key. |
-| **A real asset with token checks.** A new pool on the chosen peso-denominated asset, with checks at creation for the token program, decimals and freeze policy, and a first-deposit minimum derived from the decimals. | Today any SPL token is accepted. |
+| **A real asset with token checks.** A new pool on a real asset, with checks at creation for the token program, decimals and freeze policy, and a first-deposit minimum derived from the decimals. | Today any SPL token is accepted. |
 | **Keeper and archival indexer.** A daily job computes arrears, sends reminders and moves lines to collection when eligible; an indexer stores every event for statements and reconciliation. | Someone has to call collection on time, and 20 transactions per address is not an archive. |
 | **Recovery after write-off** and **cancel for undrawn lines.** | Money recovered after a write-off should return to the pool as such; an unused offer should be withdrawable. |
-| **Investor gating and liquidity reserve.** An allowlist with per-investor limits for a closed group, and a reserve the vault keeps on each draw, or redemption windows. | Redemptions today are first come first served. |
+| **Liquidity rules.** A reserve the vault keeps on each draw, or redemption windows. | Redemptions today are first come first served. |
 
-Further out: sponsor escrow and interest accounting, collateral in SPL tokens, and a decision on cluster and program id for a mainnet deploy.
+Further out: sponsor escrow and interest accounting, and collateral in SPL tokens.
 
 ## Languages
 
