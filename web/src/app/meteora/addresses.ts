@@ -25,7 +25,7 @@ export const PRESET: Partial<Record<ExplorerCluster, PresetAddresses | null>> = 
     baseMint: "DYtABv8u8WxK9eyQAjn76xTzdMucfbxqHu1NL5P1QLsG" as Address,
     feeVault: "AKnMbcf34KBAiHxuH1RzZMP9J75bBrGKwYE8Cod95dmK" as Address,
     treasury: "6XUwKz4ccBLaCLuFGddjvPmZ6BBzSbXau7rQbVdEMBXp" as Address,
-    dammPool: null,
+    dammPool: "AsadgCTb6yADLVGDeBXFJy5JrW5Z7JJCvu4ttwjoVgmL" as Address,
   },
   localnet: null,
 };
