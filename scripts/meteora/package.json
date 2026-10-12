@@ -1,0 +1,24 @@
+{
+  "name": "@elote/meteora-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --import tsx --test test/unit.test.ts",
+    "test:e2e": "bash test/e2e-local.sh"
+  },
+  "dependencies": {
+    "@meteora-ag/cp-amm-sdk": "1.5.1",
+    "@meteora-ag/dynamic-bonding-curve-sdk": "1.5.13",
+    "@meteora-ag/dynamic-fee-sharing-sdk": "1.1.0",
+    "@solana/spl-token": "0.4.13",
+    "@solana/web3.js": "^1.98.4",
+    "bn.js": "5.2.2"
+  },
+  "devDependencies": {
+    "@types/bn.js": "5.1.6",
+    "@types/node": "^20.0.0",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  }
+}
