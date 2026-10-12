@@ -322,7 +322,7 @@ function fakeTx(behavior?: (op: PoolOp) => Promise<TxResult>) {
     );
     return { ...s, run, reset: () => set({ step: "idle", error: null, signature: null }) };
   }
-  return { ops, useFake };
+  return { ops, useFake, set };
 }
 
 const config: AppConfig = {
@@ -508,6 +508,26 @@ describe("line toasts", () => {
     expect(toasts()).toHaveLength(1);
     expect(toasts()[0]!.getAttribute("data-tone")).toBe("success");
     expect(toasts()[0]!.querySelector('[data-testid="toast-explorer"]')!.getAttribute("href")).toContain("/tx/RepaySig2");
+  });
+
+  test("a draw whose result is pending: the button waits with the note, the toast offers no Try again", async () => {
+    const draw = fakeTx();
+    const page = await mount(<Card draw={draw} repay={fakeTx()} action="draw" />);
+    await page.click(page.q('[data-testid="draw-submit"]'));
+    await act(async () => draw.set({ step: "pending", signature: "DrawSigPending" }));
+    const button = page.q<HTMLButtonElement>('[data-testid="draw-submit"]')!;
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toBe(en.app.tx.pendingButton);
+    const note = page.q('[data-testid="draw-pending-note"]')!;
+    expect(note.textContent).toBe(en.app.tx.pendingNote);
+    expect(button.getAttribute("aria-describedby")).toContain(note.id);
+    expect(toasts()).toHaveLength(1);
+    expect(toasts()[0]!.getAttribute("data-tone")).toBe("info");
+    expect(toasts()[0]!.textContent).toContain("Draw: result pending");
+    expect(toasts()[0]!.querySelector('[data-testid="toast-explorer"]')!.getAttribute("href")).toContain("/tx/DrawSigPending");
+    expect([...toasts()[0]!.querySelectorAll("button")].some((b) => b.textContent === en.app.toast.retry)).toBe(false);
+    await page.click(button);
+    expect(draw.ops).toHaveLength(1);
   });
 
   test("Try again on a failed repayment resets the run and returns focus to the amount field", async () => {

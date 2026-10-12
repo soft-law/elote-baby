@@ -32,6 +32,22 @@ export type UseTx = {
 /** Query keys a confirmed op makes stale (prefix match). */
 export const TX_INVALIDATES = [["pool"], ["balances"], ["lines"], ["history"]] as const;
 
+// Signatures a mounted useTx is following while their result is pending. That hook refreshes the
+// reads once its entry settles; PendingTransactionNotice skips them so the refresh happens once.
+const followed = new Map<string, number>();
+function follow(signature: string): () => void {
+  followed.set(signature, (followed.get(signature) ?? 0) + 1);
+  return () => {
+    const left = (followed.get(signature) ?? 1) - 1;
+    if (left > 0) followed.set(signature, left);
+    else followed.delete(signature);
+  };
+}
+/** True while a mounted useTx follows this pending signature and will refresh the reads itself. */
+export function isFollowedByTx(signature: string): boolean {
+  return followed.has(signature);
+}
+
 const accountsCache = new Map<string, Promise<PoolAccounts>>();
 function poolAccounts(pool: string): Promise<PoolAccounts> {
   let cached = accountsCache.get(pool);
@@ -129,6 +145,9 @@ export function useTx(options: UseTxOptions = {}): UseTx {
   // While pending, follow the journal entry until recovery settles it.
   useEffect(() => {
     if (step !== "pending" || !signature || !journal) return;
+    // Registered until the step moves on (after the refresh) or the component unmounts; from then
+    // on the notice refreshes for an entry that settles.
+    const unfollow = follow(signature);
     const id = runId.current;
     const current = () => id === runId.current;
     let settled = false;
@@ -164,6 +183,7 @@ export function useTx(options: UseTxOptions = {}): UseTx {
     check();
     return () => {
       settled = true;
+      unfollow();
       unsubscribe();
       window.removeEventListener("storage", onStorage);
     };

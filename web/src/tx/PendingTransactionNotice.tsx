@@ -9,7 +9,7 @@ import { truncateMiddle } from "../pool/format";
 import type { Copy } from "../translations";
 import { explorerTxUrl } from "./explorer";
 import { useJournalRecovery, type JournalRecoveryOptions } from "./useJournalRecovery";
-import { TX_INVALIDATES } from "./useTx";
+import { isFollowedByTx, TX_INVALIDATES } from "./useTx";
 
 const buttonClass =
   "inline-flex min-h-[44px] items-center justify-center self-start rounded-[12px] border-[1.5px] border-teal-700 px-4 font-display text-[15px] font-semibold text-teal-700 hover:bg-teal-50 disabled:opacity-70";
@@ -20,12 +20,13 @@ export function PendingTransactionNotice({ t, recovery }: { t: Copy; recovery?: 
   const queryClient = useQueryClient();
   const p = t.app.tx.pending;
 
-  // An entry that left the list was settled (confirmed, expired or failed): refresh what it changes.
+  // An entry that left the list was settled (confirmed, expired or failed): refresh what it changes,
+  // unless the useTx that sent it is still on screen and refreshes for it (one refresh, not two).
   const listed = pending.map((e) => e.signature).join(",");
   const previous = useRef<string[]>([]);
   useEffect(() => {
     const now = listed === "" ? [] : listed.split(",");
-    const settled = previous.current.some((sig) => !now.includes(sig));
+    const settled = previous.current.some((sig) => !now.includes(sig) && !isFollowedByTx(sig));
     previous.current = now;
     if (settled) for (const queryKey of TX_INVALIDATES) void queryClient.invalidateQueries({ queryKey: [...queryKey] });
   }, [listed, queryClient]);

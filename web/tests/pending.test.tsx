@@ -61,14 +61,23 @@ async function unmount() {
 }
 afterEach(unmount);
 
-function Harness({ journal }: { journal: TxJournal }) {
-  const tx = useTx({ journal, pollMs: 1 });
+function Recovery({ journal }: { journal: TxJournal }) {
   // What the Shell's pending notice runs in the app.
   useJournalRecovery({ journal, intervalMs: 10 });
-  return <DepositForm pool={POOL} balance={5_000n * UNIT} tx={tx} t={en} lang="en" />;
+  return null;
 }
 
-async function mount(opts: { journal?: TxJournal } = {}) {
+function Harness({ journal, notice }: { journal: TxJournal; notice: boolean }) {
+  const tx = useTx({ journal, pollMs: 1 });
+  return (
+    <>
+      <DepositForm pool={POOL} balance={5_000n * UNIT} tx={tx} t={en} lang="en" />
+      {notice ? <PendingTransactionNotice t={en} recovery={{ journal, intervalMs: 10 }} /> : <Recovery journal={journal} />}
+    </>
+  );
+}
+
+async function mount(opts: { journal?: TxJournal; notice?: boolean } = {}) {
   const journal = opts.journal ?? createJournal(memoryStore());
   const { signer } = await countingSigner();
   const { config: base } = await testPool();
@@ -86,6 +95,13 @@ async function mount(opts: { journal?: TxJournal } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, refetchInterval: false } } });
   // Cached reads the op changes; nothing observes them, so invalidation only marks them.
   for (const [key] of TX_INVALIDATES) client.setQueryData([key, "seed"], 1);
+  // Every invalidation, by the first element of its key.
+  const invalidations: string[] = [];
+  const invalidate = client.invalidateQueries.bind(client);
+  client.invalidateQueries = ((filters?: { queryKey?: readonly unknown[] }) => {
+    invalidations.push(String(filters?.queryKey?.[0]));
+    return invalidate(filters as never);
+  }) as typeof client.invalidateQueries;
   const host = document.createElement("div");
   document.body.appendChild(host);
   const root = createRoot(host);
@@ -96,7 +112,7 @@ async function mount(opts: { journal?: TxJournal } = {}) {
           <RpcProvider url={RPC_URL}>
             <WalletContext.Provider value={wallet}>
               <ToastProvider t={en}>
-                <Harness journal={journal} />
+                <Harness journal={journal} notice={opts.notice ?? false} />
               </ToastProvider>
             </WalletContext.Provider>
           </RpcProvider>
@@ -108,6 +124,7 @@ async function mount(opts: { journal?: TxJournal } = {}) {
   const q = <T extends Element = HTMLElement>(sel: string) => host.querySelector(sel) as T | null;
   return {
     journal,
+    invalidations,
     signer,
     config,
     client,
@@ -219,6 +236,18 @@ describe("a transaction whose result is pending", () => {
     expect(page.hasRetry()).toBe(true);
     expect(page.submitButton().disabled).toBe(false);
     expect(page.invalidated()).toEqual([true, true, true, true]);
+  });
+
+  test("with the form and the real pending notice mounted, a settled entry is refreshed once", async () => {
+    const page = await mount({ notice: true });
+    const sig = await pendingDeposit(page);
+    expect(page.invalidations).toEqual([]);
+    state.statuses.set(sig, { err: null, confirmationStatus: "confirmed", slot: 330 });
+    statusesDown = false;
+    await page.until(() => page.toast()?.getAttribute("data-tone") === "success", "success toast");
+    await act(async () => sleep(30));
+    expect(page.invalidations.sort()).toEqual(["balances", "history", "lines", "pool"]);
+    await unmount();
   });
 
   test("the pending notice refreshes the affected queries when an entry settles, with no form on screen", async () => {
