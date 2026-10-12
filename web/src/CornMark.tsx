@@ -21,7 +21,15 @@ export interface CornMarkProps {
   /** Accessible name. Default "" = decorative (aria-hidden); pass a localized name if the mark ever stands alone. */
   label?: string;
   className?: string;
+  /** Box aspect ratio (CSS). Default "1 / 1". */
+  aspect?: string;
+  /** Replaces the fallback image (the pool field uses a night card with the mark centred). */
+  placeholder?: ReactNode;
+  /** Scene chunk loader. Default: the hero mark (./CornScene). Keep the import() literal at the call site. */
+  load?: () => Promise<{ default: ComponentType<CornSceneProps> }>;
 }
+
+const loadCornScene = () => import("./CornScene");
 
 // Transparent 1x1 GIF: the img src outside fallbackMedia, so nothing is fetched there.
 const BLANK_GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
@@ -70,6 +78,9 @@ export function CornMark({
   fallbackMedia,
   label = "",
   className,
+  aspect = "1 / 1",
+  placeholder,
+  load: loadScene = loadCornScene,
 }: CornMarkProps) {
   const box = useRef<HTMLDivElement>(null);
   const [Scene, setScene] = useState<ComponentType<CornSceneProps> | null>(null);
@@ -87,7 +98,7 @@ export function CornMark({
     let idleId = 0;
     const idle = typeof window.requestIdleCallback === "function";
     const load = () => {
-      import("./CornScene")
+      loadScene()
         .then((m) => {
           if (!cancelled) setScene(() => m.default);
         })
@@ -132,11 +143,23 @@ export function CornMark({
     position: "relative",
     width: typeof size === "number" ? `${size}px` : size,
     maxWidth: "100%",
-    aspectRatio: "1 / 1",
+    aspectRatio: aspect,
     contain: "layout paint",
   };
   const showScene = Scene && !failed;
-  const fallback = (
+  const fallback = placeholder ? (
+    <div
+      aria-hidden
+      style={{
+        position: "absolute",
+        inset: 0,
+        opacity: ready && showScene ? 0 : 1,
+        transition: reduced ? undefined : "opacity 400ms ease",
+      }}
+    >
+      {placeholder}
+    </div>
+  ) : (
     <img
       src={fallbackMedia ? BLANK_GIF : fallbackSrc}
       alt=""

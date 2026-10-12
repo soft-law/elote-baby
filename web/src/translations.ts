@@ -74,6 +74,7 @@ export type Copy = {
     repaid: string;
     status: string;
     statusValue: string;
+    fieldLabel: string;
   };
   investors: { title: string; cards: [Card, Card, Card] };
   entrepreneurs: { title: string; cards: [Card, Card, Card] };
@@ -546,6 +547,7 @@ export const translations: Record<Lang, Copy> = {
       repaid: "Repaid",
       status: "Status",
       statusValue: "Active",
+      fieldLabel: "A field of one hundred corn plants, one for each credit line",
     },
     investors: {
       title: "If you invest",
@@ -1136,6 +1138,7 @@ export const translations: Record<Lang, Copy> = {
       repaid: "Pagado",
       status: "Estado",
       statusValue: "Activa",
+      fieldLabel: "Un campo de cien plantas de maíz, una por cada línea de crédito",
     },
     investors: {
       title: "Si inviertes",

@@ -200,7 +200,10 @@ function PoolSection({ t }: { t: Copy }) {
       <h2 id="pool-title" className="m-0 max-w-[26ch] text-[30px] font-bold leading-[1.12] tracking-[-0.02em] md:text-[40px] lg:col-span-2 lg:max-w-none">
         {p.title}
       </h2>
-      <p className="m-0 max-w-[34ch] text-[18px] leading-[1.6] text-ink-soft md:text-[21px]">{p.body}</p>
+      <div className="flex flex-col gap-6 md:gap-8">
+        <p className="m-0 max-w-[34ch] text-[18px] leading-[1.6] text-ink-soft md:text-[21px]">{p.body}</p>
+        <PoolField label={p.fieldLabel} />
+      </div>
       <div>
         <div className="rounded-[24px] border-[1.5px] border-line bg-white p-5 shadow-[var(--shadow-soft)] md:p-7">
           <h3 className="m-0 mb-1 text-[26px] font-bold leading-tight md:text-[30px]">{p.line}</h3>
@@ -234,6 +237,31 @@ function PoolSection({ t }: { t: Copy }) {
         </div>
       </div>
     </section>
+  );
+}
+
+// One hundred elotes, one per credit line. three.js loads only in the browser, after load,
+// once the box is on screen; the prerender and no-WebGL browsers keep the night card.
+const loadFieldScene = () => import("./FieldScene");
+
+function PoolField({ label }: { label: string }) {
+  return (
+    <CornMark
+      size="100%"
+      aspect="4 / 3"
+      theme="night"
+      label={label}
+      load={loadFieldScene}
+      className="overflow-hidden rounded-[24px] bg-night"
+      placeholder={
+        <div className="flex h-full w-full items-center justify-center">
+          <picture>
+            <source srcSet="/corn-icon.webp" type="image/webp" />
+            <img src="/corn-icon.png" alt="" width={40} height={64} decoding="async" draggable={false} className="block h-16 w-10 opacity-80" />
+          </picture>
+        </div>
+      }
+    />
   );
 }
 
