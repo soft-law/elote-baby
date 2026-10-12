@@ -2,7 +2,7 @@
 // keeps the selected account (persisted under elote.wallet.v1); this provider adds connect,
 // disconnect, the status and a sign-only TransactionSigner for the selected account.
 import { SelectedWalletAccountContextProvider, useSelectedWalletAccount, useWalletAccountTransactionSigner } from "@solana/react";
-import { address as toAddress, type TransactionSigner } from "@solana/kit";
+import { address as toAddress, type TransactionModifyingSigner, type TransactionSigner } from "@solana/kit";
 import {
   uiWalletAccountBelongsToUiWallet,
   useConnect,
@@ -10,7 +10,7 @@ import {
   type UiWallet,
   type UiWalletAccount,
 } from "@wallet-standard/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { WalletContext, WalletNoAccountError, supportsChain, walletStatus, type SolanaChain, type WalletState } from "./useWallet";
 
 export const WALLET_STORAGE_KEY = "elote.wallet.v1";
@@ -55,12 +55,60 @@ export function WalletProvider({ chain, children }: { chain: SolanaChain; childr
   );
 }
 
+/** The previous value while isSame says nothing changed: no new identity, no new context value. */
+function useStable<T>(value: T, isSame: (previous: T, next: T) => boolean): T {
+  const ref = useRef(value);
+  if (ref.current !== value && !isSame(ref.current, value)) ref.current = value;
+  return ref.current;
+}
+
+function sameIds(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id) => b.includes(id));
+}
+
+function sameWallets(a: readonly UiWallet[], b: readonly UiWallet[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((wallet, i) => {
+      const other = b[i]!;
+      return (
+        wallet.name === other.name &&
+        wallet.icon === other.icon &&
+        sameIds(wallet.chains, other.chains) &&
+        sameIds(wallet.features, other.features) &&
+        sameIds(
+          wallet.accounts.map((acc) => acc.address),
+          other.accounts.map((acc) => acc.address),
+        )
+      );
+    })
+  );
+}
+
 function WalletStateProvider({ chain, children }: { chain: SolanaChain; children: ReactNode }) {
-  const [selected, setSelected, wallets] = useSelectedWalletAccount();
+  const [selected, setSelected, nextWallets] = useSelectedWalletAccount();
   const [connecting, setConnecting] = useState(false);
   const [signer, setSigner] = useState<TransactionSigner | null>(null);
   const handles = useRef(new Map<string, Handle>());
-  const account = selected ?? null;
+  // Some wallets hand out a fresh account object on every read of wallet.accounts. Keep the
+  // previous objects while nothing visible changed, so the context value stays put.
+  const wallets = useStable(nextWallets, sameWallets);
+  const sameAccount = useCallback(
+    (a: UiWalletAccount | null, b: UiWalletAccount | null) => {
+      if (!a || !b) return false;
+      const owner = (acc: UiWalletAccount) => wallets.find((w) => uiWalletAccountBelongsToUiWallet(acc, w))?.name;
+      return (
+        a.address === b.address &&
+        a.label === b.label &&
+        sameIds(a.chains, b.chains) &&
+        sameIds(a.features, b.features) &&
+        owner(a) !== undefined &&
+        owner(a) === owner(b)
+      );
+    },
+    [wallets],
+  );
+  const account = useStable(selected ?? null, sameAccount);
   const status = walletStatus(connecting, account, chain);
 
   const register = useCallback((name: string, handle: Handle | null) => {
@@ -157,7 +205,11 @@ function Registration({ name, handle, register }: { name: string; handle: Handle
   return null;
 }
 
-/** useWalletAccountTransactionSigner needs an account; mounted only while one is connected. */
+/**
+ * useWalletAccountTransactionSigner needs an account; mounted only while one is connected. Its
+ * result can be a new object on every render (some wallets return fresh account objects), so the
+ * app gets one stable signer per address that delegates to the latest one.
+ */
 function SignerBridge({
   account,
   chain,
@@ -167,10 +219,24 @@ function SignerBridge({
   chain: SolanaChain;
   onSigner: (signer: TransactionSigner | null) => void;
 }) {
-  const signer = useWalletAccountTransactionSigner(account, chain);
+  const current = useWalletAccountTransactionSigner(account, chain);
+  const latest = useRef(current);
+  useLayoutEffect(() => {
+    latest.current = current;
+  });
+  const address = current.address;
+  const stable = useMemo<TransactionModifyingSigner>(
+    () =>
+      Object.freeze({
+        address,
+        modifyAndSignTransactions: (...args: Parameters<TransactionModifyingSigner["modifyAndSignTransactions"]>) =>
+          latest.current.modifyAndSignTransactions(...args),
+      }),
+    [address],
+  );
   useEffect(() => {
-    onSigner(signer);
+    onSigner(stable);
     return () => onSigner(null);
-  }, [signer, onSigner]);
+  }, [stable, onSigner]);
   return null;
 }
