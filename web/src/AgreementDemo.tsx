@@ -43,7 +43,6 @@ export function AgreementDemo({ d }: { d: DemoCopy }) {
   return (
     <div ref={box} role="group" aria-label={d.label} className="overflow-hidden rounded-[24px] border-[1.5px] border-line bg-white shadow-[var(--shadow-soft)]">
       <div className="flex min-h-[70px] items-center justify-between gap-3 border-b-[1.5px] border-line px-5 py-3 md:px-7">
-        <span className="label rounded-full bg-corn-100 px-3 py-1 text-ink">{d.sample}</span>
         {/* Under reduced motion the walkthrough is static: the steps are chosen by hand. */}
         {!reduced && (
           <button
