@@ -88,6 +88,8 @@ export type Copy = {
     demo: DemoCopy;
   };
   lines: { title: string; body: string };
+  // Two photos under the lines block. Alt text describes the scene and never names people.
+  meeting: { caption: string; photoA: string; photoB: string };
   footer: {
     powered: string;
     legal: string;
@@ -539,6 +541,11 @@ export const translations: Record<Lang, Copy> = {
     lines: {
       title: "For small businesses, with government support",
       body: "Every credit line we offer is for a small or medium business and comes with government support.",
+    },
+    meeting: {
+      caption: "Early conversations with the municipal team in Playas de Rosarito, Baja California, 2026. No agreement has been signed.",
+      photoA: "Meeting room in Playas de Rosarito: four people around a table with a printed city map, faces blurred",
+      photoB: "Two people at the meeting table, faces blurred",
     },
     footer: {
       powered: "Softlaw SA de CV",
@@ -1032,6 +1039,11 @@ export const translations: Record<Lang, Copy> = {
     lines: {
       title: "Para pymes, con apoyo de gobierno",
       body: "Todas las líneas de crédito que ofrecemos son para pequeñas y medianas empresas y cuentan con apoyo de gobierno.",
+    },
+    meeting: {
+      caption: "Primeras conversaciones con el equipo municipal de Playas de Rosarito, Baja California, 2026. No hay ningún acuerdo firmado.",
+      photoA: "Sala de reuniones en Playas de Rosarito: cuatro personas alrededor de una mesa con un mapa impreso de la ciudad, rostros difuminados",
+      photoB: "Dos personas en la mesa de la reunión, rostros difuminados",
     },
     footer: {
       powered: "Softlaw SA de CV",

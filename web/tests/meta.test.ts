@@ -88,3 +88,10 @@ describe("source hygiene", () => {
     expect(hits).toEqual([]);
   });
 });
+
+describe("meeting photos", () => {
+  test("both files exist and stay under 300 KB together", () => {
+    const sizes = ["rosarito-1.webp", "rosarito-2.webp"].map((f) => statSync(join(root, "public", "photos", f)).size);
+    expect(sizes.reduce((a, b) => a + b, 0)).toBeLessThan(300 * 1024);
+  });
+});

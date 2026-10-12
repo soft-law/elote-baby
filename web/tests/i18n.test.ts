@@ -117,6 +117,19 @@ describe("translations", () => {
     }
   });
 
+  test("the meeting photos carry the owner's caption and claim nothing more", () => {
+    expect(translations.en.meeting.caption).toBe(
+      "Early conversations with the municipal team in Playas de Rosarito, Baja California, 2026. No agreement has been signed.",
+    );
+    expect(translations.es.meeting.caption).toBe(
+      "Primeras conversaciones con el equipo municipal de Playas de Rosarito, Baja California, 2026. No hay ningún acuerdo firmado.",
+    );
+    for (const lang of ["en", "es"] as const) {
+      const text = Object.values(translations[lang].meeting).join(" ");
+      expect(text).not.toMatch(/program|grant|subsid|convenio|beca|endorse|aval|\$|MXN|%/i);
+    }
+  });
+
   test("the agreement section uses the auto-executable framing", () => {
     expect(translations.en.agreement.title).toBe("Programmable Loans Contracts");
     expect(translations.es.agreement.title).toBe("Contratos de préstamo programables");

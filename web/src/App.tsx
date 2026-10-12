@@ -377,8 +377,15 @@ function Agreement({ t }: { t: Copy }) {
   );
 }
 
+// Intrinsic sizes of the processed files in public/photos.
+const PHOTOS = [
+  { src: "/photos/rosarito-1.webp", w: 1200, h: 1600 },
+  { src: "/photos/rosarito-2.webp", w: 1280, h: 960 },
+];
+
 function TwoLines({ t }: { t: Copy }) {
   const l = t.lines;
+  const m = t.meeting;
   return (
     <section id="lines" aria-labelledby="lines-title" className="mx-auto max-w-[1200px] px-4 pb-14 md:px-8 md:pb-20">
       <div className="flex flex-col gap-3 rounded-[24px] bg-teal-50 p-6 md:gap-4 md:p-10">
@@ -386,6 +393,23 @@ function TwoLines({ t }: { t: Copy }) {
           {l.title}
         </h2>
         <p className="m-0 max-w-[40em] text-[18px] leading-[1.55] text-ink md:text-[21px]">{l.body}</p>
+        <figure className="m-0 mt-3 flex flex-col gap-3 md:mt-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[9fr_16fr] md:gap-4">
+            {PHOTOS.map((p, i) => (
+              <img
+                key={p.src}
+                src={p.src}
+                alt={i === 0 ? m.photoA : m.photoB}
+                width={p.w}
+                height={p.h}
+                loading="lazy"
+                decoding="async"
+                className="block h-auto w-full rounded-[18px] bg-white"
+              />
+            ))}
+          </div>
+          <figcaption className="text-[16px] leading-[1.5] text-ink-soft">{m.caption}</figcaption>
+        </figure>
       </div>
     </section>
   );
