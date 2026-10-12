@@ -1,0 +1,57 @@
+{
+  "source": "devnet, fetched 2026-10-12; expected values decoded with @meteora-ag/dynamic-bonding-curve-sdk 1.5.13, dynamic-fee-sharing-sdk 1.1.0, cp-amm-sdk 1.5.1",
+  "account": {
+    "address": "pqXgnCyfjoPRruVBQQE21aeNNQKCzH7svwkHRuM2vDG",
+    "owner": "dfsdo2UqvwfN8DuUVrMRNfQe11VaiNoKcMqLHVvDPzh",
+    "lamports": 3942080,
+    "base64": "wLJF6DqVnYQqaTnpVfK6Fl0tx8+SMtN+T9x5wj8ZqwlzBPzPegg08wabiFf+q4GE+2h/Y0YYwDXaxDncGus7VZig8AAAAAABmyJycmpfkf0ypLalZaZhiGnGVFWEBWjs5961TOlZexIAAfwAAAAAAAAAAAAAAAAAECcAAAAAAACZm8MAAAAAAIqO5PIf0m/vAQUAAAAAAABLxzCELJWn1XgCmoPaw8fMdMbpNP9JyHXQ1XV+O+mccgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD409iN1qW4uPdPcNLUN3Ku9g3MsFWPmTUUh0/v0AAmrSgjAAAAAAAACQywAAAAAAAAAAAAAAAAAAAAAAAAAAAAio7k8h/Sb+8BBQAAAAAAALAKxoyJQ9t6MZ2zXsYkMTkt++w0SbqpLacNv0dq/ihB6AMAAAAAAAAANQwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  },
+  "expected": {
+    "tokenMint": "So11111111111111111111111111111111111111112",
+    "totalShare": 10000,
+    "totalFundedFee": "12819353",
+    "totalClaimedFee": "12337417",
+    "totalUnclaimedFee": "481936",
+    "users": [
+      {
+        "address": "HkKU4o6ms8m95iuXWh8DcR1cEcnRHW4XQZGHFyqGdGEG",
+        "share": 9000,
+        "feeClaimed": "11537417"
+      },
+      {
+        "address": "CrCHX2288YbLaDATmSPVxSnNjuy782NgUjAwsWXMYFPv",
+        "share": 1000,
+        "feeClaimed": "800000"
+      },
+      {
+        "address": "11111111111111111111111111111111",
+        "share": 0,
+        "feeClaimed": "0"
+      },
+      {
+        "address": "11111111111111111111111111111111",
+        "share": 0,
+        "feeClaimed": "0"
+      },
+      {
+        "address": "11111111111111111111111111111111",
+        "share": 0,
+        "feeClaimed": "0"
+      }
+    ],
+    "userFees": [
+      {
+        "address": "HkKU4o6ms8m95iuXWh8DcR1cEcnRHW4XQZGHFyqGdGEG",
+        "totalFee": "11537417",
+        "feeClaimed": "11537417",
+        "feeUnclaimed": "0"
+      },
+      {
+        "address": "CrCHX2288YbLaDATmSPVxSnNjuy782NgUjAwsWXMYFPv",
+        "totalFee": "1281935",
+        "feeClaimed": "800000",
+        "feeUnclaimed": "481935"
+      }
+    ]
+  }
+}

@@ -3,6 +3,7 @@ import type { RouteObject } from "react-router";
 import { BorrowPage } from "./pages/Borrow";
 import { HomePage } from "./pages/Home";
 import { InvestPage } from "./pages/Invest";
+import { LaunchPage } from "./pages/Launch";
 import { NotFoundPage } from "./pages/NotFound";
 import { PoolPage } from "./pages/Pool";
 import { RouteError } from "./pages/RouteError";
@@ -20,6 +21,7 @@ export const routes: RouteObject[] = [
       { path: "pool", element: <PoolPage />, errorElement: <RouteError /> },
       { path: "invest", element: <InvestPage />, errorElement: <RouteError /> },
       { path: "borrow", element: <BorrowPage />, errorElement: <RouteError /> },
+      { path: "launch", element: <LaunchPage />, errorElement: <RouteError /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

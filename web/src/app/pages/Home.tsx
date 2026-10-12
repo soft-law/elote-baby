@@ -30,10 +30,15 @@ export function HomePage() {
       </ul>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="m-0 text-[17px] text-ink-soft">{h.connectPrompt}</p>
-        <Link to={to("/pool")} className="inline-flex min-h-[44px] items-center gap-2 font-display text-[17px] font-semibold text-teal-700">
-          {h.poolLink}
-          <IconArrowRight size={20} />
-        </Link>
+        <div className="flex flex-wrap items-center gap-x-6">
+          <Link to={to("/pool")} className="inline-flex min-h-[44px] items-center gap-2 font-display text-[17px] font-semibold text-teal-700">
+            {h.poolLink}
+            <IconArrowRight size={20} />
+          </Link>
+          <Link to={to("/launch")} className="inline-flex min-h-[44px] items-center gap-2 text-[17px] text-teal-700 underline decoration-teal-700/40 underline-offset-4 hover:decoration-teal-700">
+            {h.launchLink}
+          </Link>
+        </div>
       </div>
     </PageBody>
   );

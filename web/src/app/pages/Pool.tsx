@@ -1,5 +1,6 @@
 // Public pool page: the pool's figures and every credit line, read from Solana. No wallet needed.
 import type { ReactNode } from "react";
+import { Link } from "react-router";
 import { explorerAddressUrl, formatPerShare, truncateMiddle } from "../../pool/format";
 import type { Copy, Lang } from "../../translations";
 import { Amount } from "../components/Amount";
@@ -123,7 +124,7 @@ function PoolLines({ lineCount, t, lang }: { lineCount: bigint; t: PoolCopy; lan
 }
 
 export function PoolPage() {
-  const { t, lang } = useLang();
+  const { t, lang, to } = useLang();
   const p = t.app.pool;
   const { poolAddress, explorerCluster, rpcUrl } = useAppConfig();
   const query = usePoolQuery();
@@ -196,6 +197,12 @@ export function PoolPage() {
           {truncateMiddle(poolAddress, 6, 6)}
           <span className="sr-only">{` (${p.viewAddress}, ${p.newTab})`}</span>
         </a>
+        <Link
+          to={to("/launch")}
+          className="inline-flex min-h-[44px] items-center text-teal-700 underline decoration-teal-700/40 underline-offset-4 hover:decoration-teal-700 sm:ml-auto"
+        >
+          {p.launchLink}
+        </Link>
       </p>
       {body}
     </PageBody>

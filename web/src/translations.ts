@@ -100,7 +100,7 @@ export type Copy = {
     meta: { title: string };
     nav: { label: string; home: string; pool: string; invest: string; borrow: string; backToSite: string };
     header: { network: string; connect: string };
-    home: { title: string; sub: string; invest: Card; borrow: Card; poolLink: string; connectPrompt: string };
+    home: { title: string; sub: string; invest: Card; borrow: Card; poolLink: string; launchLink: string; connectPrompt: string };
     pool: {
       title: string;
       sub: string;
@@ -145,6 +145,54 @@ export type Copy = {
       stale: string;
       retry: string;
       mismatch: { title: string; body: string };
+      launchLink: string;
+    };
+    launch: {
+      title: string;
+      sub: string;
+      note: string;
+      notLaunched: { title: string; body: string };
+      loading: string;
+      loadFailed: string;
+      stale: string;
+      retry: string;
+      mismatch: { title: string; notFound: string; quoteMismatch: string; accountsMismatch: string };
+      flowTitle: string;
+      flowSub: string;
+      stage: { trading: string; thresholdReached: string; graduated: string };
+      progressLabel: string;
+      curve: { title: string; body: string; raised: string; of: string; feesWaiting: string };
+      graduation: { title: string; body: string; threshold: string; price: string; priceHint: string; priceLater: string };
+      vault: {
+        title: string;
+        body: string;
+        received: string;
+        claimed: string;
+        treasuryCan: string;
+        treasuryShare: string;
+        feesGoToVault: string;
+        feesElsewhere: string;
+        treasuryNotUser: string;
+      };
+      credit: { title: string; body: string; holds: string; shares: string; about: string; perShare: string; poolUnavailable: string };
+      addresses: {
+        title: string;
+        sub: string;
+        dbcConfig: string;
+        dbcPool: string;
+        baseToken: string;
+        quoteToken: string;
+        feeVault: string;
+        treasury: string;
+        treasuryShareAccount: string;
+        dammPool: string;
+        dammPending: string;
+        programDbc: string;
+        programDammV2: string;
+        programFeeSharing: string;
+        viewAddress: string;
+        newTab: string;
+      };
     };
     invest: {
       title: string;
@@ -563,6 +611,7 @@ export const translations: Record<Lang, Copy> = {
         invest: { title: "I invest", body: "Deposit tMXN, a test token, and receive pool shares." },
         borrow: { title: "I borrow", body: "Draw and repay a credit line opened for your wallet." },
         poolLink: "See the pool",
+        launchLink: "See the launch preset",
         connectPrompt: "Connect a wallet to start.",
       },
       pool: {
@@ -622,6 +671,87 @@ export const translations: Record<Lang, Copy> = {
         mismatch: {
           title: "This pool does not match the app settings",
           body: "The pool account on Solana is not the one this app was set up for, so nothing is shown. The site operator needs to update the app settings.",
+        },
+        launchLink: "See the launch preset",
+      },
+      launch: {
+        title: "Launch preset",
+        sub: "A demo token sold on a Meteora bonding curve. Its fees go to a vault, and the treasury deposits its part into the elote credit pool.",
+        note: "tELOTE is the demo token of the elote credit preset. It has no value and gives no claim on the credit pool. 20% of the raise and the trade fees go to the preset's fee vault and do not come back to buyers.",
+        notLaunched: {
+          title: "Not launched yet",
+          body: "The preset has not been launched on this network. Its curve, fee vault and treasury will show here once it is.",
+        },
+        loading: "Reading the preset from Solana",
+        loadFailed: "The preset could not be read from Solana. Check your connection and try again.",
+        stale: "These figures could not be refreshed. They show the last values read.",
+        retry: "Try again",
+        mismatch: {
+          title: "This preset does not match the app settings",
+          notFound: "One of the preset accounts is missing on Solana or is not the Meteora account it should be. The site operator needs to update the preset addresses.",
+          quoteMismatch: "The preset's curve is priced in another token than this app's test token, so nothing is shown. The site operator needs to update the preset addresses.",
+          accountsMismatch: "The preset accounts on Solana do not belong together, so nothing is shown. The site operator needs to update the preset addresses.",
+        },
+        flowTitle: "How the fees move",
+        flowSub: "Four steps, read live from Solana. Amounts in tMXN, a test token.",
+        stage: {
+          trading: "Trading on the curve",
+          thresholdReached: "Threshold reached, graduation pending",
+          graduated: "Graduated to DAMM v2",
+        },
+        progressLabel: "Curve progress",
+        curve: {
+          title: "Curve",
+          body: "tELOTE is sold for the test token on a nearly flat curve.",
+          raised: "Raised on the curve",
+          of: "{raised} of {threshold}",
+          feesWaiting: "Trade fees waiting to move to the vault",
+        },
+        graduation: {
+          title: "Graduation",
+          body: "At the threshold the curve closes and its liquidity moves to a DAMM v2 pool on Meteora. 20% of the raise goes to the fee vault.",
+          threshold: "Graduation threshold",
+          price: "Price on Meteora",
+          priceHint: "Test token per tELOTE, read from the DAMM v2 pool.",
+          priceLater: "Shown after graduation",
+        },
+        vault: {
+          title: "Fee vault",
+          body: "The trade fees, the graduation fee and the DAMM v2 position fees go here.",
+          received: "Received by the vault",
+          claimed: "Claimed",
+          treasuryCan: "Treasury can claim",
+          treasuryShare: "Treasury share of the vault",
+          feesGoToVault: "The curve sends its fees to this vault.",
+          feesElsewhere: "The curve sends its fees to another address, not this vault.",
+          treasuryNotUser: "The treasury has no share in this vault.",
+        },
+        credit: {
+          title: "Credit pool",
+          body: "The treasury deposits what it claims into the elote credit pool and receives pool shares.",
+          holds: "Treasury holds",
+          shares: "shares",
+          about: "about {amount}",
+          perShare: "Value per share",
+          poolUnavailable: "The credit pool could not be read right now.",
+        },
+        addresses: {
+          title: "Accounts",
+          sub: "Every account of the preset, on Solana Explorer.",
+          dbcConfig: "Curve settings",
+          dbcPool: "Curve pool",
+          baseToken: "tELOTE, the demo token",
+          quoteToken: "Quote token: tMXN, a test token",
+          feeVault: "Fee vault",
+          treasury: "Treasury",
+          treasuryShareAccount: "Treasury pool share account",
+          dammPool: "DAMM v2 pool",
+          dammPending: "Created at graduation",
+          programDbc: "Dynamic Bonding Curve program",
+          programDammV2: "DAMM v2 program",
+          programFeeSharing: "Dynamic Fee Sharing program",
+          viewAddress: "View on Solana Explorer",
+          newTab: "opens in a new tab",
         },
       },
       invest: {
@@ -1061,6 +1191,7 @@ export const translations: Record<Lang, Copy> = {
         invest: { title: "Quiero invertir", body: "Deposita tMXN, un token de prueba, y recibe participaciones del pool." },
         borrow: { title: "Quiero pedir crédito", body: "Retira el crédito de una línea abierta para tu wallet y págalo." },
         poolLink: "Ver el pool",
+        launchLink: "Ver el preset de lanzamiento",
         connectPrompt: "Conecta una wallet para empezar.",
       },
       pool: {
@@ -1120,6 +1251,87 @@ export const translations: Record<Lang, Copy> = {
         mismatch: {
           title: "Este pool no coincide con la configuración de la app",
           body: "La cuenta del pool en Solana no es la que se configuró para esta app, así que no se muestra nada. Quien opera el sitio debe actualizar la configuración de la app.",
+        },
+        launchLink: "Ver el preset de lanzamiento",
+      },
+      launch: {
+        title: "Preset de lanzamiento",
+        sub: "Un token de demostración que se vende en una curva de bonding de Meteora. Sus comisiones van a un vault, y la tesorería deposita su parte en el pool de crédito de elote.",
+        note: "tELOTE es el token de demostración del preset de crédito de elote. No tiene valor y no da ningún derecho sobre el pool de crédito. El 20% de lo recaudado y las comisiones de compraventa van al vault de comisiones del preset y no regresan a los compradores.",
+        notLaunched: {
+          title: "Aún no se lanza",
+          body: "El preset no se ha lanzado en esta red. Su curva, su vault de comisiones y su tesorería aparecerán aquí cuando se lance.",
+        },
+        loading: "Leyendo el preset en Solana",
+        loadFailed: "No se pudo leer el preset en Solana. Revisa tu conexión e inténtalo de nuevo.",
+        stale: "No se pudieron actualizar estas cifras. Muestran los últimos valores leídos.",
+        retry: "Intentar de nuevo",
+        mismatch: {
+          title: "Este preset no coincide con la configuración de la app",
+          notFound: "Falta una de las cuentas del preset en Solana, o no es la cuenta de Meteora que debería ser. Quien opera el sitio debe actualizar las direcciones del preset.",
+          quoteMismatch: "La curva del preset cotiza en otro token y no en el token de prueba de esta app, así que no se muestra nada. Quien opera el sitio debe actualizar las direcciones del preset.",
+          accountsMismatch: "Las cuentas del preset en Solana no corresponden entre sí, así que no se muestra nada. Quien opera el sitio debe actualizar las direcciones del preset.",
+        },
+        flowTitle: "Cómo se mueven las comisiones",
+        flowSub: "Cuatro pasos, leídos en vivo de Solana. Montos en tMXN, un token de prueba.",
+        stage: {
+          trading: "En venta en la curva",
+          thresholdReached: "Umbral alcanzado, graduación pendiente",
+          graduated: "Graduado a DAMM v2",
+        },
+        progressLabel: "Avance de la curva",
+        curve: {
+          title: "Curva",
+          body: "tELOTE se vende a cambio del token de prueba en una curva casi plana.",
+          raised: "Recaudado en la curva",
+          of: "{raised} de {threshold}",
+          feesWaiting: "Comisiones de compraventa por pasar al vault",
+        },
+        graduation: {
+          title: "Graduación",
+          body: "Al llegar al umbral, la curva se cierra y su liquidez pasa a un pool DAMM v2 de Meteora. El 20% de lo recaudado va al vault de comisiones.",
+          threshold: "Umbral de graduación",
+          price: "Precio en Meteora",
+          priceHint: "Token de prueba por cada tELOTE, leído del pool DAMM v2.",
+          priceLater: "Se muestra después de la graduación",
+        },
+        vault: {
+          title: "Vault de comisiones",
+          body: "Aquí llegan las comisiones de compraventa, la comisión de graduación y las comisiones de la posición en DAMM v2.",
+          received: "Recibido por el vault",
+          claimed: "Reclamado",
+          treasuryCan: "La tesorería puede reclamar",
+          treasuryShare: "Parte de la tesorería en el vault",
+          feesGoToVault: "La curva envía sus comisiones a este vault.",
+          feesElsewhere: "La curva envía sus comisiones a otra dirección, no a este vault.",
+          treasuryNotUser: "La tesorería no tiene parte en este vault.",
+        },
+        credit: {
+          title: "Pool de crédito",
+          body: "La tesorería deposita lo que reclama en el pool de crédito de elote y recibe participaciones del pool.",
+          holds: "La tesorería tiene",
+          shares: "participaciones",
+          about: "unos {amount}",
+          perShare: "Valor por participación",
+          poolUnavailable: "No se pudo leer el pool de crédito en este momento.",
+        },
+        addresses: {
+          title: "Cuentas",
+          sub: "Todas las cuentas del preset, en Solana Explorer.",
+          dbcConfig: "Configuración de la curva",
+          dbcPool: "Pool de la curva",
+          baseToken: "tELOTE, el token de demostración",
+          quoteToken: "Token de cotización: tMXN, un token de prueba",
+          feeVault: "Vault de comisiones",
+          treasury: "Tesorería",
+          treasuryShareAccount: "Cuenta de participaciones de la tesorería",
+          dammPool: "Pool DAMM v2",
+          dammPending: "Se crea en la graduación",
+          programDbc: "Programa Dynamic Bonding Curve",
+          programDammV2: "Programa DAMM v2",
+          programFeeSharing: "Programa Dynamic Fee Sharing",
+          viewAddress: "Ver en Solana Explorer",
+          newTab: "se abre en una pestaña nueva",
         },
       },
       invest: {
