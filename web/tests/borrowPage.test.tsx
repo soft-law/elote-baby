@@ -310,6 +310,11 @@ describe("borrow page", () => {
     expect([...sponsored.querySelectorAll("article[data-line]")].map((a) => a.getAttribute("data-line"))).toEqual(["6"]);
     expect(page.card(5)).toBeNull();
     expect(page.card(7)).toBeNull();
+    // overflow:hidden on the card would trap the sticky Draw and Repay submits at 375; clip does not.
+    for (const card of mine.querySelectorAll("article[data-line]")) {
+      expect(card.className).not.toContain("overflow-hidden");
+      expect(card.className).toContain("overflow-clip");
+    }
     expect(sponsored.textContent).toContain(en.app.borrow.sponsored);
 
     const status = (id: number) => page.card(id)!.querySelector("[data-status]")!.getAttribute("data-status");

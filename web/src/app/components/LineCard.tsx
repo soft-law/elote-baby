@@ -315,7 +315,7 @@ export function LineCard({ row, pool, balance, now, t, lang, cluster, counterpar
       aria-labelledby={titleId}
       data-line={row.lineId.toString()}
       data-status={view.status}
-      className="app-card flex flex-col overflow-hidden !p-0"
+      className="app-card flex flex-col overflow-clip !p-0"
     >
       <div className={`flex flex-col gap-2 px-[var(--density-card-pad)] py-4 ${BAND[view.status]}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
