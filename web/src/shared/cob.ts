@@ -158,3 +158,18 @@ export function fieldHuskGeometry(): BufferGeometry {
 export function triangleCount(g: BufferGeometry): number {
   return (g.index ? g.index.count : g.getAttribute("position").count) / 3;
 }
+
+/** Base scale of a field cob; each one varies by up to +-10% around it. */
+export const FIELD_COB_SCALE = 0.92;
+export const FIELD_COB_SCALE_MAX = FIELD_COB_SCALE * 1.1;
+
+/**
+ * How far below the ground a cob waits before the story raises it: the tallest vertex of
+ * either field geometry at the largest cob scale, plus 0.5, so no husk tip or kernel shows.
+ */
+export function fieldBuryDepth(kernels: BufferGeometry, husks: BufferGeometry): number {
+  kernels.computeBoundingBox();
+  husks.computeBoundingBox();
+  const top = Math.max(kernels.boundingBox!.max.y, husks.boundingBox!.max.y);
+  return top * FIELD_COB_SCALE_MAX + 0.5;
+}

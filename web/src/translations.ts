@@ -62,19 +62,29 @@ export type Copy = {
   pool: {
     title: string;
     body: string;
-    line: string;
-    entrepreneur: string;
-    entrepreneurValue: string;
-    principal: string;
-    interest: string;
-    interestValue: string;
-    term: string;
-    termValue: string;
-    drawn: string;
-    repaid: string;
+    stepsTitle: string;
+    steps: [Card, Card, Card, Card];
+    chips: [string, string, string, string];
+    position: string;
+    sample: string;
+    tokens: string;
+    tokensValue: string;
+    curvePrice: string;
+    curvePriceValue: string;
+    perShare: string;
+    perShareValue: string;
+    marketPrice: string;
+    marketPriceValue: string;
+    atSettle: string;
+    atSettleValue: string;
     status: string;
     statusValue: string;
+    marketNote: string;
+    note: string;
     fieldLabel: string;
+    play: string;
+    pause: string;
+    replay: string;
   };
   investors: { title: string; cards: [Card, Card, Card] };
   entrepreneurs: { title: string; cards: [Card, Card, Card] };
@@ -533,21 +543,48 @@ export const translations: Record<Lang, Copy> = {
       borrow: "Borrow",
     },
     pool: {
-      title: "First pool soon: 100 credit lines for small businesses",
-      body: "Every deposit goes into one pool. Credit lines draw from it and repay into it.",
-      line: "Sample line",
-      entrepreneur: "Entrepreneur",
-      entrepreneurValue: "Panadería",
-      principal: "Principal",
-      interest: "Fixed interest",
-      interestValue: "12% of principal",
-      term: "Term",
-      termValue: "180 days",
-      drawn: "Drawn",
-      repaid: "Repaid",
+      title: "First pool soon: from a Meteora curve to 100 credit lines",
+      body: "Planned for the first pool: you would buy its token on a Meteora curve, and the raise would fund credit lines for small businesses.",
+      stepsTitle: "How it will work, in four steps",
+      steps: [
+        {
+          title: "You buy on the curve",
+          body: "You pay with tMXN, a test token, on a Meteora curve whose price is nearly flat, and you receive the pool's token.",
+        },
+        {
+          title: "The raise flows into the pool",
+          body: "When the curve fills, it graduates: 99% of the raise flows into the pool's vault, and 1% opens the token's market on Meteora.",
+        },
+        {
+          title: "The pool opens credit lines",
+          body: "Each elote is one credit line for a small business, opened from an agreement that both sides sign.",
+        },
+        {
+          title: "Interest and write-offs move the value per share",
+          body: "Until the pool settles, the only exit is selling on the Meteora market, where the price can be below the value per share. After settle, each token redeems for its share of the vault.",
+        },
+      ],
+      chips: ["1/4 Raising", "2/4 Into the pool", "3/4 Credit lines", "4/4 Value per share"],
+      position: "Sample position",
+      sample: "Sample data",
+      tokens: "Tokens in your wallet",
+      tokensValue: "100",
+      curvePrice: "Price on the curve",
+      curvePriceValue: "About 1 tMXN (a test token), nearly flat",
+      perShare: "Value per share",
+      perShareValue: "Rises with interest paid, falls with write-offs",
+      marketPrice: "Market price",
+      marketPriceValue: "Set by buyers and sellers on Meteora",
+      atSettle: "When the pool settles",
+      atSettleValue: "Redeems for its share of the vault",
       status: "Status",
-      statusValue: "Active",
-      fieldLabel: "A field of one hundred corn plants, one for each credit line",
+      statusValue: "Planned",
+      marketNote: "The market price can be below the value per share, and at settle a token can redeem for less than you paid.",
+      note: "Planned, not live yet. tMXN is a test token with no value. The token does not exist yet. It would be the pool share, with no claim beyond what the pool pays at settle, and none on Softlaw.",
+      fieldLabel: "A night field of one hundred elotes, one for each planned credit line. The four steps beside it describe what it shows.",
+      play: "Play the four steps",
+      pause: "Pause the animation",
+      replay: "Replay the four steps",
     },
     investors: {
       title: "If you invest",
@@ -1124,21 +1161,48 @@ export const translations: Record<Lang, Copy> = {
       borrow: "Pedir crédito",
     },
     pool: {
-      title: "Primer pool muy pronto: 100 créditos para pymes",
-      body: "Cada depósito entra a un solo pool. De ahí salen las líneas de crédito y ahí regresan sus pagos.",
-      line: "Línea de muestra",
-      entrepreneur: "Emprendedor",
-      entrepreneurValue: "Panadería",
-      principal: "Principal",
-      interest: "Interés fijo",
-      interestValue: "12% del principal",
-      term: "Plazo",
-      termValue: "180 días",
-      drawn: "Dispuesto",
-      repaid: "Pagado",
+      title: "Primer pool pronto: curva de Meteora, 100 líneas de crédito",
+      body: "Así lo planeamos para el primer pool: comprarías su token en una curva de Meteora y lo recaudado iría a líneas de crédito para pymes.",
+      stepsTitle: "Cómo funcionará, en cuatro pasos",
+      steps: [
+        {
+          title: "Compras en la curva",
+          body: "Pagas con tMXN, un token de prueba, en una curva de precios de Meteora casi plana y recibes el token del pool.",
+        },
+        {
+          title: "Lo recaudado entra al pool",
+          body: "Cuando la curva se llena, se gradúa: el 99% de lo recaudado entra a la bóveda del pool y el 1% abre el mercado del token en Meteora.",
+        },
+        {
+          title: "El pool abre líneas de crédito",
+          body: "Cada elote es una línea de crédito para una pyme, abierta con un contrato que firman ambas partes.",
+        },
+        {
+          title: "Los intereses y los castigos mueven el valor por participación",
+          body: "Hasta el cierre del pool, la única salida es vender en el mercado de Meteora, donde el precio puede quedar debajo del valor por participación. Después, cada token se canjea por su parte de la bóveda.",
+        },
+      ],
+      chips: ["1/4 Recaudando", "2/4 Al pool", "3/4 Líneas de crédito", "4/4 Valor por participación"],
+      position: "Posición de muestra",
+      sample: "Datos de muestra",
+      tokens: "Tokens en tu wallet",
+      tokensValue: "100",
+      curvePrice: "Precio en la curva",
+      curvePriceValue: "Cerca de 1 tMXN (un token de prueba), casi plano",
+      perShare: "Valor por participación",
+      perShareValue: "Sube con los intereses pagados, baja con los castigos",
+      marketPrice: "Precio de mercado",
+      marketPriceValue: "Lo fijan compradores y vendedores en Meteora",
+      atSettle: "Al cierre del pool",
+      atSettleValue: "Se canjea por su parte de la bóveda",
       status: "Estado",
-      statusValue: "Activa",
-      fieldLabel: "Un campo de cien plantas de maíz, una por cada línea de crédito",
+      statusValue: "Planeado",
+      marketNote: "El precio de mercado puede quedar debajo del valor por participación, y al cierre un token puede canjearse por menos de lo que pagaste.",
+      note: "Planeado, todavía no está activo. tMXN es un token de prueba sin valor. El token aún no existe. Sería la participación en el pool, sin derecho más allá de lo que el pool pague a su cierre, y ninguno frente a Softlaw.",
+      fieldLabel: "Un campo nocturno de cien elotes, uno por cada línea de crédito planeada. Los cuatro pasos de al lado describen lo que muestra.",
+      play: "Reproducir los cuatro pasos",
+      pause: "Pausar la animación",
+      replay: "Repetir los cuatro pasos",
     },
     investors: {
       title: "Si inviertes",

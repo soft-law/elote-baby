@@ -5,7 +5,9 @@
 import { Component, type ComponentType, type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import type { CornSceneProps, CornTheme } from "./CornScene";
 
-export interface CornMarkProps {
+// P: extra props a scene takes beyond CornSceneProps (the pool field's story clock); the hero has none.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface CornMarkProps<P extends object = {}> {
   /** Box edge: px number or any CSS length (e.g. "clamp(220px, 32vw, 420px)"). The box is square. */
   size?: number | string;
   /** "night" adds a faint neon #6AE1E7 rim light (no halo: glow is reserved for the logo, headline word and primary); "light" has none. */
@@ -26,7 +28,11 @@ export interface CornMarkProps {
   /** Replaces the fallback image (the pool field uses a night card with the mark centred). */
   placeholder?: ReactNode;
   /** Scene chunk loader. Default: the hero mark (./CornScene). Keep the import() literal at the call site. */
-  load?: () => Promise<{ default: ComponentType<CornSceneProps> }>;
+  load?: () => Promise<{ default: ComponentType<CornSceneProps & P> }>;
+  /** Passed through to the scene as is. */
+  sceneProps?: P;
+  /** Called with true once the scene is on screen and ready, false if it fails afterwards. */
+  onLive?: (live: boolean) => void;
 }
 
 const loadCornScene = () => import("./CornScene");
@@ -46,7 +52,13 @@ function hasWebGL(): boolean {
   }
 }
 
-function usePrefersReducedMotion(): boolean {
+/** The reader asked for less data (Save-Data): keep the static card, skip the three.js chunk. */
+function saveData(): boolean {
+  const c = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+  return c?.saveData === true;
+}
+
+export function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false); // SSR + first client render: false
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -71,7 +83,8 @@ class SceneBoundary extends Component<{ onError: () => void; children: ReactNode
   }
 }
 
-export function CornMark({
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export function CornMark<P extends object = {}>({
   size = 360,
   theme = "night",
   fallbackSrc = "/corn-mark.png",
@@ -80,10 +93,12 @@ export function CornMark({
   className,
   aspect = "1 / 1",
   placeholder,
-  load: loadScene = loadCornScene,
-}: CornMarkProps) {
+  load: loadScene = loadCornScene as unknown as NonNullable<CornMarkProps<P>["load"]>,
+  sceneProps,
+  onLive,
+}: CornMarkProps<P>) {
   const box = useRef<HTMLDivElement>(null);
-  const [Scene, setScene] = useState<ComponentType<CornSceneProps> | null>(null);
+  const [Scene, setScene] = useState<ComponentType<CornSceneProps & P> | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [visible, setVisible] = useState(true);
@@ -93,7 +108,7 @@ export function CornMark({
   // with display:none never downloads three.js), when the browser is idle, with WebGL only.
   useEffect(() => {
     const el = box.current;
-    if (!el || !hasWebGL()) return;
+    if (!el || saveData() || !hasWebGL()) return;
     let cancelled = false;
     let idleId = 0;
     const idle = typeof window.requestIdleCallback === "function";
@@ -147,6 +162,11 @@ export function CornMark({
     contain: "layout paint",
   };
   const showScene = Scene && !failed;
+  const live = !!(ready && showScene);
+  useEffect(() => {
+    onLive?.(live);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live]);
   const fallback = placeholder ? (
     <div
       aria-hidden
@@ -206,6 +226,7 @@ export function CornMark({
         >
           <SceneBoundary onError={() => setFailed(true)}>
             <Scene
+              {...(sceneProps as P)}
               theme={theme}
               animate={!reduced}
               active={visible}
