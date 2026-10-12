@@ -62,6 +62,8 @@ function randomSignature(): string {
   return getBase58Decoder().decode(crypto.getRandomValues(new Uint8Array(64)));
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 const deposit = { kind: "deposit", assets: 5_000_000n, minSharesOut: 4_990_000n } as const;
 
 describe("sendOp", () => {
@@ -214,6 +216,98 @@ describe("sendOp", () => {
     expect(state.sent).toHaveLength(3);
     expect(new Set(state.sent).size).toBe(1);
     expect(error).toBeInstanceOf(TxExpiredError);
+  });
+
+  test("a 503, then a preflight rejection of the retry: never failed; polling finds it confirmed", async () => {
+    const seen: string[] = [];
+    journal.subscribe(() => {
+      for (const e of journal.all()) seen.push(e.status);
+    });
+    let statusCalls = 0;
+    rpcServer.use({
+      sendTransaction: (params, call) => {
+        state.sent.push(params[0] as string);
+        // The proxy forwarded the first copy, then answered 503; the next node refuses the retry.
+        if (call === 0) throw new Response("bad gateway", { status: 503 });
+        throw new RpcErrorReply(-32002, "Transaction simulation failed", {
+          err: { InstructionError: [3, { Custom: 6011 }] },
+          logs: [],
+          accounts: null,
+          unitsConsumed: 1000,
+          returnData: null,
+        });
+      },
+      getSignatureStatuses: () => {
+        statusCalls += 1;
+        // The lookup right after the refusal misses it; the first copy is seen by the next poll.
+        const value = statusCalls === 1 ? null : { slot: 70, confirmations: 1, err: null, confirmationStatus: "confirmed", status: { Ok: null } };
+        return { context: { slot: 100 }, value: [value] };
+      },
+    });
+    const { ctx } = await context({ sendRetryMs: [1, 1] });
+    const result = await sendOp(deposit, ctx);
+    expect(result.slot).toBe(70n);
+    expect(state.sent).toHaveLength(2);
+    expect(journal.get(result.signature)?.status).toBe("confirmed");
+    expect(seen).not.toContain("failed");
+    expect(seen).not.toContain("expired");
+  });
+
+  test("a 503, then success: the same bytes, one signature, confirmed", async () => {
+    rpcServer.use({
+      sendTransaction: (params, call) => {
+        const wire = params[0] as string;
+        state.sent.push(wire);
+        if (call === 0) throw new Response("unavailable", { status: 503 });
+        const sig = signatureOfWire(wire);
+        state.statuses.set(sig, { err: null, confirmationStatus: "confirmed", slot: 71 });
+        return sig;
+      },
+    });
+    const { ctx, signCount } = await context({ sendRetryMs: [1, 1] });
+    const result = await sendOp(deposit, ctx);
+    expect(result.slot).toBe(71n);
+    expect(state.sent).toHaveLength(2);
+    expect(state.sent[1]).toBe(state.sent[0]!);
+    expect(signCount()).toBe(1);
+  });
+
+  test("no reply (network error) is not retried: one send, the entry is sent, polling decides", async () => {
+    rpcServer.use({
+      sendTransaction: (params) => {
+        const wire = params[0] as string;
+        state.sent.push(wire);
+        // The node took it, but the reply never arrived.
+        state.statuses.set(signatureOfWire(wire), { err: null, confirmationStatus: "confirmed", slot: 72 });
+        throw new Error("connection reset");
+      },
+    });
+    const statuses: string[] = [];
+    journal.subscribe(() => {
+      for (const e of journal.all()) statuses.push(e.status);
+    });
+    const { ctx } = await context({ sendRetryMs: [1, 1] });
+    const result = await sendOp(deposit, ctx);
+    expect(rpcServer.count("sendTransaction")).toBe(1);
+    expect(result.slot).toBe(72n);
+    expect(statuses).toContain("sent");
+    expect(statuses).not.toContain("failed");
+  });
+
+  test("a timeout on send is not retried: one send, polling finds it confirmed", async () => {
+    rpcServer.use({
+      sendTransaction: async (params) => {
+        const wire = params[0] as string;
+        state.sent.push(wire);
+        state.statuses.set(signatureOfWire(wire), { err: null, confirmationStatus: "confirmed", slot: 73 });
+        await sleep(300);
+        return signatureOfWire(wire);
+      },
+    });
+    const { ctx } = await context({ rpc: createRpc(RPC_URL, 100), sendRetryMs: [1, 1] });
+    const result = await sendOp(deposit, ctx);
+    expect(rpcServer.count("sendTransaction")).toBe(1);
+    expect(result.slot).toBe(73n);
   });
 
   test("a preflight rejection is never retried", async () => {

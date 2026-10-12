@@ -75,20 +75,29 @@ const MAX_POLLS = 200;
 /** Three send attempts over about 6 s: a 429 from the public RPC means the node did not take it. */
 export const SEND_RETRY_MS: readonly number[] = [2_000, 4_000];
 
-/** An error after which sending the same bytes again is worth it: rate limit, server trouble, no reply. */
-function isTransientSendError(error: unknown): boolean {
+/**
+ * What a failed sendTransaction (other than a preflight rejection) says about the bytes:
+ *   "refused"  a reply the node returned without taking them: HTTP 429, or "node unhealthy".
+ *              Retried with the same bytes.
+ *   "server"   an HTTP 5xx reply. Retried, but a proxy may have forwarded the request first, so
+ *              the bytes may be on the network.
+ *   "unknown"  no reply (timeout, abort, network error) or anything else: they may be on the
+ *              network. Not retried; polling decides.
+ */
+type SendFailure = "refused" | "server" | "unknown";
+
+function classifySendError(error: unknown): SendFailure {
   let node: unknown = error;
   for (let depth = 0; node != null && depth < 8; depth++) {
     if (isSolanaError(node, SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR)) {
       const status = node.context.statusCode;
-      return status === 429 || status >= 500;
+      if (status === 429) return "refused";
+      return status >= 500 ? "server" : "unknown";
     }
-    if (isSolanaError(node, SOLANA_ERROR__JSON_RPC__SERVER_ERROR_NODE_UNHEALTHY)) return true;
-    if (node instanceof TypeError) return true;
-    if (node instanceof Error && (node.name === "TimeoutError" || node.name === "AbortError")) return true;
+    if (isSolanaError(node, SOLANA_ERROR__JSON_RPC__SERVER_ERROR_NODE_UNHEALTHY)) return "refused";
     node = (node as { cause?: unknown }).cause;
   }
-  return false;
+  return "unknown";
 }
 
 // Module fallbacks for browsers (and tests) without Web Locks, with the same two locks.
@@ -347,7 +356,11 @@ async function deliver({ rpc, journal, onStep, pollMs, sendRetryMs, message, sig
   }
 
   // The same signed bytes on every attempt, so the transaction can land at most once. The journal
-  // stays "signed" until a node accepts them (recovery may re-send "signed" bytes, never "sent" ones).
+  // stays "signed" until a node takes them or they may be on the network (recovery re-sends
+  // "signed" bytes, never "sent" ones). A preflight rejection is final only on the first attempt:
+  // after an earlier attempt the bytes may already be on their way, and a node that has not seen
+  // them (or simulates against the state after they landed) refuses the copy. Then, as in
+  // recovery, the entry is "sent" and polling decides: confirmed, an error on chain, or expired.
   for (let attempt = 0; ; attempt++) {
     try {
       await rpc
@@ -360,8 +373,8 @@ async function deliver({ rpc, journal, onStep, pollMs, sendRetryMs, message, sig
         // Preflight also rejects a transaction that already landed ("already processed"): if the
         // cluster knows the signature, polling settles it.
         const known = await lookup(rpc, signature).catch(() => null);
-        if (!known) {
-          // Rejected in preflight: never broadcast, these bytes are void.
+        if (!known && attempt === 0) {
+          // Rejected in preflight on the only attempt so far: never broadcast, these bytes are void.
           const typed = toTxError(error, message);
           journal.setStatus(signature, typed instanceof TxExpiredError ? "expired" : "failed");
           throw typed;
@@ -369,13 +382,18 @@ async function deliver({ rpc, journal, onStep, pollMs, sendRetryMs, message, sig
         journal.setStatus(signature, "sent");
         break;
       }
-      // Rate limit or server trouble: the node did not take it. Try again while the blockhash lives.
+      const failure = classifySendError(error);
+      // A 5xx or no reply: the bytes may be on the network.
+      if (failure !== "refused") journal.setStatus(signature, "sent");
+      // A reply the node returned (429, node unhealthy, 5xx): the same bytes again, while the
+      // blockhash lives.
       const wait = sendRetryMs[attempt];
-      if (wait !== undefined && isTransientSendError(error)) {
+      if (wait !== undefined && failure !== "unknown") {
         await sleep(wait);
         if (!(await pastLifetime())) continue;
       }
-      // Out of attempts, or no reply: it may or may not have been broadcast. Polling decides.
+      // No reply (timeout, abort, network error), or out of attempts, or past the lifetime: the
+      // bytes may or may not be on the network. Polling decides.
       break;
     }
   }
