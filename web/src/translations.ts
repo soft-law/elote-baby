@@ -223,6 +223,7 @@ export type Copy = {
       yourShares: string;
       sharesValue: string;
       sharesValueHint: string;
+      perShareNote: string;
       assetBalance: string;
       solBalance: string;
       solHint: string;
@@ -791,6 +792,7 @@ export const translations: Record<Lang, Copy> = {
         yourShares: "Your shares",
         sharesValue: "Value of your shares",
         sharesValueHint: "Your shares times the value per share.",
+        perShareNote: "{n} per share",
         assetBalance: "Test token balance",
         solBalance: "SOL balance",
         solHint: "Pays the network fee of each transaction.",
@@ -1379,6 +1381,7 @@ export const translations: Record<Lang, Copy> = {
         yourShares: "Tus participaciones",
         sharesValue: "Valor de tus participaciones",
         sharesValueHint: "Tus participaciones por el valor de cada una.",
+        perShareNote: "{n} por participación",
         assetBalance: "Saldo en tokens de prueba",
         solBalance: "Saldo de SOL",
         solHint: "Paga la comisión de red de cada transacción.",

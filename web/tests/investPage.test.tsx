@@ -319,15 +319,21 @@ describe("test SOL airdrop", () => {
 // ---- page ----
 
 describe("invest page", () => {
-  test("without a wallet: the connect prompt in place, no reads", async () => {
+  test("without a wallet: public pool figures, one connect panel, only the pool read", async () => {
     const f = await fixture();
     serve(f);
     const page = await mount(f.config, wallet(null), <InvestPage />);
     expect(page.q('[data-testid="invest-connect"]')!.textContent).toContain(en.app.invest.connectTitle);
     expect(page.q('[data-testid="invest-connect"] button')!.textContent).toContain(en.app.header.connect);
     expect(page.q('[data-testid="deposit-form"]')).toBeNull();
-    await act(async () => sleep(20));
-    expect(rpcServer.calls.length).toBe(0);
+    await page.until(() => page.text().includes(en.app.pool.nav), "pool figures");
+    // One h1 for the page and one h2 for the panel; the panel does not repeat the title.
+    expect(page.host.querySelectorAll("h1").length).toBe(1);
+    expect([...page.host.querySelectorAll("h2")].map((h) => h.textContent)).toEqual([en.app.invest.connectTitle]);
+    expect(page.q('[data-testid="invest-connect"]')!.className).not.toContain("dashed");
+    // Public figures only: the pool read, no balances or history.
+    expect(rpcServer.count("getMultipleAccounts")).toBe(1);
+    expect(rpcServer.calls.length).toBe(1);
   });
 
   test("wrong network: the prompt says so", async () => {

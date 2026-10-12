@@ -131,25 +131,22 @@ export function AmountForm(props: AmountFormProps) {
   const describedBy = [showError ? errorId : null, previewId, hasNotes ? notesId : null].filter(Boolean).join(" ");
 
   return (
-    <section aria-labelledby={titleId} className="flex h-full flex-col rounded-[24px] border-[1.5px] border-line bg-white shadow-[var(--shadow-soft)]">
-      <form noValidate onSubmit={(e) => void onSubmit(e)} data-testid={`${name}-form`} className="flex h-full flex-col gap-4 p-5 md:p-7">
-        <div className="flex flex-col gap-1.5">
-          <Heading id={titleId} className="m-0 text-[24px] font-bold leading-tight md:text-[28px]">
+    <section aria-labelledby={titleId} className="app-card flex h-full flex-col">
+      <form noValidate onSubmit={(e) => void onSubmit(e)} data-testid={`${name}-form`} className="flex h-full flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <Heading id={titleId} className="app-h3 text-ink">
             {props.title}
           </Heading>
-          <p className="m-0 text-[17px] leading-[1.55] text-ink-soft">{props.sub}</p>
+          <p className="m-0 text-[15px] leading-[1.5] text-ink-soft">{props.sub}</p>
         </div>
 
         {summary && error ? (
-          <div
-            ref={summaryRef}
-            role="alert"
-            tabIndex={-1}
-            data-testid={`${name}-error-summary`}
-            className="rounded-[14px] border-[1.5px] border-chili-700/40 bg-chili-50 px-4 py-3 text-[16px] leading-[1.5] text-chili-700 outline-none focus-visible:ring-2 focus-visible:ring-chili-700"
-          >
-            <p className="m-0 font-semibold">{t.app.invest.errors.summary}</p>
-            <ul className="m-0 mt-1 list-disc pl-5">
+          <div ref={summaryRef} role="alert" tabIndex={-1} data-testid={`${name}-error-summary`} className="app-errsum">
+            <p className="m-0 flex items-center gap-2 font-display text-[16px] font-semibold">
+              <IconAlertCircle />
+              {t.app.invest.errors.summary}
+            </p>
+            <ul className="m-0 mt-1 list-disc pl-7 text-[15px]">
               <li>
                 <a
                   href={`#${inputId}`}
@@ -157,7 +154,7 @@ export function AmountForm(props: AmountFormProps) {
                     e.preventDefault();
                     inputRef.current?.focus();
                   }}
-                  className="inline-flex min-h-[44px] items-center text-chili-700 underline underline-offset-4"
+                  className="inline-flex min-h-[44px] items-center underline underline-offset-4"
                 >
                   {props.label}: {props.errorText(error)}
                 </a>
@@ -167,38 +164,28 @@ export function AmountForm(props: AmountFormProps) {
         ) : null}
 
         <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
-            <label htmlFor={inputId} className="font-display text-[17px] font-semibold">
-              {props.label}
-            </label>
-            {props.available ? <span className="text-[15px] text-ink-soft">{props.available}</span> : null}
-          </div>
-          <div className="flex items-stretch gap-2">
-            <div
-              className={`flex min-h-[52px] min-w-0 flex-1 items-center rounded-[14px] border-[1.5px] bg-white px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-teal-700 ${
-                showError ? "border-chili-700" : "border-fog"
-              }`}
-            >
-              <input
-                ref={inputRef}
-                id={inputId}
-                name={`${name}-amount`}
-                type="text"
-                inputMode="decimal"
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="0.00"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onBlur={() => setTouched(input.trim() !== "" || touched)}
-                aria-invalid={showError}
-                aria-describedby={describedBy}
-                className="num min-w-0 flex-1 border-0 bg-transparent py-2 text-[20px] text-ink outline-none"
-              />
-              <span aria-hidden="true" className="num pl-2 text-[15px] text-ink-soft">
-                {props.unit}
-              </span>
-            </div>
+          <label htmlFor={inputId} className="app-flabel">
+            {props.label}
+          </label>
+          <div className={`app-inwrap ${showError ? "is-error" : ""}`}>
+            <input
+              ref={inputRef}
+              id={inputId}
+              name={`${name}-amount`}
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="0.00"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onBlur={() => setTouched(input.trim() !== "" || touched)}
+              aria-invalid={showError}
+              aria-describedby={describedBy}
+            />
+            <span aria-hidden="true" className="app-unit">
+              {props.unit}
+            </span>
             {props.max !== null ? (
               <button
                 type="button"
@@ -208,7 +195,7 @@ export function AmountForm(props: AmountFormProps) {
                 }}
                 aria-describedby={maxHintId}
                 data-testid={`${name}-max`}
-                className="inline-flex min-h-[52px] min-w-[64px] items-center justify-center rounded-[14px] border-[1.5px] border-teal-700 bg-white px-4 font-display text-[16px] font-semibold text-teal-700 hover:bg-teal-50"
+                className="app-max"
               >
                 {props.maxText}
               </button>
@@ -220,39 +207,52 @@ export function AmountForm(props: AmountFormProps) {
             ) : null}
           </div>
           {showError && error ? (
-            <p id={errorId} data-testid={`${name}-error`} className="m-0 text-[16px] leading-[1.5] text-chili-700">
-              {props.errorText(error)}
+            <p id={errorId} data-testid={`${name}-error`} className="app-err">
+              <IconAlertCircle />
+              <span>{props.errorText(error)}</span>
             </p>
           ) : null}
-          <p id={previewId} data-testid={`${name}-preview`} className="m-0 text-[16px] leading-[1.5] text-ink-soft">
-            {checked.ok ? props.preview(checked) : props.previewEmpty}
-          </p>
+          {props.available ? <p className="app-hint">{props.available}</p> : null}
         </div>
 
+        <p id={previewId} data-testid={`${name}-preview`} className="app-preview">
+          {checked.ok ? props.preview(checked) : props.previewEmpty}
+        </p>
+
         {hasNotes ? (
-          <div id={notesId} data-testid={`${name}-notes`}>
+          <div id={notesId} data-testid={`${name}-notes`} className="text-[15px]">
             {props.notes}
           </div>
         ) : null}
 
-        <div className="sticky bottom-[var(--fixed-stack-h,0px)] -mx-5 mt-auto bg-white/95 px-5 pt-2 pb-4 md:static md:mx-0 md:bg-transparent md:p-0">
-          {pending ? (
-            <p id={pendingNoteId} data-testid={`${name}-pending-note`} className="m-0 mb-2 text-[15px] leading-[1.5] text-ink-soft">
-              {t.app.tx.pendingNote}
-            </p>
-          ) : null}
+        <div className="sticky bottom-[var(--fixed-stack-h,0px)] z-10 -mx-[var(--density-card-pad)] mt-auto border-t border-line bg-paper px-[var(--density-card-pad)] pt-3 pb-3 shadow-[0_-8px_24px_rgb(16_40_40/0.10)] md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:shadow-none">
           <button
             type="submit"
             disabled={props.blocked || busy}
             aria-busy={busy}
             aria-describedby={pending ? pendingNoteId : undefined}
             data-testid={`${name}-submit`}
-            className="inline-flex min-h-[52px] w-full items-center justify-center rounded-[14px] bg-teal-700 px-5 font-display text-[18px] font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className={`app-btn app-btn-teal app-btn-submit ${busy ? "is-busy" : ""}`}
           >
+            {busy ? <span aria-hidden="true" className="app-spin" /> : null}
             {pending ? t.app.tx.pendingButton : busy ? t.app.tx.signingButton : props.submitText}
           </button>
+          {pending ? (
+            <p id={pendingNoteId} data-testid={`${name}-pending-note`} className="app-pnote">
+              {t.app.tx.pendingNote}
+            </p>
+          ) : null}
         </div>
       </form>
     </section>
+  );
+}
+
+function IconAlertCircle() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true" focusable="false" className="mt-0.5 flex-none">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5M12 16.5v.5" />
+    </svg>
   );
 }

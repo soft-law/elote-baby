@@ -599,3 +599,179 @@
     --fixed-stack-h: var(--bottom-bar-offset);
   }
 }
+
+@layer components {
+  .app-strip-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-bottom: 1px solid var(--color-night-line);
+  }
+  .app-strip.app-strip-3 > *,
+  .app-strip.app-strip-3 > :nth-child(even) {
+    padding: 12px 10px;
+    border-bottom: 0;
+    border-left: 1px solid var(--color-night-line);
+  }
+  .app-strip.app-strip-3 > :first-child {
+    padding-left: 0;
+    border-left: 0;
+  }
+  @media (min-width: 64rem) {
+    .app-strip-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .app-strip.app-strip-3 > *,
+    .app-strip.app-strip-3 > :nth-child(even) {
+      padding: 16px 20px;
+    }
+    .app-strip.app-strip-3 > :first-child {
+      padding-left: 0;
+    }
+  }
+
+  .app-panel-teal,
+  .app-panel-corn,
+  .app-panel-mist {
+    border-radius: var(--radius-md);
+    padding: var(--density-card-pad);
+    color: var(--color-ink);
+  }
+  .app-panel-teal {
+    background: var(--color-teal-50);
+  }
+  .app-panel-corn {
+    background: var(--color-corn-100);
+    box-shadow: inset 0 0 0 1px var(--color-corn-300);
+  }
+  .app-panel-mist {
+    background: var(--color-mist);
+  }
+
+  /* ---- forms ----------------------------------------------------------------------------- */
+  .app-flabel {
+    display: block;
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 15px;
+    color: var(--color-ink);
+  }
+  .app-inwrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: var(--submit-height);
+    padding: 0 3px 0 16px;
+    border: 1px solid var(--color-ink-soft);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper);
+  }
+  .app-inwrap:focus-within {
+    outline: 3px solid var(--color-teal-700);
+    outline-offset: 2px;
+  }
+  .app-inwrap.is-error {
+    border: 2px solid var(--color-chili-700);
+  }
+  .app-inwrap.is-error:focus-within {
+    outline-color: var(--color-chili-700);
+  }
+  .app-inwrap input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font-family: var(--font-mono);
+    font-size: 20px;
+    color: var(--color-ink);
+  }
+  .app-unit {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: var(--label-tracking);
+    color: var(--color-ink-soft);
+    white-space: nowrap;
+  }
+  .app-max {
+    min-height: var(--target-min);
+    padding: 0 14px;
+    border: 0;
+    border-radius: 11px;
+    background: var(--color-teal-50);
+    color: var(--color-teal-800);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: var(--label-tracking);
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .app-max:hover {
+    background: #d3f1f3;
+  }
+  .app-hint {
+    margin: 0;
+    font-size: 15px;
+    color: var(--color-ink-soft);
+  }
+  .app-preview {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--color-mist);
+    font-size: 15px;
+    color: var(--color-ink-soft);
+  }
+  .app-err {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-chili-700);
+  }
+  .app-errsum {
+    padding: 16px;
+    border: 2px solid var(--color-chili-700);
+    border-radius: var(--radius-sm);
+    background: var(--color-chili-50);
+    color: var(--color-ink);
+  }
+  .app-errsum:focus-visible {
+    outline: 3px solid var(--color-chili-700);
+    outline-offset: 3px;
+  }
+  .app-errsum a {
+    color: var(--color-chili-700);
+    font-weight: 700;
+  }
+  .app-pnote {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    margin: 8px 0 0;
+    font-size: 15px;
+    color: var(--color-ink-soft);
+  }
+  .app-spin {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    border: 2px solid rgb(255 255 255 / 0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .app-spin {
+    animation: app-spin 0.9s linear infinite;
+  }
+}
+@keyframes app-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

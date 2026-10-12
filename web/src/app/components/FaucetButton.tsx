@@ -43,7 +43,7 @@ export async function requestTestTokens(apiUrl: string, address: Address, fetchI
 export const BALANCE_REFRESH_DELAYS_MS = [0, 4_000, 10_000];
 
 export const secondaryButton =
-  "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-teal-700 bg-white px-4 font-display text-[16px] font-semibold text-teal-700 hover:bg-teal-50 disabled:cursor-wait disabled:opacity-70";
+  "app-btn app-btn-line bg-paper";
 
 export function FaucetButton({ address, t }: { address: Address; t: Copy }) {
   const f = t.app.faucet;

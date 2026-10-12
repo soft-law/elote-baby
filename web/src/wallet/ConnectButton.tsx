@@ -68,7 +68,8 @@ const IconAlert = () => (
 const itemBase =
   "flex min-h-[44px] w-full items-center gap-3 rounded-[12px] px-3 text-left font-display text-[16px] font-semibold text-ink hover:bg-mist focus-visible:outline-teal-700";
 
-export function ConnectButton({ t }: { t: Copy }) {
+/** `paper`: the full-width teal button for connect panels on paper (neon is never used on paper). */
+export function ConnectButton({ t, variant = "header" }: { t: Copy; variant?: "header" | "paper" }) {
   const w = t.app.wallet;
   const { status, address, account, chain, wallets, connect, disconnect } = useWallet();
   const [open, setOpen] = useState(false);
@@ -160,10 +161,12 @@ export function ConnectButton({ t }: { t: Copy }) {
   // Connected: the address chip; its dot turns corn on the wrong network. Absent: the neon button.
   const triggerClass = hasAccount
     ? `app-chip ${status === "wrong-chain" ? "border-corn-300" : ""}`
-    : "app-btn app-btn-neon max-md:px-2.5 max-md:text-[14px] disabled:cursor-wait disabled:opacity-80";
+    : variant === "paper"
+      ? "app-btn app-btn-teal app-btn-submit disabled:cursor-wait"
+      : "app-btn app-btn-neon max-md:px-2.5 max-md:text-[14px] disabled:cursor-wait disabled:opacity-80";
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className={variant === "paper" ? "relative w-full" : "relative"}>
       <button
         ref={triggerRef}
         type="button"
