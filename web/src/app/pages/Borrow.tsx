@@ -13,13 +13,11 @@ import { EmptyState } from "../components/EmptyState";
 import { LineCard } from "../components/LineCard";
 import { Loader } from "../components/Loader";
 import { Notice, RetryButton } from "../components/Notice";
-import { SectionHead } from "../components/SectionHead";
 import { SkeletonGrid } from "../components/SkeletonCard";
 import { useAppConfig } from "../configContext";
 import { dataState } from "../dataState";
 import { useLang } from "../lang";
 import { useLinesQuery, usePoolQuery, type PoolLine, type PoolView } from "../queries";
-import { PageBody, PageHead } from "../Shell";
 
 /** Seconds between refreshes of the clock used for due dates and late interest estimates. */
 export const NOW_TICK_MS = 30_000;
@@ -60,13 +58,15 @@ function ConnectPrompt({ t, wrongChain }: { t: Copy; wrongChain: boolean }) {
     <section
       data-testid="borrow-connect"
       aria-labelledby="borrow-connect-title"
-      className="flex flex-col items-start gap-4 rounded-[24px] border-[1.5px] border-dashed border-fog bg-white px-5 py-8 md:px-8"
+      className="app-panel-corn grid gap-5 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] md:items-center md:gap-10 md:p-10"
     >
-      <h2 id="borrow-connect-title" className="m-0 text-[24px] font-bold leading-tight">
-        {wrongChain ? t.app.invest.wrongChainTitle : b.connectTitle}
-      </h2>
-      <p className="m-0 max-w-[56ch] text-[17px] leading-[1.55] text-ink-soft">{wrongChain ? wrongChainText(account, chain, t.app.wallet, t.app.header.network) : b.connectBody}</p>
-      <ConnectButton t={t} />
+      <div>
+        <h2 id="borrow-connect-title" className="app-h2 md:text-[28px]">
+          {wrongChain ? t.app.invest.wrongChainTitle : b.connectTitle}
+        </h2>
+        <p className="m-0 mt-3 max-w-[56ch] text-[17px] leading-[1.55]">{wrongChain ? wrongChainText(account, chain, t.app.wallet, t.app.header.network) : b.connectBody}</p>
+      </div>
+      <ConnectButton t={t} variant="paper" />
     </section>
   );
 }
@@ -87,9 +87,14 @@ type GroupProps = {
 
 function LineGroup({ id, title, sub, rows, counterpart, pool, balance, now, t, lang, cluster }: GroupProps) {
   return (
-    <section aria-labelledby={id} data-testid={`${id}-group`} className="flex flex-col gap-5">
-      <SectionHead id={id} title={title} sub={sub} />
-      <ul aria-label={title} className="m-0 flex list-none flex-col gap-5 p-0">
+    <section aria-labelledby={id} data-testid={`${id}-group`} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <h2 id={id} className="app-h2">
+          {title}
+        </h2>
+        <p className="m-0 max-w-[70ch] text-[15px] leading-[1.55] text-ink-soft">{sub}</p>
+      </div>
+      <ul aria-label={title} className="m-0 flex list-none flex-col gap-[var(--density-card-gap)] p-0 md:gap-6">
         {rows.map((row) => (
           <li key={row.lineId.toString()}>
             <LineCard row={row} pool={pool} balance={balance} now={now} t={t} lang={lang} cluster={cluster} counterpart={counterpart} />
@@ -126,7 +131,7 @@ function Connected({ owner, t, lang }: { owner: NonNullable<ReturnType<typeof us
   }
   if (result?.kind === "mismatch") {
     return (
-      <div role="alert" data-testid="pool-mismatch" className="flex flex-col gap-2 rounded-[18px] border-[1.5px] border-chili-700/30 bg-chili-50 px-5 py-4">
+      <div role="alert" data-testid="pool-mismatch" className="flex flex-col gap-2 rounded-[18px] border-2 border-chili-700 bg-chili-50 px-5 py-4">
         <p className="m-0 font-display text-[20px] font-semibold text-chili-700">{t.app.pool.mismatch.title}</p>
         <p className="m-0 text-[17px] leading-[1.55] text-ink">{t.app.pool.mismatch.body}</p>
       </div>
@@ -199,13 +204,22 @@ export function BorrowPage() {
   const b = t.app.borrow;
   const { status, address } = useWallet();
   return (
-    <PageBody>
-      <PageHead title={b.title} sub={b.sub} />
-      {status === "connected" && address ? (
-        <Connected key={address} owner={address} t={t} lang={lang} />
-      ) : (
-        <ConnectPrompt t={t} wrongChain={status === "wrong-chain"} />
-      )}
-    </PageBody>
+    <div className="flex flex-1 flex-col">
+      <section aria-labelledby="borrow-title" className="app-wrap app-band">
+        <h1 id="borrow-title" className="app-h1">
+          {b.title}
+        </h1>
+        <p className="m-0 mt-3 max-w-[60ch] text-[16px] leading-[1.55] text-fog">{b.sub}</p>
+      </section>
+      <div className="app-sheet on-paper flex-1">
+        <div className="app-wrap flex flex-col gap-8">
+          {status === "connected" && address ? (
+            <Connected key={address} owner={address} t={t} lang={lang} />
+          ) : (
+            <ConnectPrompt t={t} wrongChain={status === "wrong-chain"} />
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

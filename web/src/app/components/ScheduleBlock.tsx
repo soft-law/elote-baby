@@ -9,10 +9,10 @@ import type { Copy, Lang } from "../../translations";
 import { Amount } from "./Amount";
 
 const STATE_STYLE: Record<InstallmentState, string> = {
-  paid: "bg-green-50 text-green-700 border-green-700/30",
-  partial: "bg-teal-50 text-teal-800 border-teal-700/30",
-  overdue: "bg-chili-50 text-chili-700 border-chili-700/40",
-  pending: "bg-white text-ink-soft border-fog",
+  paid: "bg-green-50 text-green-700",
+  partial: "bg-teal-50 text-teal-800",
+  overdue: "bg-chili-50 text-chili-700",
+  pending: "bg-mist text-ink-soft",
 };
 
 export function ScheduleBlock({ line, now, t, lang }: { line: LineView; now: number; t: Copy; lang: Lang }) {
@@ -24,7 +24,7 @@ export function ScheduleBlock({ line, now, t, lang }: { line: LineView; now: num
   return (
     <section aria-labelledby={titleId} data-testid="schedule" className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <h4 id={titleId} className="m-0 font-display text-[18px] font-semibold">
+        <h4 id={titleId} className="app-h3 text-ink">
           {s.title}
         </h4>
         <p className="m-0 text-[16px] leading-[1.55] text-ink-soft">
@@ -38,7 +38,7 @@ export function ScheduleBlock({ line, now, t, lang }: { line: LineView; now: num
             key={row.number}
             data-installment={row.number}
             data-state={row.state}
-            className="flex items-center justify-between gap-3 rounded-[14px] border-[1.5px] border-line bg-white px-3 py-2"
+            className="flex items-center justify-between gap-3 rounded-[12px] border border-line bg-paper px-3 py-2"
           >
             <span className="flex min-w-0 flex-col">
               <span className="text-[15px] font-semibold">
@@ -52,7 +52,7 @@ export function ScheduleBlock({ line, now, t, lang }: { line: LineView; now: num
               <span className="num text-[15px]">
                 <Amount units={row.amount} lang={lang} />
               </span>
-              <span className={`inline-flex whitespace-nowrap rounded-full border-[1.5px] px-2 py-0.5 text-[13px] font-semibold ${STATE_STYLE[row.state]}`}>
+              <span className={`inline-flex whitespace-nowrap rounded-[6px] px-2 py-0.5 font-mono text-[13px] font-medium uppercase tracking-[0.06em] ${STATE_STYLE[row.state]}`}>
                 <span className="sr-only">{s.state}: </span>
                 {s.states[row.state]}
               </span>

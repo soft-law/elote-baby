@@ -7,7 +7,7 @@ export function Field({ label, children, wide = false }: { label: string; childr
   return (
     <div className={`flex min-w-0 flex-col gap-0.5 ${wide ? "col-span-2" : ""}`}>
       <dt className="label text-ink-soft">{label}</dt>
-      <dd className="m-0 min-w-0 break-words text-[17px]">{children}</dd>
+      <dd className="m-0 min-w-0 break-words text-[16px] text-ink">{children}</dd>
     </div>
   );
 }

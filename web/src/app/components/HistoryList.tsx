@@ -100,11 +100,11 @@ function Row({ row, t, lang, cluster }: { row: HistoryRow; t: Copy; lang: Lang; 
     <li
       data-signature={row.signature}
       data-row={row.kind === "events" ? row.events.map((e) => e.kind).join(" ") : row.kind}
-      className="flex flex-col gap-2 border-b-[1.5px] border-line py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+      className="flex flex-col gap-2 border-b border-line py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <p className="m-0 text-[17px] leading-[1.5] text-ink">{body}</p>
-        <p className="m-0 text-[15px] text-ink-soft">{date}</p>
+        <p className="m-0 text-[16px] leading-[1.5] text-ink">{body}</p>
+        <p className="num m-0 text-[13px] text-ink-soft">{date}</p>
       </div>
       <a
         href={explorerTxUrl(row.signature, cluster, rpcUrl)}
@@ -148,7 +148,7 @@ export function HistoryList({ entries, scope, t, lang, cluster, label }: History
     );
   }
   return (
-    <ul aria-label={label} data-testid="history-list" className="m-0 flex list-none flex-col rounded-[18px] border-[1.5px] border-line bg-white px-4 py-0 md:px-5">
+    <ul aria-label={label} data-testid="history-list" className="m-0 flex list-none flex-col rounded-[18px] border border-line bg-paper px-4 py-0 md:px-5">
       {entries.map((entry) => (
         <Row key={entry.signature} row={historyRow(entry, scope)} t={t} lang={lang} cluster={cluster} />
       ))}

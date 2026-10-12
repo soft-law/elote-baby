@@ -34,7 +34,7 @@ function LateInterestBlock({ line, pool, now, t, lang }: { line: LineView; pool:
   const figures = owing ? repayFigures(line, pool.graceSeconds, BigInt(now)) : null;
   return (
     <section data-testid="late-interest" className="flex flex-col gap-2">
-      <h4 className="m-0 font-display text-[18px] font-semibold">{l.title}</h4>
+      <h4 className="app-h3 text-ink">{l.title}</h4>
       <dl className="m-0 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
         <Field label={l.rate}>
           <span className="num">{formatBps(late.lateBps, lang)}</span>
@@ -79,14 +79,14 @@ export function LineHistory({ row, pool, t, lang, cluster }: { row: PoolLine; po
   const lineName = fillText(t.app.borrow.line, { id: `#${row.lineId.toString()}` });
   const label = `${h.lineToggle}, ${lineName}`;
   return (
-    <section data-testid="line-history" className="flex flex-col gap-3 border-t-[1.5px] border-line pt-4">
+    <section data-testid="line-history" className="flex flex-col gap-3 border-t border-line pt-2">
       <button
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
         data-testid="line-history-toggle"
-        className="inline-flex min-h-[44px] items-center gap-2 self-start font-display text-[17px] font-semibold text-teal-700 hover:text-teal-800"
+        className="inline-flex min-h-[48px] items-center gap-2 self-start font-display text-[15px] font-medium text-teal-700 hover:text-teal-800"
       >
         {h.lineToggle}
         {/* The visible word starts the name; the line number tells the buttons apart. */}
@@ -183,12 +183,12 @@ export function DrawAction({ line, pool, now, tx, t, lang }: DrawActionProps) {
   };
 
   return (
-    <section aria-labelledby={titleId} data-testid="draw" className="flex flex-col gap-4 rounded-[24px] border-[1.5px] border-line bg-white p-5 shadow-[var(--shadow-soft)] md:p-7">
+    <section aria-labelledby={titleId} data-testid="draw" className="app-panel-teal flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <h4 id={titleId} className="m-0 text-[24px] font-bold leading-tight">
+        <h4 id={titleId} className="app-h3 text-ink">
           {d.title}
         </h4>
-        <p className="m-0 text-[17px] leading-[1.55] text-ink-soft">
+        <p className="m-0 text-[16px] leading-[1.55] text-ink-soft">
           {fill(d.body, {
             amount: (
               <span className="num font-semibold text-ink">
@@ -199,15 +199,11 @@ export function DrawAction({ line, pool, now, tx, t, lang }: DrawActionProps) {
         </p>
       </div>
       {note ? (
-        <p id={noteId} data-testid="draw-note" data-reason={block ?? undefined} className="m-0 rounded-[14px] border-[1.5px] border-corn-300 bg-corn-100 px-4 py-3 text-[16px] leading-[1.55] text-ink">
+        <p id={noteId} data-testid="draw-note" data-reason={block ?? undefined} className="app-panel-corn m-0 !p-3 text-[15px] leading-[1.55]">
           {note}
         </p>
       ) : null}
-      {pending ? (
-        <p id={pendingNoteId} data-testid="draw-pending-note" className="m-0 text-[15px] leading-[1.5] text-ink-soft">
-          {t.app.tx.pendingNote}
-        </p>
-      ) : null}
+      <div className="sticky bottom-[var(--fixed-stack-h,0px)] z-10 -mx-[var(--density-card-pad)] border-t border-line bg-paper px-[var(--density-card-pad)] py-3 shadow-[0_-8px_24px_rgb(16_40_40/0.10)] md:static md:mx-0 md:border-0 md:bg-transparent md:p-0 md:shadow-none">
       <button
         type="button"
         onClick={() => void onDraw()}
@@ -215,10 +211,17 @@ export function DrawAction({ line, pool, now, tx, t, lang }: DrawActionProps) {
         aria-busy={busy}
         aria-describedby={[note ? noteId : null, pending ? pendingNoteId : null].filter(Boolean).join(" ") || undefined}
         data-testid="draw-submit"
-        className="inline-flex min-h-[52px] w-full items-center justify-center rounded-[14px] bg-teal-700 px-5 font-display text-[18px] font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+        className={`app-btn app-btn-teal app-btn-submit ${busy ? "is-busy" : ""}`}
       >
+        {busy ? <span aria-hidden="true" className="app-spin" /> : null}
         {pending ? t.app.tx.pendingButton : busy ? t.app.tx.signingButton : d.submit}
       </button>
+      {pending ? (
+        <p id={pendingNoteId} data-testid="draw-pending-note" className="app-pnote">
+          {t.app.tx.pendingNote}
+        </p>
+      ) : null}
+      </div>
     </section>
   );
 }
@@ -278,6 +281,16 @@ function LineFigures({ line, t, lang, cluster, counterpart }: { line: LineView; 
   );
 }
 
+/** Header band of a card by status: the status sets the tone before any figure is read. */
+const BAND: Record<LineView["status"], string> = {
+  approved: "bg-teal-50",
+  active: "bg-green-50",
+  inCollection: "bg-corn-100 border-b border-corn-300",
+  repaid: "bg-mist",
+  writtenOff: "bg-chili-50",
+  unknown: "bg-mist",
+};
+
 export function LineCard({ row, pool, balance, now, t, lang, cluster, counterpart }: LineCardProps) {
   const b = t.app.borrow;
   const titleId = useId();
@@ -302,30 +315,33 @@ export function LineCard({ row, pool, balance, now, t, lang, cluster, counterpar
       aria-labelledby={titleId}
       data-line={row.lineId.toString()}
       data-status={view.status}
-      className="flex flex-col gap-5 rounded-[24px] border-[1.5px] border-line bg-white p-5 md:p-7"
+      className="app-card flex flex-col overflow-hidden !p-0"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 id={titleId} className="m-0 text-[22px] font-bold leading-tight md:text-[26px]">
-          {fillText(b.line, { id: `#${row.lineId.toString()}` })}
-        </h3>
-        <LineStatusBadge status={view.status} labels={t.app.pool.status} />
+      <div className={`flex flex-col gap-2 px-[var(--density-card-pad)] py-4 ${BAND[view.status]}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 id={titleId} className="app-h3 text-ink md:text-[20px]">
+            {fillText(b.line, { id: `#${row.lineId.toString()}` })}
+          </h3>
+          <LineStatusBadge status={view.status} labels={t.app.pool.status} />
+        </div>
+        {known && view.status === "inCollection" ? (
+          <p role="status" data-testid="in-collection" className="m-0 text-[15px] leading-[1.55] text-ink">
+            {b.inCollection}
+          </p>
+        ) : null}
       </div>
+      <div className="flex flex-col gap-5 p-[var(--density-card-pad)] pt-5">
 
       {!known ? (
-        <p data-testid="line-unknown" className="m-0 text-[17px] leading-[1.55] text-ink-soft">
+        <p data-testid="line-unknown" className="m-0 text-[16px] leading-[1.55] text-ink-soft">
           {b.unknownBody}
         </p>
       ) : (
-        <div className={`grid grid-cols-1 gap-6 ${action ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : ""}`}>
+        <div className={`grid grid-cols-1 gap-6 ${action ? "md:grid-cols-[minmax(0,1fr)_minmax(0,360px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]" : ""}`}>
           <div className="flex min-w-0 flex-col gap-5">
-            {view.status === "inCollection" ? (
-              <p role="status" data-testid="in-collection" className="m-0 rounded-[14px] border-[1.5px] border-corn-300 bg-corn-100 px-4 py-3 text-[16px] leading-[1.55] text-ink">
-                {b.inCollection}
-              </p>
-            ) : null}
             <LineFigures line={view} t={t} lang={lang} cluster={cluster} counterpart={counterpart} />
-            {view.status === "repaid" ? <p className="m-0 text-[16px] text-ink-soft">{b.repaidNote}</p> : null}
-            {view.status === "writtenOff" ? <p className="m-0 text-[16px] text-ink-soft">{b.writtenOffNote}</p> : null}
+            {view.status === "repaid" ? <p className="m-0 text-[15px] text-ink-soft">{b.repaidNote}</p> : null}
+            {view.status === "writtenOff" ? <p className="m-0 rounded-[12px] bg-chili-50 px-3 py-2.5 text-[15px] text-ink">{b.writtenOffNote}</p> : null}
             <AgreementBlock hashHex={view.agreementHashHex} t={t} lang={lang} />
             <ScheduleBlock line={view} now={now} t={t} lang={lang} />
             <LateInterestBlock line={view} pool={pool} now={now} t={t} lang={lang} />
@@ -334,6 +350,7 @@ export function LineCard({ row, pool, balance, now, t, lang, cluster, counterpar
         </div>
       )}
       {known ? <LineHistory row={row} pool={pool} t={t} lang={lang} cluster={cluster} /> : null}
+      </div>
     </article>
   );
 }

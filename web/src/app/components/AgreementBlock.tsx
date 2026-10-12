@@ -124,13 +124,13 @@ export function AgreementBlock({ hashHex, t, lang }: { hashHex: string; t: Copy;
   };
   const found = query.data?.kind === "found" ? query.data.summary : null;
   return (
-    <section aria-labelledby={labelId} data-testid="agreement" className="flex flex-col gap-3 rounded-[18px] border-[1.5px] border-line bg-mist/60 p-4">
+    <section aria-labelledby={labelId} data-testid="agreement" className="app-panel-corn flex flex-col gap-3">
       <div className="flex flex-col gap-1">
         <p id={labelId} className="label m-0 text-ink-soft">
           {a.hash}
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <code title={hashHex} data-testid="agreement-hash" className="num min-w-0 break-all text-[15px] text-ink">
+          <code title={hashHex} data-testid="agreement-hash" className="num min-w-0 break-all rounded-[10px] border border-corn-300 bg-paper px-2.5 py-2 text-[13px] text-ink">
             <span aria-hidden="true">{truncateMiddle(hashHex, 10, 10)}</span>
             <span className="sr-only">{hashHex}</span>
           </code>
@@ -138,7 +138,7 @@ export function AgreementBlock({ hashHex, t, lang }: { hashHex: string; t: Copy;
             type="button"
             onClick={() => void onCopy()}
             data-testid="agreement-copy"
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-[12px] border-[1.5px] border-fog bg-white px-3 font-display text-[15px] font-semibold text-teal-700 hover:bg-teal-50"
+            className="app-btn app-btn-line min-w-[44px] bg-paper px-3"
           >
             {copied ? <IconCheck /> : <IconCopy />}
             <span className="sr-only sm:not-sr-only">{copied ? a.copied : a.copy}</span>
