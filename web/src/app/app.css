@@ -591,12 +591,13 @@
   }
 }
 
+/* From md the pending notice is a card at the right; sticky submits are static there. */
 /* Heights of what is fixed at the bottom below md, so sticky submits and the pending notice sit
    above the bottom bar and never under it. */
 @media (max-width: 47.99rem) {
   .app-shell {
     --bottom-bar-offset: calc(var(--bottom-bar-height) + env(safe-area-inset-bottom));
-    --fixed-stack-h: var(--bottom-bar-offset);
+    --fixed-stack-h: calc(var(--bottom-bar-offset) + var(--pending-h, 0px));
   }
 }
 
@@ -614,6 +615,25 @@
   .app-strip.app-strip-3 > :first-child {
     padding-left: 0;
     border-left: 0;
+  }
+  /* Narrow screens: one row per figure, label left and figure right, so long labels never collide. */
+  @media (max-width: 39.99rem) {
+    .app-strip-3 {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .app-strip.app-strip-3 > *,
+    .app-strip.app-strip-3 > :nth-child(even),
+    .app-strip.app-strip-3 > :first-child {
+      flex-direction: row;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-left: 0;
+      border-bottom: 1px solid var(--color-night-line);
+    }
+    .app-strip.app-strip-3 {
+      border-bottom: 0;
+    }
   }
   @media (min-width: 64rem) {
     .app-strip-3 {

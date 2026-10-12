@@ -10,16 +10,16 @@ import { explorerTxUrl } from "../../tx/explorer";
 import { ToastContext, useToastState, type Toast, type ToastStep } from "./useToast";
 
 const TONE: Record<Toast["tone"], string> = {
-  info: "border-teal-700/40 bg-white",
-  success: "border-green-700/40 bg-white",
-  error: "border-chili-700/40 bg-chili-50",
+  info: "border-night-line",
+  success: "border-night-line",
+  error: "border-chili-700",
 };
 
 function StepIcon({ status }: { status: ToastStep["status"] }) {
   const common = { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", "aria-hidden": true, focusable: false } as const;
   if (status === "active") {
     return (
-      <svg {...common} className="shrink-0 text-teal-700 motion-safe:animate-spin">
+      <svg {...common} className="shrink-0 text-neon motion-safe:animate-spin">
         <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" />
         <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
       </svg>
@@ -27,14 +27,14 @@ function StepIcon({ status }: { status: ToastStep["status"] }) {
   }
   if (status === "done") {
     return (
-      <svg {...common} className="shrink-0 text-green-700">
+      <svg {...common} className="shrink-0 text-neon">
         <path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   }
   if (status === "error") {
     return (
-      <svg {...common} className="shrink-0 text-chili-700">
+      <svg {...common} className="shrink-0 text-[#f08a70]">
         <path d="M7 7l10 10M17 7L7 17" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
       </svg>
     );
@@ -52,12 +52,12 @@ function ToastCard({ toast, t, onDismiss }: { toast: Toast; t: Copy; onDismiss: 
     <div
       data-testid="toast"
       data-tone={toast.tone}
-      className={`pointer-events-auto flex w-full items-start gap-3 rounded-[18px] border-[1.5px] p-4 text-ink shadow-[var(--shadow-soft)] ${TONE[toast.tone]}`}
+      className={`on-night pointer-events-auto flex w-full items-start gap-3 rounded-[18px] border bg-night-2 p-4 text-fog shadow-[0_16px_40px_rgb(0_0_0/0.5)] ${TONE[toast.tone]}`}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <p className="m-0 font-display text-[17px] font-bold leading-snug">{toast.title}</p>
+        <p className="m-0 font-display text-[17px] font-semibold leading-snug text-white">{toast.title}</p>
         {toast.message ? (
-          <p data-testid="toast-message" className={`m-0 text-[15px] leading-[1.5] ${toast.tone === "error" ? "text-chili-700" : "text-ink-soft"}`}>
+          <p data-testid="toast-message" className="m-0 text-[15px] leading-[1.5] text-fog">
             {toast.message}
           </p>
         ) : null}
@@ -66,7 +66,7 @@ function ToastCard({ toast, t, onDismiss }: { toast: Toast; t: Copy; onDismiss: 
             {toast.steps.map((step) => (
               <li key={step.label} data-status={step.status} className="flex items-center gap-2 text-[15px]">
                 <StepIcon status={step.status} />
-                <span className={step.status === "waiting" ? "text-ink-soft" : step.status === "error" ? "text-chili-700" : "text-ink"}>
+                <span className={step.status === "waiting" ? "text-fog-dim" : step.status === "done" ? "text-fog" : "font-bold text-white"}>
                   {step.label}
                 </span>
               </li>
@@ -81,7 +81,7 @@ function ToastCard({ toast, t, onDismiss }: { toast: Toast; t: Copy; onDismiss: 
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="toast-explorer"
-                className="inline-flex min-h-[44px] items-center text-[15px] font-semibold text-teal-700 underline decoration-teal-700/40 underline-offset-4 hover:decoration-teal-700"
+                className="inline-flex min-h-[44px] items-center text-[15px] font-semibold text-neon underline decoration-neon/40 underline-offset-4 hover:decoration-neon"
               >
                 {t.app.tx.viewExplorer}
                 <span className="num sr-only">{` ${truncateMiddle(toast.signature, 6, 6)}, ${t.app.newTab}`}</span>
@@ -91,7 +91,7 @@ function ToastCard({ toast, t, onDismiss }: { toast: Toast; t: Copy; onDismiss: 
               <button
                 type="button"
                 onClick={toast.action.onClick}
-                className="inline-flex min-h-[44px] items-center rounded-[12px] border-[1.5px] border-teal-700 bg-white px-4 font-display text-[15px] font-semibold text-teal-700 hover:bg-teal-50"
+                className="app-btn app-btn-neon"
               >
                 {toast.action.label}
               </button>
@@ -103,7 +103,7 @@ function ToastCard({ toast, t, onDismiss }: { toast: Toast; t: Copy; onDismiss: 
         type="button"
         onClick={onDismiss}
         aria-label={t.app.toast.dismiss}
-        className="-mt-1 -mr-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] text-ink-soft hover:bg-mist hover:text-ink"
+        className="-mt-1 -mr-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] text-fog hover:bg-white/10 hover:text-white"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" focusable="false">
           <path d="M6 6l12 12M18 6L6 18" />
@@ -134,7 +134,7 @@ export function ToastProvider({ t, children }: { t: Copy; children: ReactNode })
         aria-atomic="false"
         aria-label={t.app.toast.region}
         data-testid="toast-region"
-        className="pointer-events-none fixed top-3 right-3 left-3 z-40 flex flex-col gap-3 sm:left-auto sm:w-[min(26rem,calc(100vw-1.5rem))]"
+        className="pointer-events-none fixed top-3 right-3 left-3 z-[45] flex flex-col gap-3 sm:left-auto sm:w-[min(26rem,calc(100vw-1.5rem))]"
       >
         {api.toasts.map((toast) => (
           <div key={toast.id}>

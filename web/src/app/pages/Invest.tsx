@@ -113,7 +113,7 @@ function Tools({ balances, t }: { balances: Balances; t: Copy }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="app-panel-teal flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <p className="m-0 max-w-[52ch] text-[15px] text-ink">{i.summaryNote}</p>
+        <p className="m-0 max-w-[52ch] text-[15px] text-ink">{t.app.faucet.hint}</p>
         <FaucetButton address={balances.owner} t={t} />
       </div>
       <div
