@@ -1,5 +1,5 @@
 // Builds the brand assets in public/ from the corn mark render (public/corn-mark.png):
-// the header/footer lockup icon, the favicons, the Apple touch icon and the tMXN token icon.
+// the header/footer lockup icon, the favicons, the Apple touch icon and the tMXN and tELOTE token icons.
 // Run with `bun run brand` after the mark changes; the outputs are committed.
 import { mkdir } from "node:fs/promises";
 import sharp from "sharp";
@@ -75,3 +75,10 @@ await mkdir(token, { recursive: true });
 const tokenPng = await square(512, 80, NIGHT);
 await Bun.write(`${token}tmxn.png`, tokenPng);
 console.log(`token/tmxn.png 512x512 ${tokenPng.length} bytes`);
+
+// tELOTE icon (the devnet test token of the Meteora preset, public/token/telote.json): the same mark
+// on the teal of --color-teal-700, so wallets tell it apart from tMXN at a glance.
+const TEAL = { r: 11, g: 106, b: 112, alpha: 1 }; // --color-teal-700 #0b6a70
+const telotePng = await square(512, 80, TEAL);
+await Bun.write(`${token}telote.png`, telotePng);
+console.log(`token/telote.png 512x512 ${telotePng.length} bytes`);

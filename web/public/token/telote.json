@@ -1,0 +1,6 @@
+{
+  "name": "Elote Community (devnet test)",
+  "symbol": "tELOTE",
+  "description": "Devnet demo token of the elote.baby launch preset. It has no value and no claim on the credit pool: it is not a pool share, earns no interest and gives no right to repayments.",
+  "image": "https://elote.baby/token/telote.png"
+}
