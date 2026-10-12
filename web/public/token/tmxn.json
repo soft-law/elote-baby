@@ -1,0 +1,6 @@
+{
+  "name": "tMXN test token",
+  "symbol": "tMXN",
+  "description": "Test token of the elote.baby devnet demo. It has no value and is not an offer of anything.",
+  "image": "https://elote.baby/token/tmxn.png"
+}

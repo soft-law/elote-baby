@@ -1,6 +1,7 @@
 // Builds the brand assets in public/ from the corn mark render (public/corn-mark.png):
-// the header/footer lockup icon, the favicons and the Apple touch icon.
+// the header/footer lockup icon, the favicons, the Apple touch icon and the tMXN token icon.
 // Run with `bun run brand` after the mark changes; the outputs are committed.
+import { mkdir } from "node:fs/promises";
 import sharp from "sharp";
 
 const pub = (name: string) => new URL(`../public/${name}`, import.meta.url).pathname;
@@ -66,3 +67,11 @@ for (const [file, size, pad] of [
 // iOS fills transparency with black and rounds the corners itself: give it a night tile.
 await Bun.write(pub("apple-touch-icon.png"), await square(180, 22, NIGHT));
 console.log("apple-touch-icon.png 180x180");
+
+// tMXN token icon for wallets (Metaplex metadata image, public/token/tmxn.json). Wallets crop token
+// icons to a circle: the 80 px padding keeps the mark inside the inscribed circle.
+const token = new URL("../public/token/", import.meta.url).pathname;
+await mkdir(token, { recursive: true });
+const tokenPng = await square(512, 80, NIGHT);
+await Bun.write(`${token}tmxn.png`, tokenPng);
+console.log(`token/tmxn.png 512x512 ${tokenPng.length} bytes`);
