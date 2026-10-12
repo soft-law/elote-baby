@@ -176,6 +176,63 @@ describe("sendOp", () => {
     expect(journal.all()[0]?.status).toBe("failed");
   });
 
+  test("a 429 on send is retried with the same bytes; the journal stays signed until a node takes them", async () => {
+    const statusAtSend: Array<string | undefined> = [];
+    rpcServer.use({
+      sendTransaction: (params, call) => {
+        const wire = params[0] as string;
+        const sig = signatureOfWire(wire);
+        statusAtSend.push(journal.get(sig)?.status);
+        state.sent.push(wire);
+        if (call === 0) throw new Response("rate limited", { status: 429 });
+        state.statuses.set(sig, { err: null, confirmationStatus: "confirmed", slot: 64 });
+        return sig;
+      },
+    });
+    const { ctx, signCount } = await context({ sendRetryMs: [5, 5] });
+    const result = await sendOp(deposit, ctx);
+    expect(result).toEqual({ signature: signatureOfWire(state.sent[0]!), slot: 64n });
+    expect(state.sent).toHaveLength(2);
+    expect(state.sent[1]).toBe(state.sent[0]!);
+    expect(statusAtSend).toEqual(["signed", "signed"]);
+    expect(journal.get(result.signature)?.status).toBe("confirmed");
+    expect(signCount()).toBe(1);
+  });
+
+  test("send retries stop at the attempt limit; polling then decides", async () => {
+    state.confirmOnSend = null;
+    rpcServer.use({
+      sendTransaction: (params) => {
+        state.sent.push(params[0] as string);
+        throw new Response("unavailable", { status: 503 });
+      },
+    });
+    let polls = 0;
+    rpcServer.use({ getBlockHeight: () => (++polls > 4 ? 1_001 : 900) });
+    const { ctx } = await context({ sendRetryMs: [1, 1] });
+    const error = await sendOp(deposit, ctx).catch((e: unknown) => e);
+    expect(state.sent).toHaveLength(3);
+    expect(new Set(state.sent).size).toBe(1);
+    expect(error).toBeInstanceOf(TxExpiredError);
+  });
+
+  test("a preflight rejection is never retried", async () => {
+    rpcServer.use({
+      sendTransaction: () => {
+        throw new RpcErrorReply(-32002, "Transaction simulation failed", {
+          err: { InstructionError: [3, { Custom: 6000 }] },
+          logs: [],
+          accounts: null,
+          unitsConsumed: 1000,
+          returnData: null,
+        });
+      },
+    });
+    const { ctx } = await context({ sendRetryMs: [1, 1] });
+    await sendOp(deposit, ctx).catch(() => undefined);
+    expect(rpcServer.count("sendTransaction")).toBe(1);
+  });
+
   test("failure on chain after sending maps the program error", async () => {
     state.confirmOnSend = null;
     rpcServer.use({

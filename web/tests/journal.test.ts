@@ -11,7 +11,7 @@ import {
 } from "../src/tx/journal";
 import { createRpc } from "../src/tx/rpc";
 import { sendOp, type SendContext } from "../src/tx/write";
-import { RPC_URL, countingSigner, healthyCluster, startRpc, testPool, type ChainState } from "./support/rpc";
+import { RPC_URL, RpcErrorReply, countingSigner, healthyCluster, startRpc, testPool, type ChainState } from "./support/rpc";
 
 const rpcServer = startRpc();
 afterAll(() => rpcServer.close());
@@ -191,6 +191,71 @@ describe("interrupted transaction", () => {
     const result = await sendOp({ kind: "deposit", assets: 3_000_000n, minSharesOut: 1n }, { ...ctx, journal: createJournal(store), onStep: undefined });
     expect(result).toEqual({ signature: pending.signature, slot: 5n });
     expect(state.sent).toHaveLength(0);
+  });
+
+  test("a re-send refused with 429 leaves the entry as it was; once the status lookup confirms it, confirmed", async () => {
+    const { journal, pending, scope } = await signThenCloseTab();
+    rpcServer.use({
+      sendTransaction: () => {
+        throw new Response("rate limited", { status: 429 });
+      },
+    });
+    const rpc = createRpc(RPC_URL);
+    expect(await recoverJournal(journal, rpc, scope)).toEqual([{ signature: pending.signature, status: "signed" }]);
+    // The original broadcast landed after all.
+    state.statuses.set(pending.signature, { err: null, confirmationStatus: "confirmed", slot: 88 });
+    expect(await recoverJournal(journal, rpc, scope)).toEqual([{ signature: pending.signature, status: "confirmed" }]);
+    expect(journal.get(pending.signature)).toMatchObject({ status: "confirmed", slot: "88" });
+  });
+
+  test("a re-send refused in preflight is not a failure: kept unresolved, never re-sent, settled by the lookups", async () => {
+    const { journal, pending, scope } = await signThenCloseTab();
+    rpcServer.use({
+      sendTransaction: () => {
+        // A node that has not seen the original broadcast refuses the copy in simulation.
+        throw new RpcErrorReply(-32002, "Transaction simulation failed", {
+          err: { InstructionError: [3, { Custom: 6011 }] },
+          logs: [],
+          accounts: null,
+          unitsConsumed: 1000,
+          returnData: null,
+        });
+      },
+    });
+    const rpc = createRpc(RPC_URL);
+    expect(await recoverJournal(journal, rpc, scope)).toEqual([{ signature: pending.signature, status: "sent" }]);
+    expect(journal.unresolved()).toHaveLength(1);
+    // Still unknown inside the lifetime: left alone, no second re-send.
+    expect(await recoverJournal(journal, rpc, scope)).toEqual([{ signature: pending.signature, status: "sent" }]);
+    expect(rpcServer.count("sendTransaction")).toBe(1);
+    // The original lands: confirmed, not failed.
+    state.statuses.set(pending.signature, { err: null, confirmationStatus: "confirmed", slot: 90 });
+    expect(await recoverJournal(journal, rpc, scope)).toEqual([{ signature: pending.signature, status: "confirmed" }]);
+  });
+
+  test("a re-send refused in preflight that never lands expires after the lifetime", async () => {
+    const { journal, pending, scope } = await signThenCloseTab();
+    rpcServer.use({
+      sendTransaction: () => {
+        throw new RpcErrorReply(-32002, "Transaction simulation failed", {
+          err: "BlockhashNotFound",
+          logs: [],
+          accounts: null,
+          unitsConsumed: 0,
+          returnData: null,
+        });
+      },
+    });
+    const rpc = createRpc(RPC_URL);
+    expect(await recoverJournal(journal, rpc, scope)).toEqual([{ signature: pending.signature, status: "sent" }]);
+    state.height = 1_001;
+    expect(await recoverJournal(journal, rpc, scope)).toEqual([{ signature: pending.signature, status: "expired" }]);
+  });
+
+  test("only an error on chain marks a recovered entry failed", async () => {
+    const { journal, pending, scope } = await signThenCloseTab();
+    state.statuses.set(pending.signature, { err: { InstructionError: [3, { Custom: 6000 }] }, confirmationStatus: "confirmed", slot: 91 });
+    expect(await recoverJournal(journal, createRpc(RPC_URL), scope)).toEqual([{ signature: pending.signature, status: "failed" }]);
   });
 
   test("a sent entry is only looked up, never re-sent", async () => {

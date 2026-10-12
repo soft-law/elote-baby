@@ -3,6 +3,8 @@
 //   - on a failed submit, a focusable error summary at the top (role="alert", tabIndex=-1)
 //   - a live preview whose floor is exactly what is sent (both come from `check`)
 //   - while a transaction runs the button reads "Signing…" and the toast follows the steps
+//   - while its result is pending (sent, not confirmed yet) the button stays disabled with a note,
+//     so the same op cannot be sent twice; a confirmation that arrives later clears the field
 //   - "Try again" in the toast returns here with fresh pool figures; it never resends by itself
 // Below 768 px the submit row sticks to the bottom of the form so it stays reachable.
 import { useQueryClient } from "@tanstack/react-query";
@@ -69,6 +71,8 @@ export function AmountForm(props: AmountFormProps) {
   const [failedSubmits, setFailedSubmits] = useState(0);
 
   const busy = isTxBusy(tx.step);
+  const pending = tx.step === "pending";
+  const pendingNoteId = `${inputId}-pending`;
   const checked = check(input);
   const showError = touched && !checked.ok;
   const error = !checked.ok ? checked.error : null;
@@ -76,6 +80,16 @@ export function AmountForm(props: AmountFormProps) {
   useEffect(() => {
     if (failedSubmits > 0) summaryRef.current?.focus();
   }, [failedSubmits]);
+
+  // A result that was pending and is now confirmed: the amount went through, clear it as on a direct confirmation.
+  const previousStep = useRef(tx.step);
+  useEffect(() => {
+    if (previousStep.current === "pending" && tx.step === "done") {
+      setInput("");
+      setTouched(false);
+    }
+    previousStep.current = tx.step;
+  }, [tx.step]);
 
   // The summary goes away once the field is valid again.
   useEffect(() => {
@@ -222,14 +236,20 @@ export function AmountForm(props: AmountFormProps) {
         ) : null}
 
         <div className="sticky bottom-0 -mx-5 mt-auto bg-white/95 px-5 pt-2 pb-4 md:static md:mx-0 md:bg-transparent md:p-0">
+          {pending ? (
+            <p id={pendingNoteId} data-testid={`${name}-pending-note`} className="m-0 mb-2 text-[15px] leading-[1.5] text-ink-soft">
+              {t.app.tx.pendingNote}
+            </p>
+          ) : null}
           <button
             type="submit"
             disabled={props.blocked || busy}
             aria-busy={busy}
+            aria-describedby={pending ? pendingNoteId : undefined}
             data-testid={`${name}-submit`}
             className="inline-flex min-h-[52px] w-full items-center justify-center rounded-[14px] bg-teal-700 px-5 font-display text-[18px] font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {busy ? t.app.tx.signingButton : props.submitText}
+            {pending ? t.app.tx.pendingButton : busy ? t.app.tx.signingButton : props.submitText}
           </button>
         </div>
       </form>

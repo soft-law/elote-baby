@@ -1,6 +1,7 @@
 // Sends one pool op, never a hidden second one:
-//   simulate -> fresh blockhash -> wallet signs -> guard -> journal "signed" -> send -> journal
-//   "sent" -> poll until confirmed or the blockhash expires -> journal "confirmed".
+//   simulate -> fresh blockhash -> wallet signs -> guard -> journal "signed" -> send (the same
+//   bytes again after a 429 or transient RPC error) -> journal "sent" -> poll until confirmed or
+//   the blockhash expires -> journal "confirmed".
 // One user send at a time per browser profile: Web Locks "elote.tx.send" (a second send is
 // "busy"), then "elote.tx", which a send waits for and a recovery check skips when held; module
 // locks when the browser has no Web Locks. An unresolved earlier transaction blocks a new one until
@@ -16,7 +17,9 @@ import {
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
   signature as toSignature,
+  SOLANA_ERROR__JSON_RPC__SERVER_ERROR_NODE_UNHEALTHY,
   SOLANA_ERROR__JSON_RPC__SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE,
+  SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR,
   type Base64EncodedWireTransaction,
   type Instruction,
   type TransactionSigner,
@@ -61,12 +64,32 @@ export type SendContext = {
   onStep?: (step: SendStep, signature?: string) => void;
   /** Delay between status polls. */
   pollMs?: number;
+  /** Waits before each repeated send after a rate limit or transient RPC error. */
+  sendRetryMs?: readonly number[];
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const MAX_POLL_RPC_FAILURES = 5;
 /** Upper bound for polling a transaction the cluster reports as processed but never confirms. */
 const MAX_POLLS = 200;
+/** Three send attempts over about 6 s: a 429 from the public RPC means the node did not take it. */
+export const SEND_RETRY_MS: readonly number[] = [2_000, 4_000];
+
+/** An error after which sending the same bytes again is worth it: rate limit, server trouble, no reply. */
+function isTransientSendError(error: unknown): boolean {
+  let node: unknown = error;
+  for (let depth = 0; node != null && depth < 8; depth++) {
+    if (isSolanaError(node, SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR)) {
+      const status = node.context.statusCode;
+      return status === 429 || status >= 500;
+    }
+    if (isSolanaError(node, SOLANA_ERROR__JSON_RPC__SERVER_ERROR_NODE_UNHEALTHY)) return true;
+    if (node instanceof TypeError) return true;
+    if (node instanceof Error && (node.name === "TimeoutError" || node.name === "AbortError")) return true;
+    node = (node as { cause?: unknown }).cause;
+  }
+  return false;
+}
 
 // Module fallbacks for browsers (and tests) without Web Locks, with the same two locks.
 let moduleSendHeld = false;
@@ -256,7 +279,17 @@ async function run(op: PoolOp, ctx: SendContext): Promise<TxResult> {
   setInFlight(signature, true);
   try {
     onStep?.("sending", signature);
-    return await deliver({ rpc, journal, onStep, pollMs, message, signature, wire, lastValidBlockHeight });
+    return await deliver({
+      rpc,
+      journal,
+      onStep,
+      pollMs,
+      sendRetryMs: ctx.sendRetryMs ?? SEND_RETRY_MS,
+      message,
+      signature,
+      wire,
+      lastValidBlockHeight,
+    });
   } finally {
     setInFlight(signature, false);
   }
@@ -280,6 +313,7 @@ type Delivery = {
   journal: TxJournal;
   onStep: SendContext["onStep"];
   pollMs: number;
+  sendRetryMs: readonly number[];
   message: MessageLike;
   signature: string;
   wire: string;
@@ -291,7 +325,15 @@ async function lookup(rpc: EloteRpc, signature: string) {
   return value[0] ?? null;
 }
 
-async function deliver({ rpc, journal, onStep, pollMs, message, signature, wire, lastValidBlockHeight }: Delivery): Promise<TxResult> {
+async function deliver({ rpc, journal, onStep, pollMs, sendRetryMs, message, signature, wire, lastValidBlockHeight }: Delivery): Promise<TxResult> {
+  const pastLifetime = async (): Promise<boolean> => {
+    try {
+      return (await rpc.getBlockHeight({ commitment: "confirmed" }).send()) > lastValidBlockHeight;
+    } catch {
+      // Height unknown: sending is still safe, the cluster rejects an expired blockhash.
+      return false;
+    }
+  };
 
   try {
     // The person may have taken longer than the lifetime to approve.
@@ -304,25 +346,39 @@ async function deliver({ rpc, journal, onStep, pollMs, message, signature, wire,
     // Height unknown: sending is still safe, the cluster rejects an expired blockhash.
   }
 
-  try {
-    await rpc
-      .sendTransaction(wire as Base64EncodedWireTransaction, { encoding: "base64", preflightCommitment: "confirmed" })
-      .send();
-  } catch (error) {
-    if (isSolanaError(error, SOLANA_ERROR__JSON_RPC__SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE)) {
-      // Preflight also rejects a transaction that already landed ("already processed"): if the
-      // cluster knows the signature, polling settles it.
-      const known = await lookup(rpc, signature).catch(() => null);
-      if (!known) {
-        // Rejected in preflight: never broadcast, these bytes are void.
-        const typed = toTxError(error, message);
-        journal.setStatus(signature, typed instanceof TxExpiredError ? "expired" : "failed");
-        throw typed;
+  // The same signed bytes on every attempt, so the transaction can land at most once. The journal
+  // stays "signed" until a node accepts them (recovery may re-send "signed" bytes, never "sent" ones).
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await rpc
+        .sendTransaction(wire as Base64EncodedWireTransaction, { encoding: "base64", preflightCommitment: "confirmed" })
+        .send();
+      journal.setStatus(signature, "sent");
+      break;
+    } catch (error) {
+      if (isSolanaError(error, SOLANA_ERROR__JSON_RPC__SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE)) {
+        // Preflight also rejects a transaction that already landed ("already processed"): if the
+        // cluster knows the signature, polling settles it.
+        const known = await lookup(rpc, signature).catch(() => null);
+        if (!known) {
+          // Rejected in preflight: never broadcast, these bytes are void.
+          const typed = toTxError(error, message);
+          journal.setStatus(signature, typed instanceof TxExpiredError ? "expired" : "failed");
+          throw typed;
+        }
+        journal.setStatus(signature, "sent");
+        break;
       }
+      // Rate limit or server trouble: the node did not take it. Try again while the blockhash lives.
+      const wait = sendRetryMs[attempt];
+      if (wait !== undefined && isTransientSendError(error)) {
+        await sleep(wait);
+        if (!(await pastLifetime())) continue;
+      }
+      // Out of attempts, or no reply: it may or may not have been broadcast. Polling decides.
+      break;
     }
-    // Network trouble: it may or may not have been broadcast. Polling decides.
   }
-  journal.setStatus(signature, "sent");
 
   onStep?.("confirming", signature);
   let rpcFailures = 0;

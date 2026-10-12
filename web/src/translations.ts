@@ -230,6 +230,10 @@ export type Copy = {
       failed: string;
       cancelled: string;
       retry: string;
+      pending: string;
+      pendingBody: string;
+      expired: string;
+      expiredBody: string;
     };
     borrow: {
       title: string;
@@ -374,6 +378,8 @@ export type Copy = {
     tx: {
       steps: { simulating: string; signing: string; sending: string; confirming: string; done: string };
       signingButton: string;
+      pendingButton: string;
+      pendingNote: string;
       viewExplorer: string;
       retry: string;
       dismiss: string;
@@ -691,6 +697,10 @@ export const translations: Record<Lang, Copy> = {
         failed: "{op} did not go through",
         cancelled: "{op} cancelled",
         retry: "Try again",
+        pending: "{op}: result pending",
+        pendingBody: "The network has not confirmed it yet; the page updates when it does.",
+        expired: "{op} expired",
+        expiredBody: "It expired before it was confirmed. Nothing changed; you can try again.",
       },
       borrow: {
         title: "Borrow",
@@ -856,6 +866,8 @@ export const translations: Record<Lang, Copy> = {
           done: "Updated",
         },
         signingButton: "Signing…",
+        pendingButton: "Waiting for the result",
+        pendingNote: "Your last transaction was sent and its result is not known yet. You can send again once it settles.",
         viewExplorer: "View on Solana Explorer",
         retry: "Try again",
         dismiss: "Dismiss",
@@ -1173,6 +1185,10 @@ export const translations: Record<Lang, Copy> = {
         failed: "{op}: la transacción no se completó",
         cancelled: "{op}: cancelaste la solicitud",
         retry: "Intentar de nuevo",
+        pending: "{op}: resultado pendiente",
+        pendingBody: "La red aún no confirma la transacción; la página se actualiza cuando lo haga.",
+        expired: "{op}: la transacción venció",
+        expiredBody: "Venció antes de confirmarse. No cambió nada; puedes intentarlo de nuevo.",
       },
       borrow: {
         title: "Pedir crédito",
@@ -1338,6 +1354,8 @@ export const translations: Record<Lang, Copy> = {
           done: "Actualizado",
         },
         signingButton: "Firmando…",
+        pendingButton: "Esperando el resultado",
+        pendingNote: "Tu última transacción se envió y su resultado aún no se conoce. Podrás enviar otra cuando se resuelva.",
         viewExplorer: "Ver en Solana Explorer",
         retry: "Reintentar",
         dismiss: "Cerrar",

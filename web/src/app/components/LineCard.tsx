@@ -167,6 +167,8 @@ export function DrawAction({ line, pool, now, tx, t, lang }: DrawActionProps) {
   const noteId = useId();
   const titleId = useId();
   const busy = isTxBusy(tx.step);
+  const pending = tx.step === "pending";
+  const pendingNoteId = useId();
   const block = drawBlock(line, pool, now);
   const note =
     block === "paused" ? d.pausedNote : block === "liquidity" ? d.liquidityNote : block === "termEnded" ? d.termEndedNote : block === "schedule" ? d.scheduleNote : null;
@@ -201,16 +203,21 @@ export function DrawAction({ line, pool, now, tx, t, lang }: DrawActionProps) {
           {note}
         </p>
       ) : null}
+      {pending ? (
+        <p id={pendingNoteId} data-testid="draw-pending-note" className="m-0 text-[15px] leading-[1.5] text-ink-soft">
+          {t.app.tx.pendingNote}
+        </p>
+      ) : null}
       <button
         type="button"
         onClick={() => void onDraw()}
         disabled={busy || block !== null}
         aria-busy={busy}
-        aria-describedby={note ? noteId : undefined}
+        aria-describedby={[note ? noteId : null, pending ? pendingNoteId : null].filter(Boolean).join(" ") || undefined}
         data-testid="draw-submit"
         className="inline-flex min-h-[52px] w-full items-center justify-center rounded-[14px] bg-teal-700 px-5 font-display text-[18px] font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {busy ? t.app.tx.signingButton : d.submit}
+        {pending ? t.app.tx.pendingButton : busy ? t.app.tx.signingButton : d.submit}
       </button>
     </section>
   );

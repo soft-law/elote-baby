@@ -7,8 +7,10 @@ import {
   type Base64EncodedWireTransaction,
   SOLANA_ERROR__JSON_RPC__SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE,
 } from "@solana/kit";
+import { messageFromWire, txErrorFromChain } from "./errors";
 import type { PoolOpKind } from "./ops";
 import type { EloteRpc } from "./rpc";
+import { TxFailedError, type TxError } from "./tx";
 
 export const TX_JOURNAL_KEY = "elote.tx.v1";
 /** Prefix of keys holding unreadable journal data set aside (one key per occurrence). */
@@ -278,13 +280,31 @@ async function settle(entry: JournalEntry, rpc: EloteRpc): Promise<{ status: Jou
       .sendTransaction(entry.signedBase64 as Base64EncodedWireTransaction, { encoding: "base64", preflightCommitment: "confirmed" })
       .send();
   } catch (error) {
+    // Rate limit or network trouble: nothing is known. The next check re-sends the same bytes.
     if (!isSolanaError(error, SOLANA_ERROR__JSON_RPC__SERVER_ERROR_SEND_TRANSACTION_PREFLIGHT_FAILURE)) return null;
     // Preflight also rejects a transaction that landed a moment ago ("already processed").
     const landed = await lookup(rpc, entry.signature);
     if (landed?.err) return { status: "failed", slot: landed.slot };
     if (landed) return landed.confirmationStatus === "processed" ? { status: "sent" } : { status: "confirmed", slot: landed.slot };
-    // Otherwise it was rejected before broadcast and never will land with these bytes.
-    return { status: "failed" };
+    // Rejected by this node's preflight, but the original broadcast (the tab may have closed right
+    // after sending) can still land while the blockhash is valid, and a load-balanced node may not
+    // have seen it yet. Not a failure: keep it unresolved without re-sending, and let the status
+    // lookups decide (confirmed, a failure on chain, or expired once past the lifetime).
+    return { status: "sent" };
   }
   return { status: "sent" };
+}
+
+/**
+ * The typed error of an entry recovery settled as failed: its error on chain, attributed with the
+ * instructions of the journalled bytes, or a generic failure when the lookup is not possible.
+ */
+export async function settledFailure(rpc: EloteRpc, entry: JournalEntry): Promise<TxError> {
+  try {
+    const status = await lookup(rpc, entry.signature);
+    if (status?.err) return txErrorFromChain(status.err, messageFromWire(entry.signedBase64), entry.signature);
+  } catch {
+    // Fall through to the generic failure.
+  }
+  return new TxFailedError("unknown", { signature: entry.signature });
 }

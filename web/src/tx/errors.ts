@@ -25,7 +25,10 @@ import {
   isElotePoolError,
 } from "@elote/pool-client";
 import {
+  getBase64Encoder,
+  getCompiledTransactionMessageDecoder,
   getSolanaErrorFromTransactionError,
+  getTransactionDecoder,
   isSolanaError,
   type Address,
   SOLANA_ERROR__BLOCK_HEIGHT_EXCEEDED,
@@ -126,6 +129,30 @@ const rec = (v: unknown): Rec | undefined => (typeof v === "object" && v !== nul
 
 /** The instruction list of the message that was simulated or sent, to attribute custom codes. */
 export type MessageLike = { instructions: Record<number, { programAddress: Address }> };
+
+/**
+ * The instruction list of a signed wire transaction (base64), for attributing a chain error found
+ * later, for example by journal recovery. Null when the bytes cannot be read.
+ */
+export function messageFromWire(signedBase64: string): MessageLike | null {
+  try {
+    const transaction = getTransactionDecoder().decode(getBase64Encoder().encode(signedBase64));
+    // Legacy and v0 messages (what sendOp builds) carry the program index on each instruction.
+    const compiled = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes) as unknown as {
+      staticAccounts: Address[];
+      instructions?: Array<{ programAddressIndex: number }>;
+    };
+    if (!Array.isArray(compiled.instructions)) return null;
+    const instructions: MessageLike["instructions"] = {};
+    compiled.instructions.forEach((ix, i) => {
+      const programAddress = compiled.staticAccounts[ix.programAddressIndex];
+      if (programAddress) instructions[i] = { programAddress };
+    });
+    return { instructions };
+  } catch {
+    return null;
+  }
+}
 
 /** The error and its causes, bounded. Kit nests the transaction error of a preflight failure as cause. */
 function causes(error: unknown): unknown[] {
