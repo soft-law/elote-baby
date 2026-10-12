@@ -52,7 +52,7 @@ export function Frame({
       </a>
       <AppHeader t={t} lang={lang} setLang={setLang} actions={actions} />
       {nav}
-      <main id="main" tabIndex={-1} className="flex flex-1 flex-col outline-none">
+      <main id="main" tabIndex={-1} className="flex flex-1 flex-col outline-none md:pb-[var(--footer-height)]">
         {children}
       </main>
       <AppFooter t={t} />

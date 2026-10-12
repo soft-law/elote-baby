@@ -57,7 +57,7 @@ export function PendingTransactionNotice({ t, recovery }: { t: Copy; recovery?: 
       ref={ref}
       role="status"
       aria-live="polite"
-      className="on-paper fixed inset-x-0 bottom-[var(--bottom-bar-offset,0px)] z-30 flex max-h-[45vh] flex-col gap-2 overflow-y-auto border-t-[3px] border-corn-300 bg-corn-100 px-4 py-2.5 text-ink md:right-4 md:bottom-4 md:left-auto md:w-[min(28rem,calc(100vw-2rem))] md:gap-3 md:rounded-[18px] md:border-[1.5px] md:p-4 md:shadow-[var(--shadow-soft)]"
+      className="on-paper fixed inset-x-0 bottom-[var(--bottom-bar-offset,0px)] z-30 flex max-h-[45vh] flex-col gap-2 overflow-y-auto border-t-[3px] border-corn-300 bg-corn-100 px-4 py-2.5 text-ink md:right-4 md:bottom-[calc(var(--footer-height)+1rem)] md:left-auto md:w-[min(28rem,calc(100vw-2rem))] md:gap-3 md:rounded-[18px] md:border-[1.5px] md:p-4 md:shadow-[var(--shadow-soft)]"
     >
       {unavailable ? (
         <>

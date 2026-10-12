@@ -338,6 +338,16 @@ body {
     font-size: 15px;
     color: var(--color-fog);
   }
+  /* From md the footer stays at the bottom of the window (the page keeps room for it below the
+     content); below md the bottom bar is the fixed chrome and the footer stays in the flow. */
+  @media (min-width: 48rem) {
+    .app-footer {
+      position: fixed;
+      inset-inline: 0;
+      bottom: 0;
+      z-index: 20;
+    }
+  }
   .app-footer a {
     display: inline-flex;
     align-items: center;
