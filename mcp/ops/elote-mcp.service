@@ -1,0 +1,34 @@
+# systemd unit for the elote.baby agreements server and devnet faucet (mcp/).
+#
+# Install: copy to /etc/systemd/system/elote-mcp.service, then
+#   systemctl daemon-reload && systemctl enable --now elote-mcp
+# Deploy: cd /opt/elote-baby && git pull && (cd mcp && bun install) && systemctl restart elote-mcp
+#
+# The server reads its configuration from /opt/elote-baby/mcp/.env (see mcp/.env.example).
+# It binds 127.0.0.1:3010; the reverse proxy (Caddy) terminates TLS for api.elote.baby.
+
+[Unit]
+Description=elote.baby agreements server and devnet faucet (Hono + SQLite)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/elote-baby/mcp
+ExecStart=/root/.bun/bin/bun run src/index.ts
+EnvironmentFile=/opt/elote-baby/mcp/.env
+
+Restart=on-failure
+RestartSec=5
+
+TimeoutStopSec=15
+KillSignal=SIGTERM
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=elote-mcp
+
+[Install]
+WantedBy=multi-user.target
