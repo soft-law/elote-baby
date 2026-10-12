@@ -41,6 +41,8 @@ afterAll(() => {
   delete process.env.API_BASE_URL
 })
 
+const text = (value: unknown) => JSON.stringify(value)
+
 async function get(hash: string) {
   resetAgreementRateLimits()
   const res = await app.request(`/api/agreements/by-hash/${hash}`)
@@ -55,7 +57,6 @@ describe('agreement summary by hash', () => {
     expect(plain.status).toBe(200)
     expect(plain.body).toEqual({
       data: {
-        id: record.id,
         chain: 'solana',
         template: { id: 'credit-agreement', version: CREDIT_TEMPLATE_VERSION },
         status: 'anchored',
@@ -64,7 +65,6 @@ describe('agreement summary by hash', () => {
         signaturesCount: 1,
         createdAt: record.createdAt,
         anchors: [expect.objectContaining({ chain: 'solana', kind: 'registerCreditAgreement', recordId: '0' })],
-        evidenceUrl: `http://localhost:3010/api/agreements/${record.id}/evidence`,
       },
     })
     expect((await get(`0x${hex}`)).body).toEqual(plain.body)
@@ -73,15 +73,18 @@ describe('agreement summary by hash', () => {
   test('the summary never carries the document, terms, sign message or keys', async () => {
     const { body } = await get(hashToHex64(record.hash))
     const data = body.data as Record<string, unknown>
-    for (const key of ['document', 'terms', 'signMessage', 'encryptionKeys', 'signatures', 'parties', 'hash']) {
+    for (const key of ['document', 'terms', 'signMessage', 'encryptionKeys', 'signatures', 'parties', 'hash', 'id', 'evidenceUrl']) {
       expect(key in data).toBe(false)
     }
+    // Nothing that leads to the full agreement: not its id, not the evidence route.
+    expect(text(body)).not.toContain(record.id)
+    expect(text(body)).not.toContain('/evidence')
     for (const anchor of data.anchors as Record<string, unknown>[]) expect('documentUri' in anchor).toBe(false)
-    const text = JSON.stringify(body)
-    expect(text).not.toContain('sign this exact message')
-    expect(text).not.toContain('k'.repeat(43))
-    expect(text).not.toContain('principalCents')
-    expect(text).not.toContain('ipfs://document-cid')
+    const json = text(body)
+    expect(json).not.toContain('sign this exact message')
+    expect(json).not.toContain('k'.repeat(43))
+    expect(json).not.toContain('principalCents')
+    expect(json).not.toContain('ipfs://document-cid')
   })
 
   test('404 for a well-formed hash nobody drafted', async () => {

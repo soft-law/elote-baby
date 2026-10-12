@@ -7,8 +7,13 @@
  * fixed tMXN test token (FAUCET_ASSET_MINT) and the devnet SOL that pays fees
  * and account rent; it is never the pool admin key and is never logged.
  *
- * Limits are devnet-grade and in memory: one request per wallet per 24 hours
- * (forgotten on restart) plus a per-client-address request limit.
+ * Limits are devnet-grade and in memory (forgotten on restart): one request per
+ * wallet per 24 hours, 5 requests per client address per minute, and per UTC day
+ * at most FAUCET_CLIENT_DAILY_LIMIT sends per client address (default 5) and
+ * FAUCET_DAILY_LIMIT sends in total (default 200). Every send can pay the rent
+ * of a new token account, so the daily caps bound what the faucet key can lose.
+ * A send counts once it passes validation and the per-wallet check; a failed
+ * send gives its place back.
  */
 import type { Hono } from 'hono'
 import {
@@ -28,7 +33,7 @@ import {
 } from '@solana/kit'
 import { TOKEN_PROGRAM_ADDRESS, findAssociatedTokenPda, getCreateAssociatedTokenIdempotentInstructionAsync, getMintToInstruction } from '@solana-program/token'
 import { isPartyAddress } from './engine/address'
-import { createRateLimit } from './rate-limit'
+import { clientAddress, createRateLimit } from './rate-limit'
 import { readJsonObject } from './routes'
 
 /** 1,000 tMXN at 6 decimals, in base units. */
@@ -39,6 +44,17 @@ const MAX_BODY_BYTES = 1024
 const MAX_TRACKED_WALLETS = 10_000
 const CONFIRM_ATTEMPTS = 30
 const CONFIRM_INTERVAL_MS = 1_000
+const DAY_MS = 24 * 60 * 60 * 1000
+/** Sends per UTC day, all clients together. */
+export const DEFAULT_FAUCET_DAILY_LIMIT = 200
+/** Sends per UTC day from one client address. */
+export const DEFAULT_FAUCET_CLIENT_DAILY_LIMIT = 5
+
+/** A positive integer from the environment, else the default. */
+function limitFrom(value: string | undefined, fallback: number): number {
+  const n = Number(value?.trim())
+  return Number.isSafeInteger(n) && n > 0 ? n : fallback
+}
 
 /** Sends the test tokens to `recipient` and resolves with the confirmed transaction signature. */
 export type FaucetSender = (recipient: Address, assetMint: Address) => Promise<string>
@@ -123,6 +139,18 @@ export function createFaucet(options: FaucetOptions = {}): Faucet {
   /** Wallet address -> time (ms) after which it may ask again. Devnet-grade: in memory, lost on restart. */
   const nextAllowed = new Map<string, number>()
   const clientLimiter = createRateLimit({ limit: options.clientLimit ?? 5 })
+  /** Sends counted for the current UTC day: in total and per client address. */
+  let day = -1
+  let dayTotal = 0
+  const dayByClient = new Map<string, number>()
+  function today(at: number): void {
+    const current = Math.floor(at / DAY_MS)
+    if (current !== day) {
+      day = current
+      dayTotal = 0
+      dayByClient.clear()
+    }
+  }
   /** The network sender, built once per FAUCET_KEYPAIR and SOLANA_RPC_URL pair. */
   let cached: { key: string; send: FaucetSender } | null = null
 
@@ -147,6 +175,9 @@ export function createFaucet(options: FaucetOptions = {}): Faucet {
     reset: () => {
       nextAllowed.clear()
       clientLimiter.reset()
+      day = -1
+      dayTotal = 0
+      dayByClient.clear()
     },
     mount: app => {
       // POST only, so CORS preflights (answered by the /api/* cors middleware) do not use the budget.
@@ -173,13 +204,37 @@ export function createFaucet(options: FaucetOptions = {}): Faucet {
           c.header('Retry-After', String(retryAfterSeconds))
           return c.json({ error: 'This wallet already received test tokens today.', retryAfterSeconds }, 429)
         }
-        // Reserved before sending so concurrent requests for one wallet send once; released on failure.
+        // Daily caps, per client address and in total, until the next UTC midnight.
+        const env = options.env ?? process.env
+        const client = clientAddress(c)
+        today(at)
+        const untilMidnight = Math.ceil(((day + 1) * DAY_MS - at) / 1000)
+        if ((dayByClient.get(client) ?? 0) >= limitFrom(env.FAUCET_CLIENT_DAILY_LIMIT, DEFAULT_FAUCET_CLIENT_DAILY_LIMIT)) {
+          c.header('Retry-After', String(untilMidnight))
+          return c.json({ error: 'This connection reached the daily limit for test tokens.', retryAfterSeconds: untilMidnight }, 429)
+        }
+        if (dayTotal >= limitFrom(env.FAUCET_DAILY_LIMIT, DEFAULT_FAUCET_DAILY_LIMIT)) {
+          c.header('Retry-After', String(untilMidnight))
+          return c.json({ error: 'The faucet reached its daily limit for test tokens.', retryAfterSeconds: untilMidnight }, 429)
+        }
+
+        // Reserved before sending so concurrent requests for one wallet send once, and concurrent
+        // requests cannot pass the daily caps; released on failure.
         nextAllowed.set(wallet, at + FAUCET_WINDOW_MS)
+        const countedDay = day
+        dayTotal += 1
+        dayByClient.set(client, (dayByClient.get(client) ?? 0) + 1)
         try {
           const signature = await faucet.send(address(wallet), faucet.assetMint)
           return c.json({ signature, amount: FAUCET_AMOUNT.toString(), mint: faucet.assetMint })
         } catch (error) {
           nextAllowed.delete(wallet)
+          if (day === countedDay) {
+            dayTotal = Math.max(0, dayTotal - 1)
+            const used = (dayByClient.get(client) ?? 1) - 1
+            if (used > 0) dayByClient.set(client, used)
+            else dayByClient.delete(client)
+          }
           console.error(`faucet: send failed: ${error instanceof Error ? error.message : 'unknown error'}`)
           return c.json({ error: 'Could not send test tokens. Try again in a minute.' }, 502)
         }

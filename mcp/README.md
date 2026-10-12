@@ -60,7 +60,10 @@ Other public routes, used by the sign page: `GET /api/agreements/<id>`,
 that role), `GET /api/agreements/<id>/evidence`. `GET /health` answers `{ ok: true }`.
 
 `GET /api/agreements/by-hash/<hash>` (64 lowercase hex, optional `0x`) returns a summary of the agreement a credit line
-holds (template, status, signature count, anchors, evidence link), never the document; 404 when unknown, 400 when malformed.
+holds (template, status, signature count, anchors); 404 when unknown, 400 when malformed. It never returns the
+document, the agreement id or an evidence link: line hashes are public on chain, and the id opens the full signed
+agreement, which names the borrower and the guarantor. Publishing evidence for anchored lines is an owner decision
+that needs a privacy notice first.
 
 ## Environment
 
@@ -75,6 +78,8 @@ holds (template, status, signature count, anchors, evidence link), never the doc
 | `FAUCET_KEYPAIR` | unset | Faucet key, base64 of the 64-byte secret key. See [Faucet (devnet)](#faucet-devnet). |
 | `FAUCET_ASSET_MINT` | unset | Address of the fixed tMXN test token the faucet sends. |
 | `SOLANA_RPC_URL` | `https://api.devnet.solana.com` | Solana RPC the faucet sends through. |
+| `FAUCET_DAILY_LIMIT` | `200` | Faucet sends per UTC day, all clients together. |
+| `FAUCET_CLIENT_DAILY_LIMIT` | `5` | Faucet sends per UTC day from one client address. |
 
 See `.env.example`.
 
@@ -89,13 +94,18 @@ The answer is `{ "signature": "<base58>", "amount": "1000000000", "mint": "<tMXN
 |---|---|
 | 200 | Sent and confirmed. |
 | 400 | The body is not JSON or `address` is not a Solana wallet address. |
-| 429 | This wallet already asked in the last 24 hours (`retryAfterSeconds` and `Retry-After` say when to come back), or the client address sent more than 5 requests in a minute. |
+| 429 | This wallet already asked in the last 24 hours, the client address reached its daily cap, or the faucet reached its daily budget (`retryAfterSeconds` and `Retry-After` say when to come back: the next UTC midnight for the daily caps); or the client address sent more than 5 requests in a minute (`Retry-After` only). |
 | 502 | The RPC failed or the transaction did not confirm; the wallet may try again. |
 | 503 | The faucet is not configured (`FAUCET_KEYPAIR` or `FAUCET_ASSET_MINT` missing or malformed). |
 
 Limits are devnet-grade, and the faucet is for devnet only: one request per wallet per 24 hours,
 kept in memory (a restart forgets them; several server instances do not share them), plus 5
-requests per minute per client address. The client address is read from `x-forwarded-for` (else
+requests per minute per client address. Each send can pay the rent of a new token account (about
+0.002 devnet SOL), and new wallet addresses cost nothing, so two daily caps bound what the faucet
+key can spend: `FAUCET_CLIENT_DAILY_LIMIT` sends per client address (default 5) and
+`FAUCET_DAILY_LIMIT` sends in total (default 200), both per UTC day and in memory. A request counts
+toward them once its address is valid and the wallet has not asked in the last 24 hours; a send
+that fails gives its place back. Watch the faucet key's SOL balance all the same. The client address is read from `x-forwarded-for` (else
 `x-real-ip`), which a caller can set freely: the per-client limit is only meaningful behind a proxy
 that overwrites that header. CORS preflights do not count against it.
 Errors never carry the key or a stack trace, and the key is never logged.

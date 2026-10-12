@@ -8,7 +8,7 @@ import { ed25519 } from '@noble/curves/ed25519'
 import { base58 } from '@scure/base'
 import type { Address } from '@solana/kit'
 import { createApp } from '../src/app'
-import { FAUCET_AMOUNT, FAUCET_WINDOW_MS, type FaucetSender } from '../src/faucet'
+import { DEFAULT_FAUCET_CLIENT_DAILY_LIMIT, DEFAULT_FAUCET_DAILY_LIMIT, FAUCET_AMOUNT, FAUCET_WINDOW_MS, type FaucetSender } from '../src/faucet'
 import { txSignature, wallet } from './helpers'
 
 const ASSET = wallet(40).address
@@ -129,6 +129,60 @@ describe('POST /api/faucet', () => {
     expect((await post(app, { address: wallet(51).address }, headers)).status).toBe(200)
     expect((await post(app, { address: wallet(52).address }, headers)).status).toBe(429)
     expect((await post(app, { address: wallet(52).address }, { 'x-forwarded-for': '203.0.113.10' })).status).toBe(200)
+  })
+
+  test('caps each client address at 5 sends per UTC day, with Retry-After until midnight', async () => {
+    // 2026-10-12 06:00 UTC: 18 hours to the next UTC midnight.
+    let clock = Date.UTC(2026, 9, 12, 6, 0, 0)
+    const { sender, calls } = stubSender()
+    const app = createApp({ faucet: { sender, env: CONFIGURED, now: () => clock, clientLimit: 100 } })
+    const headers = { 'x-forwarded-for': '198.51.100.7' }
+    for (let i = 0; i < 5; i++) {
+      expect((await post(app, { address: wallet(60 + i).address }, headers)).status).toBe(200)
+      clock += 60 * 60 * 1000
+    }
+    // 11:00 UTC: 13 hours left in the day.
+    const capped = await post(app, { address: wallet(70).address }, headers)
+    expect(capped.status).toBe(429)
+    const body = (await capped.json()) as { error: string; retryAfterSeconds: number }
+    expect(body.retryAfterSeconds).toBe(13 * 60 * 60)
+    expect(capped.headers.get('retry-after')).toBe(String(13 * 60 * 60))
+    expect(body.error).toContain('daily limit')
+    expect(calls).toHaveLength(5)
+    // Another client address still has its own allowance; the capped one may ask again after midnight.
+    expect((await post(app, { address: wallet(71).address }, { 'x-forwarded-for': '198.51.100.8' })).status).toBe(200)
+    clock = Date.UTC(2026, 9, 13, 0, 0, 1)
+    expect((await post(app, { address: wallet(70).address }, headers)).status).toBe(200)
+  })
+
+  test('caps all sends together at FAUCET_DAILY_LIMIT per UTC day; a failed send gives its place back', async () => {
+    errorLog = spyOn(console, 'error').mockImplementation(() => {})
+    let clock = Date.UTC(2026, 9, 12, 23, 0, 0)
+    let fail = false
+    const sender: FaucetSender = async () => {
+      if (fail) throw new Error('rpc down')
+      return txSignature(8)
+    }
+    const app = createApp({ faucet: { sender, env: { ...CONFIGURED, FAUCET_DAILY_LIMIT: '3' }, now: () => clock, clientLimit: 100 } })
+    const from = (n: number) => ({ 'x-forwarded-for': `192.0.2.${n}` })
+    expect((await post(app, { address: wallet(80).address }, from(1))).status).toBe(200)
+    expect((await post(app, { address: wallet(81).address }, from(2))).status).toBe(200)
+    fail = true
+    expect((await post(app, { address: wallet(82).address }, from(3))).status).toBe(502)
+    fail = false
+    expect((await post(app, { address: wallet(83).address }, from(4))).status).toBe(200)
+    const full = await post(app, { address: wallet(84).address }, from(5))
+    expect(full.status).toBe(429)
+    expect(full.headers.get('retry-after')).toBe(String(60 * 60))
+    expect(((await full.json()) as { error: string }).error).toContain('daily limit')
+    // A new UTC day starts a new budget.
+    clock = Date.UTC(2026, 9, 13, 0, 0, 0)
+    expect((await post(app, { address: wallet(84).address }, from(5))).status).toBe(200)
+  })
+
+  test('the daily caps default to 200 in total and 5 per client address', () => {
+    expect(DEFAULT_FAUCET_DAILY_LIMIT).toBe(200)
+    expect(DEFAULT_FAUCET_CLIENT_DAILY_LIMIT).toBe(5)
   })
 
   test('a CORS preflight answers with CORS headers and does not use the per-client limit', async () => {

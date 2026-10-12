@@ -13,6 +13,14 @@ export interface RateLimiter {
   reset: () => void
 }
 
+/**
+ * The client address a request is counted under: the first `x-forwarded-for` entry, else
+ * `x-real-ip`, else "unknown". Only meaningful behind a proxy that overwrites those headers.
+ */
+export function clientAddress(c: Context): string {
+  return c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || 'unknown'
+}
+
 export function createRateLimit(options: { limit: number; windowMs?: number }): RateLimiter {
   const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS
   const windows = new Map<string, { count: number; resetAt: number }>()
@@ -21,7 +29,7 @@ export function createRateLimit(options: { limit: number; windowMs?: number }): 
       windows.clear()
     },
     middleware: (c, next) => {
-      const client = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip') || 'unknown'
+      const client = clientAddress(c)
       const now = Date.now()
       if (windows.size > 10_000) {
         for (const [key, value] of windows) if (value.resetAt <= now) windows.delete(key)

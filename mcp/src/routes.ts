@@ -20,7 +20,7 @@ import {
   type AnchorKind,
   type PartyRole,
 } from './store'
-import { apiBaseUrl, exportEvidence } from './evidence'
+import { exportEvidence } from './evidence'
 import { agreementRateLimit } from './rate-limit'
 
 const MAX_SIGNATURE_BODY_BYTES = 8 * 1024
@@ -108,12 +108,12 @@ const AGREEMENT_HASH = /^(?:0x)?([0-9a-f]{64})$/
 
 /**
  * What a credit line page shows next to the hash it holds: template, status, how many parties
- * signed, anchors and the evidence link. Never the document, the terms, the sign message or the
- * encryption keys.
+ * signed and the anchors. Never the document, the terms, the sign message or the encryption keys,
+ * and never the agreement id or the evidence link: every line's hash is public on chain, and the id
+ * opens the full signed agreement (names of the borrower and the guarantor) to whoever holds it.
  */
 export function agreementSummary(record: AgreementRecord) {
   return {
-    id: record.id,
     chain: record.chain,
     template: { id: record.templateId, version: record.templateVersion },
     status: record.status,
@@ -123,7 +123,7 @@ export function agreementSummary(record: AgreementRecord) {
     createdAt: record.createdAt,
     // Without documentUri: it may point at the document itself.
     anchors: listAnchors(record.id).map(({ documentUri: _documentUri, ...anchor }) => anchor),
-    evidenceUrl: `${apiBaseUrl()}/api/agreements/${record.id}/evidence`,
+    // The owner may re-enable an evidence link for anchored agreements, with a privacy notice and the parties' consent.
   }
 }
 
