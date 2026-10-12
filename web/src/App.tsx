@@ -141,7 +141,7 @@ function Hero({ t }: { t: Copy }) {
     <section
       id="top"
       aria-labelledby="hero-title"
-      className="mx-auto max-w-[1200px] px-4 pb-16 pt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-10 md:px-8 md:pb-20 md:pt-14"
+      className="mx-auto max-w-[1200px] px-4 pb-16 pt-6 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-8 md:px-8 md:pb-20 md:pt-14 lg:gap-10"
     >
       <div className="min-w-0">
         <h1
@@ -165,13 +165,13 @@ function Hero({ t }: { t: Copy }) {
           </div>
         </div>
       </div>
-      {/* Decorative 3D mark, desktop only: while hidden it never downloads three.js. */}
+      {/* Decorative 3D mark from tablet width up; while hidden (phones) it never downloads three.js. */}
       <CornMark
-        size="clamp(220px, 26vw, 360px)"
+        size="clamp(200px, 26vw, 360px)"
         theme="night"
         label=""
-        fallbackMedia="(min-width: 1024px)"
-        className="hidden lg:block"
+        fallbackMedia="(min-width: 768px)"
+        className="hidden md:block"
       />
     </section>
   );
