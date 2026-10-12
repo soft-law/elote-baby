@@ -287,6 +287,7 @@ export type Copy = {
     };
     faucet: {
       hint: string;
+      teamNote: string;
       get: string;
       getting: string;
       sent: string;
@@ -887,6 +888,7 @@ export const translations: Record<Lang, Copy> = {
       },
       faucet: {
         hint: "Adds tMXN, a test token, to this wallet so you can try a deposit.",
+        teamNote: "Test tokens for this demo are handed out by the team. tMXN is a test token with no value.",
         get: "Get test tokens",
         getting: "Requesting…",
         sent: "Test tokens are on their way. They show in your balance in a few seconds.",
@@ -1505,6 +1507,7 @@ export const translations: Record<Lang, Copy> = {
       },
       faucet: {
         hint: "Agrega tMXN, un token de prueba, a esta wallet para que pruebes un depósito.",
+        teamNote: "Los tokens de prueba de esta demo los entrega el equipo. tMXN es un token de prueba sin valor.",
         get: "Obtener tokens de prueba",
         getting: "Solicitando…",
         sent: "Los tokens de prueba van en camino. Aparecen en tu saldo en unos segundos.",

@@ -359,7 +359,8 @@ describe("invest page", () => {
     // The status region is mounted and empty, ready to announce the warning.
     expect(page.q('[data-testid="sol-status"]')!.getAttribute("role")).toBe("status");
     expect(page.q('[data-testid="sol-status"]')!.textContent).toBe("");
-    expect(page.q('[data-testid="faucet-button"]')).not.toBeNull();
+    expect(page.q('[data-testid="faucet-button"]')).toBeNull();
+    expect(page.q('[data-testid="test-token-note"]')!.textContent).toBe(en.app.faucet.teamNote);
     expect(page.q('[data-testid="deposit-form"]')!.textContent).toContain("500");
     // Pool and balances: two requests, one each.
     expect(rpcServer.count("getMultipleAccounts")).toBe(2);

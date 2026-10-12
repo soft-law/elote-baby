@@ -6,7 +6,7 @@
 //      line for it, signed by the admin and the wallet
 //   c. bun run build with VITE_* for the local pool and the keypair test wallet (VITE_TEST_WALLET=1)
 //   d. vite preview on a port that is not in use (E2E_PORT or --port, default 4322, else the next one)
-//   e. Playwright (chromium headless): connect, pool stats, faucet unavailable, deposit 100,
+//   e. Playwright (chromium headless): connect, pool stats, test token note, deposit 100,
 //      redeem 10 shares, history, draw and repay 50 on the wallet's line, line history, a 375 px
 //      pass with screenshots, and no console or page errors
 //   f. teardown, always (also on SIGINT and SIGTERM): browser, every child process group, the e2e
@@ -33,7 +33,7 @@ const ROOT = resolve(WEB, "..");
 const PROGRAM_ID = "BGdJQxxJoHiLH2VS6HAGHe5kQuKKq9dwrPeX7DEEwYyM";
 const PROGRAM_SO = join(ROOT, "target", "deploy", "elote_pool.so");
 const RPC = "http://127.0.0.1:8899";
-// Unreachable on purpose: the test token button must degrade without a faucet.
+// Unreachable on purpose: the agreements fetch must degrade without a server.
 const API = "http://127.0.0.1:1";
 const UNIT = 1_000_000n;
 const DEPOSIT = 100n * UNIT;
@@ -527,13 +527,13 @@ try {
     check((await lines.innerText()).includes(`#${setup.lineId}`), `line #${setup.lineId} is not listed`);
   });
 
-  await step("e3. invest: test token button without a faucet", async () => {
+  await step("e3. invest: the test token note, no faucet button", async () => {
     await go(page, "Invest");
     await page.locator('[data-testid="invest-summary"]').waitFor({ timeout: 30_000 });
-    await page.locator('[data-testid="faucet-button"]').click();
-    const status = page.locator('[data-testid="faucet-status"]');
-    await until("the faucet result", async () => ["failed", "unavailable"].includes(await status.getAttribute("data-result")), 40_000);
-    log(`      faucet result: ${await status.getAttribute("data-result")} ("${(await status.innerText()).trim()}")`);
+    const note = page.locator('[data-testid="test-token-note"]');
+    await note.waitFor({ timeout: 30_000 });
+    check((await page.locator('[data-testid="faucet-button"]').count()) === 0, "the faucet button is still on the page");
+    log(`      note: "${(await note.innerText()).trim()}"`);
   });
 
   await step("e4. invest: deposit 100 tMXN", async () => {

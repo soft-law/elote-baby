@@ -14,7 +14,6 @@ import { useWallet, wrongChainText } from "../../wallet/useWallet";
 import { LOW_SOL_LAMPORTS, formatSol, useBalancesQuery, type Balances } from "../balances";
 import { AirdropButton } from "../components/AirdropButton";
 import { Amount } from "../components/Amount";
-import { FaucetButton } from "../components/FaucetButton";
 import { HistoryBody } from "../components/HistoryList";
 import { Loader } from "../components/Loader";
 import { Notice, RetryButton } from "../components/Notice";
@@ -106,15 +105,16 @@ function Sheet({ children }: { children: ReactNode }) {
   );
 }
 
-/** Get test tokens and the low-SOL region. The status region stays mounted so the warning is announced when it appears. */
+/** The note on test tokens and the low-SOL region. The status region stays mounted so the warning is announced when it appears. */
 function Tools({ balances, t }: { balances: Balances; t: Copy }) {
   const i = t.app.invest;
   const lowSol = balances.lamports < LOW_SOL_LAMPORTS;
   return (
     <div className="flex flex-col gap-3">
-      <div className="app-panel-teal flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="m-0 max-w-[52ch] text-[15px] text-ink">{t.app.faucet.hint}</p>
-        <FaucetButton address={balances.owner} t={t} />
+      <div className="app-panel-teal">
+        <p data-testid="test-token-note" className="m-0 max-w-[52ch] text-[15px] text-ink">
+          {t.app.faucet.teamNote}
+        </p>
       </div>
       <div
         data-testid={lowSol ? "sol-low" : undefined}
