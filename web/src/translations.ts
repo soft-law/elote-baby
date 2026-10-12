@@ -1256,7 +1256,7 @@ export const translations: Record<Lang, Copy> = {
       },
       launch: {
         title: "Preset de lanzamiento",
-        sub: "Un token de demostración que se vende en una curva de bonding de Meteora. Sus comisiones van a un vault, y la tesorería deposita su parte en el pool de crédito de elote.",
+        sub: "Un token de demostración que se vende en una curva de precios de Meteora. Sus comisiones van a un vault, y la tesorería deposita su parte en el pool de crédito de elote.",
         note: "tELOTE es el token de demostración del preset de crédito de elote. No tiene valor y no da ningún derecho sobre el pool de crédito. El 20% de lo recaudado y las comisiones de compraventa van al vault de comisiones del preset y no regresan a los compradores.",
         notLaunched: {
           title: "Aún no se lanza",

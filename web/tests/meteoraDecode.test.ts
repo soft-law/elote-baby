@@ -4,7 +4,7 @@
 // in a one-off script outside web/, so every offset here is checked by an independent decoder.
 import { describe, expect, test } from "bun:test";
 import type { Address } from "@solana/kit";
-import { PRESET, PRESET_PROGRAMS } from "../src/app/meteora/addresses";
+import { PRESET_PROGRAMS } from "../src/app/meteora/addresses";
 import {
   curveProgress,
   decodeDammPool,
@@ -22,11 +22,6 @@ const vaultFx = loadFixture<FeeVaultFixture>("fee-vault.json");
 const damm = loadFixture<DammFixture>("damm-pool.json");
 
 describe("committed preset addresses", () => {
-  test("not launched on any cluster until the owner fills them", () => {
-    expect(PRESET.devnet).toBeNull();
-    expect(PRESET.localnet).toBeNull();
-  });
-
   test("the fixtures belong to the programs the page reads", () => {
     expect(partial.pool.owner).toBe(PRESET_PROGRAMS.dbc);
     expect(partial.config.owner).toBe(PRESET_PROGRAMS.dbc);

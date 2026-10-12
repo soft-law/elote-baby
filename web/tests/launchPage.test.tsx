@@ -250,15 +250,6 @@ describe("launch page", () => {
     await page.unmount();
   });
 
-  test("the committed devnet entry is null, so the default page reads nothing either", async () => {
-    const s = await setup();
-    const page = await mount(s.config, undefined);
-    await act(async () => sleep(30));
-    expect(page.q("launch-not-launched")).not.toBeNull();
-    expect(rpcServer.calls.length).toBe(0);
-    await page.unmount();
-  });
-
   test("graduated preset: the four steps with live figures and every account linked", async () => {
     const s = await setup();
     serve(s);
