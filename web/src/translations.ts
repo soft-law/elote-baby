@@ -100,7 +100,7 @@ export type Copy = {
     meta: { title: string };
     nav: { label: string; home: string; pool: string; invest: string; borrow: string; backToSite: string };
     header: { network: string; connect: string };
-    home: { title: string; sub: string; invest: Card; borrow: Card; poolLink: string; launchLink: string; connectPrompt: string };
+    home: { title: string; sub: string; invest: Card; borrow: Card; poolLink: string; connectPrompt: string };
     pool: {
       title: string;
       sub: string;
@@ -611,7 +611,6 @@ export const translations: Record<Lang, Copy> = {
         invest: { title: "I invest", body: "Deposit tMXN, a test token, and receive pool shares." },
         borrow: { title: "I borrow", body: "Draw and repay a credit line opened for your wallet." },
         poolLink: "See the pool",
-        launchLink: "See the launch preset",
         connectPrompt: "Connect a wallet to start.",
       },
       pool: {
@@ -1191,7 +1190,6 @@ export const translations: Record<Lang, Copy> = {
         invest: { title: "Quiero invertir", body: "Deposita tMXN, un token de prueba, y recibe participaciones del pool." },
         borrow: { title: "Quiero pedir crédito", body: "Retira el crédito de una línea abierta para tu wallet y págalo." },
         poolLink: "Ver el pool",
-        launchLink: "Ver el preset de lanzamiento",
         connectPrompt: "Conecta una wallet para empezar.",
       },
       pool: {
