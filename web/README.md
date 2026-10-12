@@ -62,8 +62,10 @@ PLAYWRIGHT_FROM=/path/with/playwright bun run e2e   # or: node scripts/e2e.mjs [
 
 Every step is logged with a timestamp; the exit code is non-zero on the first failed step, named
 in the last line. Logs (validator, demo, build, preview) and screenshots go to a temp dir that
-teardown removes; set `KEEP_E2E_ARTIFACTS=1` to keep it (its path is printed), or `E2E_SHOTS_DIR`
-to write the screenshots somewhere else.
+teardown removes after a passing run. After a failed step or an interrupt it stays, without the
+ledger, and its path is printed; set `KEEP_E2E_ARTIFACTS=1` to keep it after a pass too, or
+`E2E_SHOTS_DIR` to write the screenshots somewhere else. A second Ctrl-C during teardown exits at
+once; the exit hook still kills every child process group.
 
 Needs: `solana-test-validator` on `PATH` with port 8899 unused, the program built into
 `target/deploy`, the repo root's `node_modules` (the demo runs with `npx tsx`), bun, and

@@ -10,7 +10,9 @@
 //      redeem 10 shares, history, draw and repay 50 on the wallet's line, line history, a 375 px
 //      pass with screenshots, and no console or page errors
 //   f. teardown, always (also on SIGINT and SIGTERM): browser, every child process group, the e2e
-//      build in dist/ and the scratch dir (KEEP_E2E_ARTIFACTS=1 keeps logs and screenshots)
+//      build in dist/, and the scratch dir after a passing run only (after a failure or an
+//      interrupt, or with KEEP_E2E_ARTIFACTS=1, logs and screenshots stay; the ledger goes).
+//      A second Ctrl-C exits at once; the exit hook still kills every child group
 //
 // The e2e wallet is generated here, kept in memory and passed to the build and the setup through
 // the environment only. Run `node scripts/e2e.mjs` (or `bun run e2e`) from web/.
@@ -352,13 +354,15 @@ let browser = null;
 let page = null;
 let built = false;
 let failure = null;
+let interrupted = false;
 const keep = process.env.KEEP_E2E_ARTIFACTS === "1";
 
 let tearingDown = null;
 /**
  * Stops the browser and every child group, then removes the e2e build (it carries the throwaway
- * key) and the scratch dir (kept with KEEP_E2E_ARTIFACTS=1). Idempotent: the finally block and the
- * signal handlers share one run.
+ * key). The scratch dir goes only after a passing run: after a failed step or an interrupt (or
+ * with KEEP_E2E_ARTIFACTS=1) its logs and screenshots stay, minus the ledger, and its path is
+ * printed. Idempotent: the finally block and the signal handlers share one run.
  */
 function teardown() {
   tearingDown ??= (async () => {
@@ -367,21 +371,37 @@ function teardown() {
     // Children first: a build still running would write dist/ again after it is removed.
     await Promise.all([...children].map(stopProcess));
     if (built) rmSync(join(WEB, "dist"), { recursive: true, force: true });
-    if (keep) rmSync(join(scratch, "ledger"), { recursive: true, force: true });
+    // Decided after the awaits: an interrupt or a failure may arrive while teardown runs.
+    const keepScratch = keep || failure !== null || interrupted;
+    if (keepScratch) rmSync(join(scratch, "ledger"), { recursive: true, force: true });
     else rmSync(scratch, { recursive: true, force: true });
-    const kept = keep ? `; logs and screenshots kept in ${scratch}` : "; scratch dir removed (KEEP_E2E_ARTIFACTS=1 keeps logs and screenshots)";
+    const kept = keepScratch
+      ? `; logs and screenshots kept in ${scratch} (ledger removed)`
+      : "; scratch dir removed (KEEP_E2E_ARTIFACTS=1 keeps logs and screenshots)";
     log(`OK    f. teardown${built ? " (removed the e2e build from dist/)" : ""}${kept}`);
   })();
   return tearingDown;
 }
 
+// The first signal tears down; a second one (Ctrl-C again while teardown waits) exits at once.
+// process.exit still runs the exit hook, which SIGKILLs every child group left.
+let stopping = false;
 for (const [signal, code] of [
   ["SIGINT", 130],
   ["SIGTERM", 143],
 ]) {
-  process.once(signal, () => {
+  process.on(signal, () => {
+    if (stopping) {
+      log(`${signal} again: exiting without waiting for teardown; logs in ${scratch}`);
+      process.exit(code);
+    }
+    stopping = true;
+    interrupted = true;
     log(`${signal}: stopping`);
-    void teardown().finally(() => process.exit(code));
+    void teardown().finally(() => {
+      log(`E2E INTERRUPTED; logs in ${scratch}`);
+      process.exit(code);
+    });
   });
 }
 
@@ -640,8 +660,11 @@ try {
   await teardown();
 }
 
+// Interrupted: the signal handler reports and exits with 130 or 143 once teardown settles.
+if (interrupted) await new Promise(() => undefined);
 if (failure) {
   console.error(`E2E FAIL at ${failure.step ?? "setup"}: ${failure.message}`);
+  console.error(`      logs and screenshots kept in ${scratch}`);
   process.exit(1);
 }
 const shotsKept = keep || Boolean(process.env.E2E_SHOTS_DIR);
