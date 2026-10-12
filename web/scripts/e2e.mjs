@@ -125,13 +125,19 @@ function startProcess(name, cmd, args, opts) {
   return child;
 }
 
-// Last resort when the process exits by any path: SIGKILL every group still alive.
+// Last resort when the process exits by any path: SIGKILL every group still alive, then remove the
+// e2e build (it carries the throwaway key) in case teardown did not get that far, for example
+// after a second Ctrl-C. Synchronous only: nothing async runs in an exit handler.
 process.on("exit", () => {
   for (const child of children) {
     try {
       process.kill(-child.pid, "SIGKILL");
     } catch {}
   }
+  try {
+    // `built` is declared further down; an exit before that line throws here and is ignored.
+    if (built) rmSync(join(WEB, "dist"), { recursive: true, force: true });
+  } catch {}
 });
 
 function stopProcess(child) {

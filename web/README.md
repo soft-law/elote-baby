@@ -65,7 +65,8 @@ in the last line. Logs (validator, demo, build, preview) and screenshots go to a
 teardown removes after a passing run. After a failed step or an interrupt it stays, without the
 ledger, and its path is printed; set `KEEP_E2E_ARTIFACTS=1` to keep it after a pass too, or
 `E2E_SHOTS_DIR` to write the screenshots somewhere else. A second Ctrl-C during teardown exits at
-once; the exit hook still kills every child process group.
+once; the exit hook still kills every child process group and removes the e2e build from `dist/`
+(the scratch dir may then keep the ledger).
 
 Needs: `solana-test-validator` on `PATH` with port 8899 unused, the program built into
 `target/deploy`, the repo root's `node_modules` (the demo runs with `npx tsx`), bun, and
