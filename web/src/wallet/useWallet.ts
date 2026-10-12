@@ -48,3 +48,42 @@ export function walletStatus(connecting: boolean, account: Pick<UiWalletAccount,
   if (!account) return "absent";
   return account.chains.includes(chain) ? "connected" : "wrong-chain";
 }
+
+/** connect() resolved, but the wallet shared no account with the app. */
+export class WalletNoAccountError extends Error {
+  constructor() {
+    super("The wallet shared no account");
+    this.name = "WalletNoAccountError";
+  }
+}
+
+/** Why an account is on the wrong chain, as copy: a mainnet-only account gets the switch steps. */
+export function wrongChainText(
+  account: Pick<UiWalletAccount, "chains"> | null,
+  chain: SolanaChain,
+  copy: { wrongChain: string; wrongChainMainnet: string },
+  network: string,
+): string {
+  const onlyMainnet = account !== null && account.chains.includes("solana:mainnet") && !account.chains.includes(chain);
+  return onlyMainnet ? copy.wrongChainMainnet.replace("{network}", network) : copy.wrongChain;
+}
+
+/** The wallet's own error message for the person: one line, no control characters, at most 160 characters. */
+export function walletErrorDetail(error: unknown): string | null {
+  const raw =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : typeof (error as { message?: unknown } | null)?.message === "string"
+          ? (error as { message: string }).message
+          : "";
+  const clean = raw.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!clean) return null;
+  return clean.length > 160 ? `${clean.slice(0, 159)}…` : clean;
+}
+
+/** Brave's built-in wallet answers on window.braveSolana; extension wallets may then stay hidden. */
+export function hasBraveWallet(): boolean {
+  return typeof window !== "undefined" && (window as unknown as { braveSolana?: unknown }).braveSolana !== undefined;
+}

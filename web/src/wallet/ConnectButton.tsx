@@ -5,7 +5,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { truncateMiddle } from "../pool/format";
 import type { Copy } from "../translations";
 import { isTxCancelled } from "../tx/errors";
-import { useWallet } from "./useWallet";
+import { hasBraveWallet, useWallet, walletErrorDetail, WalletNoAccountError, wrongChainText } from "./useWallet";
 import type { UiWallet } from "@wallet-standard/react";
 
 const PHANTOM_URL = "https://phantom.com/";
@@ -67,9 +67,10 @@ const itemBase =
 
 export function ConnectButton({ t }: { t: Copy }) {
   const w = t.app.wallet;
-  const { status, address, wallets, connect, disconnect } = useWallet();
+  const { status, address, account, chain, wallets, connect, disconnect } = useWallet();
   const [open, setOpen] = useState(false);
-  const [failed, setFailed] = useState(false);
+  /** Why the last connect failed: no account shared, or another error with the wallet's own words. */
+  const [failed, setFailed] = useState<null | { kind: "noAccount" } | { kind: "other"; detail: string | null }>(null);
   const [copied, setCopied] = useState(false);
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -79,7 +80,7 @@ export function ConnectButton({ t }: { t: Copy }) {
   const close = useCallback((refocus: boolean) => {
     setOpen(false);
     setOffset(null);
-    setFailed(false);
+    setFailed(null);
     setCopied(false);
     if (refocus) triggerRef.current?.focus();
   }, []);
@@ -122,13 +123,16 @@ export function ConnectButton({ t }: { t: Copy }) {
   }, [open, placed, close]);
 
   const onConnect = async (wallet: UiWallet) => {
-    setFailed(false);
+    setFailed(null);
     try {
       await connect(wallet);
       close(true);
     } catch (error) {
       // Declining in the wallet is a choice, not a failure.
-      if (!isTxCancelled(error)) setFailed(true);
+      if (isTxCancelled(error)) return;
+      // Kept for a bug report; the person sees the cause below.
+      console.warn("Wallet connection failed", error);
+      setFailed(error instanceof WalletNoAccountError ? { kind: "noAccount" } : { kind: "other", detail: walletErrorDetail(error) });
     }
   };
 
@@ -192,7 +196,7 @@ export function ConnectButton({ t }: { t: Copy }) {
               </div>
               {status === "wrong-chain" ? (
                 <p role="alert" className="m-0 rounded-[12px] bg-chili-50 px-3 py-2 text-[15px] leading-[1.5] text-chili-700">
-                  {w.wrongChain}
+                  {wrongChainText(account, chain, w, t.app.header.network)}
                 </p>
               ) : null}
               <button type="button" onClick={onCopy} className={itemBase}>
@@ -234,10 +238,26 @@ export function ConnectButton({ t }: { t: Copy }) {
                   ))}
                 </ul>
               )}
-              {failed ? (
-                <p role="alert" className="m-0 px-3 py-2 text-[15px] leading-[1.5] text-chili-700">
-                  {w.connectFailed}
+              {!wallets.some((wallet) => /phantom/i.test(wallet.name)) && hasBraveWallet() ? (
+                <p data-testid="wallet-brave-hint" className="m-0 px-3 py-2 text-[15px] leading-[1.5] text-ink-soft">
+                  {w.braveHint}
                 </p>
+              ) : null}
+              {failed ? (
+                <div role="alert" data-testid="wallet-connect-failed" className="flex flex-col gap-1 px-3 py-2 text-[15px] leading-[1.5] text-chili-700">
+                  {failed.kind === "noAccount" ? (
+                    <p className="m-0">{w.noAccount.replace("{network}", t.app.header.network)}</p>
+                  ) : (
+                    <>
+                      <p className="m-0">{w.connectFailed}</p>
+                      {failed.detail ? (
+                        <p className="m-0 break-words text-ink-soft" data-testid="wallet-error-detail">
+                          {w.walletSaid.replace("{message}", failed.detail)}
+                        </p>
+                      ) : null}
+                    </>
+                  )}
+                </div>
               ) : null}
             </>
           )}

@@ -8,7 +8,7 @@ import { DECIMALS, UNIT } from "../../pool/math";
 import type { Copy, Lang } from "../../translations";
 import { useTx } from "../../tx/useTx";
 import { ConnectButton } from "../../wallet/ConnectButton";
-import { useWallet } from "../../wallet/useWallet";
+import { useWallet, wrongChainText } from "../../wallet/useWallet";
 import { LOW_SOL_LAMPORTS, formatSol, useBalancesQuery, type Balances } from "../balances";
 import { AirdropButton } from "../components/AirdropButton";
 import { Amount } from "../components/Amount";
@@ -104,6 +104,7 @@ function InvestHistory({ owner, shareAccount, t, lang }: { owner: Address; share
 }
 
 function ConnectPrompt({ t, wrongChain }: { t: Copy; wrongChain: boolean }) {
+  const { account, chain } = useWallet();
   const i = t.app.invest;
   return (
     <section
@@ -114,7 +115,7 @@ function ConnectPrompt({ t, wrongChain }: { t: Copy; wrongChain: boolean }) {
       <h2 id="invest-connect-title" className="m-0 text-[24px] font-bold leading-tight">
         {wrongChain ? i.wrongChainTitle : i.connectTitle}
       </h2>
-      <p className="m-0 max-w-[56ch] text-[17px] leading-[1.55] text-ink-soft">{wrongChain ? t.app.wallet.wrongChain : i.connectBody}</p>
+      <p className="m-0 max-w-[56ch] text-[17px] leading-[1.55] text-ink-soft">{wrongChain ? wrongChainText(account, chain, t.app.wallet, t.app.header.network) : i.connectBody}</p>
       <ConnectButton t={t} />
     </section>
   );

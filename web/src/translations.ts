@@ -367,6 +367,12 @@ export type Copy = {
       getWallet: string;
       connecting: string;
       connectFailed: string;
+      /** "The wallet said: {message}", after connectFailed. */
+      walletSaid: string;
+      /** The wallet connected but shared no account. {network} is app.header.network. */
+      noAccount: string;
+      /** Brave's built-in wallet holds window.solana and no extension wallet is listed. */
+      braveHint: string;
       connectedAs: string;
       menu: string;
       copy: string;
@@ -374,6 +380,8 @@ export type Copy = {
       disconnect: string;
       close: string;
       wrongChain: string;
+      /** The account lists Solana Mainnet only. {network} is app.header.network. */
+      wrongChainMainnet: string;
     };
     tx: {
       steps: { simulating: string; signing: string; sending: string; confirming: string; done: string };
@@ -848,6 +856,9 @@ export const translations: Record<Lang, Copy> = {
         getWallet: "Get Phantom",
         connecting: "Connecting…",
         connectFailed: "The wallet did not connect. Try again.",
+        walletSaid: "The wallet said: {message}",
+        noAccount: "The wallet shared no Solana account. Open the wallet, pick a Solana account for {network} and try again.",
+        braveHint: "Brave is set to its own Solana wallet. In brave://settings/web3 set the default Solana wallet to Extensions, then reload.",
         connectedAs: "Connected wallet",
         menu: "Wallet options",
         copy: "Copy address",
@@ -856,6 +867,8 @@ export const translations: Record<Lang, Copy> = {
         close: "Close",
         wrongChain:
           "This wallet account is not on the network this app uses, shown at the top of the page. Switch networks in your wallet and connect again.",
+        wrongChainMainnet:
+          "This wallet is set to Solana Mainnet. Switch it to {network} and connect again. In Phantom: Settings, Developer settings, Testnet mode.",
       },
       tx: {
         steps: {
@@ -1336,6 +1349,9 @@ export const translations: Record<Lang, Copy> = {
         getWallet: "Obtener Phantom",
         connecting: "Conectando…",
         connectFailed: "La wallet no se conectó. Inténtalo de nuevo.",
+        walletSaid: "La wallet respondió: {message}",
+        noAccount: "La wallet no compartió ninguna cuenta de Solana. Abre la wallet, elige una cuenta de Solana para {network} e inténtalo de nuevo.",
+        braveHint: "Brave está usando su propia wallet de Solana. En brave://settings/web3 elige Extensiones como wallet de Solana predeterminada y vuelve a cargar la página.",
         connectedAs: "Wallet conectada",
         menu: "Opciones de la wallet",
         copy: "Copiar dirección",
@@ -1344,6 +1360,8 @@ export const translations: Record<Lang, Copy> = {
         close: "Cerrar",
         wrongChain:
           "Esta cuenta de la wallet no está en la red que usa esta app, indicada arriba en la página. Cambia de red en tu wallet y vuelve a conectar.",
+        wrongChainMainnet:
+          "Esta wallet está en Solana Mainnet. Cámbiala a {network} y vuelve a conectar. En Phantom: Configuración, Configuración de desarrollador, Modo testnet.",
       },
       tx: {
         steps: {

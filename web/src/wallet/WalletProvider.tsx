@@ -11,7 +11,7 @@ import {
   type UiWalletAccount,
 } from "@wallet-standard/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { WalletContext, supportsChain, walletStatus, type SolanaChain, type WalletState } from "./useWallet";
+import { WalletContext, WalletNoAccountError, supportsChain, walletStatus, type SolanaChain, type WalletState } from "./useWallet";
 
 export const WALLET_STORAGE_KEY = "elote.wallet.v1";
 
@@ -76,7 +76,8 @@ function WalletStateProvider({ chain, children }: { chain: SolanaChain; children
       try {
         const accounts = await handle.connect();
         const chosen = accounts.find((a) => a.chains.includes(chain)) ?? accounts[0];
-        if (!chosen) throw new Error("The wallet shared no account");
+        // A mainnet-only account is still selected: its status is "wrong-chain", with the switch steps.
+        if (!chosen) throw new WalletNoAccountError();
         setSelected(chosen);
       } finally {
         setConnecting(false);
