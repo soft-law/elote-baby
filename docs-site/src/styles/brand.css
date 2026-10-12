@@ -1,0 +1,95 @@
+/* elote.baby brand tokens mapped onto Starlight's theme variables.
+   Source of truth: web/src/index.css (night, neon, teal, corn, chili, fog).
+   Fonts are self-hosted through @fontsource (no third-party font requests). */
+@import '@fontsource/lexend/600.css';
+@import '@fontsource/lexend/700.css';
+@import '@fontsource/atkinson-hyperlegible/400.css';
+@import '@fontsource/atkinson-hyperlegible/700.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+:root {
+	--sl-font: 'Atkinson Hyperlegible', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
+	--sl-font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+	--elote-font-display: 'Lexend', var(--sl-font);
+	--elote-corn: #e3cf8f;
+	--elote-chili: #b83a1f;
+
+	/* Dark theme first, like the landing: night background, neon accent, fog text. */
+	--sl-color-accent-low: #0b3a3d;
+	--sl-color-accent: #6ae1e7;
+	--sl-color-accent-high: #96eef2;
+	--sl-color-white: #ffffff;
+	--sl-color-gray-1: #e6eeee;
+	--sl-color-gray-2: #c9d3d4;
+	--sl-color-gray-3: #a3aeaf;
+	--sl-color-gray-4: #6b7677;
+	--sl-color-gray-5: #4a5455;
+	--sl-color-gray-6: #1c1f1f;
+	--sl-color-black: #131313;
+}
+
+:root[data-theme='light'] {
+	/* Light theme from the app's paper tokens; teal carries the accent for contrast on paper. */
+	--sl-color-accent-low: #e6f8f9;
+	--sl-color-accent: #0b6a70;
+	--sl-color-accent-high: #084f54;
+	--sl-color-white: #17201f;
+	--sl-color-gray-1: #24302f;
+	--sl-color-gray-2: #384543;
+	--sl-color-gray-3: #4a5856;
+	--sl-color-gray-4: #7a8785;
+	--sl-color-gray-5: #c9d3d4;
+	--sl-color-gray-6: #f2f5f1;
+	--sl-color-gray-7: #fbfaf6;
+	--sl-color-black: #fbfaf6;
+}
+
+/* Titles use the display face, like the landing and the app. */
+h1,
+h2,
+h3,
+.site-title,
+.hero h1 {
+	font-family: var(--elote-font-display);
+	letter-spacing: -0.02em;
+}
+.site-title {
+	font-weight: 700;
+}
+.site-title img {
+	height: 2rem;
+	width: auto;
+}
+
+/* Readable measure and rhythm for long reference pages. */
+.sl-markdown-content {
+	line-height: 1.65;
+}
+.sl-markdown-content :is(p, li) {
+	max-width: 72ch;
+}
+
+/* Corn as the warm second accent on caution notes; chili on danger notes. */
+.starlight-aside--caution {
+	--sl-color-asides-text-accent: var(--elote-corn);
+	border-color: var(--elote-corn);
+}
+:root[data-theme='light'] .starlight-aside--caution {
+	--sl-color-asides-text-accent: #6b5410;
+}
+.starlight-aside--danger {
+	border-color: var(--elote-chili);
+}
+
+/* Visible focus on every interactive element. */
+:where(a, button, input, summary, [tabindex]):focus-visible {
+	outline: 3px solid var(--sl-color-accent);
+	outline-offset: 3px;
+}
+
+/* Wide tables scroll inside their box instead of the page. */
+.sl-markdown-content table {
+	display: block;
+	overflow-x: auto;
+}

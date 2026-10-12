@@ -1,0 +1,55 @@
+---
+title: elote.baby docs
+description: elote.baby is a credit pool demo on Solana devnet with test assets. Investors deposit for shares, credit lines are opened from the pool, and repaid interest raises the value of every share.
+template: splash
+hero:
+  tagline: A credit pool for small businesses, as a working demo on Solana devnet. Investors deposit test tokens for shares, borrowers draw and repay credit lines, and every line carries the hash of its signed agreement.
+  image:
+    file: ../../assets/corn-icon.png
+    alt: ''
+  actions:
+    - text: How the pool works
+      link: /how-the-pool-works
+      icon: right-arrow
+    - text: Run it yourself
+      link: /reference/run-it-yourself
+      icon: document
+      variant: minimal
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+:::caution[Devnet demo with test assets. Not an offer of securities.]
+Everything here runs on Solana devnet. The pool asset is tMXN, a test token with no value. No return is promised: shares gain only as loans are repaid, and lose value when a loan is written off. The program has not been audited yet.
+:::
+
+## What elote.baby is
+
+elote.baby is a Solana program, a web app and an agreements server that together show one credit cycle from start to end:
+
+1. **Investors deposit** tMXN into the pool and receive pool shares.
+2. **The pool admin opens a credit line** for a borrower, after the credit agreement is drafted and signed. The line records the hash of that agreement.
+3. **The borrower draws** the principal from the pool and **repays** it, at one maturity or in installments.
+4. **Repaid interest stays in the pool**, so every share is worth more. A loss the admin writes off lowers the value of every share once.
+5. **Investors redeem** shares for tMXN when the pool has liquidity on hand.
+
+A public support program can be named on a line as sponsor. It co-signs the opening and may pay the interest.
+
+## Test assets
+
+| Asset | What it is |
+|---|---|
+| tMXN | A plain SPL test token on devnet, 6 decimals, with no value. The app's "Get test tokens" button issues 1,000 tMXN to a wallet once a day. |
+| Pool shares | An SPL token issued by the pool for each deposit and burned on redemption. Same decimals as tMXN. |
+| Devnet SOL | Pays network fees. It has no value; the app links to the Solana faucet. |
+
+Nothing in this demo holds or moves real money.
+
+<CardGrid>
+	<LinkCard title="How the pool works" description="Shares, value per share, lines, repayments, write-offs, pause and liquidity." href="/how-the-pool-works" />
+	<LinkCard title="Credit lines" description="Single maturity or installments, grace, late interest and collection." href="/credit-lines" />
+	<LinkCard title="For investors" description="Connect, get test tokens, deposit, redeem and read your history." href="/guides/investors" />
+	<LinkCard title="For borrowers" description="Draw, see what is due now, repay and read the agreement summary." href="/guides/borrowers" />
+	<LinkCard title="Programmable loan contracts" description="Draft, sign and anchor the credit agreement with an agent over MCP." href="/guides/loan-contracts" />
+	<LinkCard title="Addresses" description="Program, devnet pool, tMXN and share token, with explorer links." href="/reference/addresses" />
+</CardGrid>

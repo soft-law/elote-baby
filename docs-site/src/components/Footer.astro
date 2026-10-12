@@ -1,0 +1,25 @@
+---
+import Default from '@astrojs/starlight/components/Footer.astro';
+---
+
+<Default><slot /></Default>
+<div class="elote-note">
+	<p>Devnet demo with test assets. Not an offer of securities. tMXN is a test token with no value.</p>
+	<p><a href="https://elote.baby">elote.baby</a></p>
+</div>
+
+<style>
+	.elote-note {
+		margin-top: 1.5rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--sl-color-hairline);
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.elote-note p {
+		margin: 0.25rem 0;
+	}
+	.elote-note a {
+		color: var(--sl-color-text-accent);
+	}
+</style>
