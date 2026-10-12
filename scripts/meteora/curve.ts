@@ -29,7 +29,10 @@ export function describeCurve(curve: Curve, migrationFeePercent: number) {
   const supply = BigInt(curve.tokenSupply!.preMigrationTokenSupply.toString());
   const sqrtMigration = curve.curve[curve.curve.length - 1].sqrtPrice;
   const baseOnCurve = getBaseTokenForSwap(curve.sqrtStartPrice, sqrtMigration, curve.curve);
-  const migrationQuote = curve.migrationQuoteThreshold.muln(100 - migrationFeePercent).divn(100);
+  // As the program does (state/config.rs get_migration_quote_amount): the quote to DAMM v2 rounds up,
+  // the migration fee is the rest, so the fee rounds down (402.807027 for R1, as paid on chain).
+  const scaled = curve.migrationQuoteThreshold.muln(100 - migrationFeePercent);
+  const migrationQuote = scaled.addn(99).divn(100);
   const migrationBase = getMigrationBaseToken(migrationQuote, sqrtMigration, MigrationOption.MET_DAMM_V2);
   const toBig = (x: BN) => BigInt(x.toString());
   return {
@@ -40,6 +43,18 @@ export function describeCurve(curve: Curve, migrationFeePercent: number) {
     migrationFee: toBig(curve.migrationQuoteThreshold.sub(migrationQuote)),
     migrationBase: toBig(migrationBase),
   };
+}
+
+/** Human lines for every value that differs from the R1 preset (empty when the preset is used as is). */
+export function r1Overrides(p: R1Params): string[] {
+  const out: string[] = [];
+  if (Number(p.prices[0]) !== Number(R1.prices[0])) out.push(`--price-start ${p.prices[0]} (R1 ${R1.prices[0]})`);
+  if (Number(p.prices[1]) !== Number(R1.prices[1])) out.push(`--price-end ${p.prices[1]} (R1 ${R1.prices[1]})`);
+  if (p.supply !== R1.supply) out.push(`--supply ${p.supply} (R1 ${R1.supply})`);
+  if (p.feeBps !== R1.feeBps) out.push(`--fee-bps ${p.feeBps} (R1 ${R1.feeBps})`);
+  if (p.migrationFeePercent !== R1.migrationFeePercent) out.push(`--migration-fee-percent ${p.migrationFeePercent} (R1 ${R1.migrationFeePercent})`);
+  if (p.migratedPoolFeeBps !== R1.migratedPoolFeeBps) out.push(`--migrated-fee-bps ${p.migratedPoolFeeBps} (R1 ${R1.migratedPoolFeeBps})`);
+  return out;
 }
 
 /** Progress toward graduation in basis points of the threshold (10000 = graduated). */

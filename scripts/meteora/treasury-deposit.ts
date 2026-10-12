@@ -6,23 +6,24 @@
 //
 //   cd scripts/meteora && npx tsx treasury-deposit.ts --cluster devnet|local [--vault <address>]
 //        [--elote-pool <address>] [--amount <tMXN>] [--tolerance-bps 10] [--keypair <treasury.json>]
-//        [--dry-run [--as <address>]]
+//        [--as <address>] [--send]
 //
 // --elote-pool     default 5bndQsto8p3rXEcG2Crz2zRSk2KN2fKwBsk5S2k2ndET on devnet
 // --amount         tMXN to deposit (default: the amount just claimed)
 // --keypair        the treasury (default ELOTE_TREASURY_KEYPAIR, .demo-keys/treasury.json)
 //
+// Without --send every write is only simulated (accounts and compute units are printed).
 // Only addresses, signatures and explorer links are printed.
 //
 // Demo on Solana devnet with test assets. Not an offer of securities.
 import { DynamicFeeSharingClient } from "@meteora-ag/dynamic-fee-sharing-sdk";
 import { sharesFor } from "./curve.ts";
 import { DEAD_SHARES, ata, depositInstructions, eloteRpc, snapshot, tokenAmount } from "./elote.ts";
-import { DEVNET, UsageError, actor, addressFrom, fmt, parseAmount, parseNumber, readBook, result, run, signersOf, start, submit } from "./lib.ts";
+import { DEVNET, DRY_RUN_END, UsageError, actor, addressFrom, fmt, parseAmount, parseNumber, readBook, result, run, signersOf, start, submit } from "./lib.ts";
 
 const SCRIPT = "treasury-deposit";
 const USAGE =
-  "npx tsx treasury-deposit.ts --cluster devnet|local [--vault <address>] [--elote-pool <address>] [--amount <tMXN>] [--tolerance-bps 10] [--keypair <treasury.json>] [--dry-run [--as <address>]]";
+  "npx tsx treasury-deposit.ts --cluster devnet|local [--vault <address>] [--elote-pool <address>] [--amount <tMXN>] [--tolerance-bps 10] [--keypair <treasury.json>] [--as <address>] [--send]";
 
 run(SCRIPT, async () => {
   const ctx = await start(SCRIPT, USAGE, { values: ["vault", "elote-pool", "amount", "tolerance-bps"], flags: [] });
@@ -54,7 +55,7 @@ run(SCRIPT, async () => {
     console.log(`1. claim: ${fmt(row.feeUnclaimed)} tMXN claimable (claimed so far ${fmt(row.feeClaimed)})`);
     const balance0 = await tokenAmount(rpc, assetAccount);
     const tx = await dfs.claimUserFee2({ feeVault: vault, user: treasury.publicKey, payer: treasury.publicKey, receiver: treasury.publicKey });
-    await submit(ctx, "1. claim the treasury's share (claimUserFee2)", treasury.publicKey, tx.instructions, signersOf(treasury));
+    await submit(ctx, "1. claim the treasury's share (claimUserFee2)", treasury.publicKey, tx.instructions, signersOf(treasury), { resend: false });
     claimed = ctx.dryRun ? BigInt(row.feeUnclaimed.toString()) : (await tokenAmount(rpc, assetAccount)) - balance0;
     if (!ctx.dryRun) console.log(`    received ${fmt(claimed)} tMXN`);
   }
@@ -62,8 +63,14 @@ run(SCRIPT, async () => {
   // 2. deposit
   const assets = ctx.args.values.amount ? parseAmount("--amount", ctx.args.values.amount) : claimed;
   if (assets === 0n) {
+    // A rerun after a claim that landed and a deposit that did not: the claimed tMXN sits in the
+    // treasury's account, so name the balance and the flag that deposits it.
+    const balance = await tokenAmount(rpc, assetAccount);
     console.log("2. deposit: nothing claimed in this run and no --amount, skipped");
-    result({ claimed: claimed.toString(), deposited: "0" });
+    console.log(`   the treasury holds ${fmt(balance)} tMXN (claimed from the vault so far: ${fmt(row.feeClaimed)})`);
+    if (balance > 0n) console.log(`   to deposit it, rerun with --amount ${fmt(balance).replace(/,/g, "")}`);
+    result({ claimed: claimed.toString(), deposited: "0", treasuryBalance: balance.toString(), ...(ctx.dryRun ? { dryRun: "yes" } : {}) });
+    if (ctx.dryRun) console.log(`\n${DRY_RUN_END}`);
     return;
   }
   const held = await tokenAmount(rpc, assetAccount);
@@ -72,16 +79,16 @@ run(SCRIPT, async () => {
   console.log(`2. deposit ${fmt(assets)} tMXN: about ${fmt(expected)} shares, at least ${fmt(minSharesOut)} (${toleranceBps} bps tolerance)`);
   if (ctx.dryRun && held < assets) {
     console.log("    deposit not simulated: the claim above has not happened yet, so the treasury does not hold the tMXN");
-    console.log("\nDry run: nothing was sent.");
     result({ claimed: claimed.toString(), dryRun: "yes" });
+    console.log(`\n${DRY_RUN_END}`);
     return;
   }
   const shares0 = await tokenAmount(rpc, shareAccount);
   const ixs = await depositInstructions(pool, before, treasury.publicKey.toBase58(), assets, minSharesOut);
-  await submit(ctx, "2. deposit into the elote pool (deposit)", treasury.publicKey, ixs, signersOf(treasury));
+  await submit(ctx, "2. deposit into the elote pool (deposit)", treasury.publicKey, ixs, signersOf(treasury), { resend: false });
   if (ctx.dryRun) {
-    console.log("\nDry run: nothing was sent.");
     result({ claimed: claimed.toString(), dryRun: "yes" });
+    console.log(`\n${DRY_RUN_END}`);
     return;
   }
   const after = await snapshot(rpc, pool);

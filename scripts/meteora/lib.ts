@@ -70,7 +70,11 @@ export type ArgSpec = { values: readonly string[]; flags: readonly string[] };
 export type Args = { values: Record<string, string>; flags: Set<string> };
 
 /** Every script accepts these. */
-export const COMMON: ArgSpec = { values: ["cluster", "keypair", "as"], flags: ["dry-run", "help"] };
+// Every writer simulates unless --send is given; --dry-run is kept as a no-op alias of the default.
+export const COMMON: ArgSpec = { values: ["cluster", "keypair", "as"], flags: ["send", "dry-run", "help"] };
+
+/** Last line of every writer that did not send. */
+export const DRY_RUN_END = "Dry run: rerun with --send";
 
 /** Strict `--name value` / `--flag` parser: unknown flags, missing values and repeats are errors. */
 export function parseArgs(argv: readonly string[], spec: ArgSpec): Args {
@@ -209,14 +213,23 @@ export function actor(ctx: Ctx, envVar: string, role: string): Actor {
 export const signersOf = (...actors: (Actor | Keypair)[]): Keypair[] =>
   actors.flatMap((a) => (a instanceof Keypair ? [a] : a.keypair ? [a.keypair] : []));
 
-/** Loads a keypair that the script creates an account with, generating it on the first run. */
-export function loadOrCreateKeypair(file: string, persist: boolean): { keypair: Keypair; created: boolean } {
+/** `.demo-keys/meteora-<cluster>-<name>.json`: a keypair of an account the scripts create. */
+export function accountKeyPath(cluster: Cluster, name: "fee-vault-base" | "config" | "telote-token", env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(keyDir(env), `meteora-${cluster}-${name}.json`);
+}
+
+/**
+ * Loads a keypair that the script creates an account with, generating and saving it on the first
+ * run. It is saved in a dry run too, so the dry run prints the same address that --send creates.
+ * These keys hold no authority once the account exists (the vault base is only a PDA seed, the
+ * config account belongs to the DBC program, the token's authority is the pool and it is Immutable),
+ * so keeping them in the gitignored .demo-keys/ (mode 0600) only lets reruns find the same accounts.
+ */
+export function loadOrCreateKeypair(file: string): { keypair: Keypair; created: boolean } {
   if (fs.existsSync(file)) return { keypair: readKeypair(path.basename(file), file), created: false };
   const keypair = Keypair.generate();
-  if (persist) {
-    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-    fs.writeFileSync(file, JSON.stringify([...keypair.secretKey]), { mode: 0o600 });
-  }
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(file, JSON.stringify([...keypair.secretKey]), { mode: 0o600 });
   return { keypair, created: true };
 }
 
@@ -258,7 +271,7 @@ export type Ctx = {
 };
 
 /** Parses the command line, refuses mainnet, prints the header. Exits 2 on a usage error. */
-export async function start(script: string, usage: string, spec: ArgSpec): Promise<Ctx> {
+export async function start(script: string, usage: string, spec: ArgSpec, writes = true): Promise<Ctx> {
   let args: Args;
   let cluster: Cluster;
   try {
@@ -283,9 +296,10 @@ export async function start(script: string, usage: string, spec: ArgSpec): Promi
     if (e instanceof UsageError) fail(script, e.message);
     fail(script, `cannot reach ${rpcUrl}: ${(e as Error).message}`);
   }
-  const dryRun = args.flags.has("dry-run");
+  const dryRun = !args.flags.has("send");
   const cuPrice = args.values["cu-price"] ? parseNumber("--cu-price", args.values["cu-price"], 0, 10_000_000) : DEFAULT_CU_PRICE;
-  console.log(`${DISCLAIMER}\nCluster: ${cluster} (${rpcUrl})${dryRun ? ", dry run: nothing is sent" : ""}\n`);
+  const mode = !writes ? ", read only" : dryRun ? ", dry run: nothing is sent (add --send to send)" : ", --send: transactions are sent";
+  console.log(`${DISCLAIMER}\nCluster: ${cluster} (${rpcUrl})${mode}\n`);
   return { script, cluster, rpcUrl, conn, dryRun, args, cuPrice };
 }
 
@@ -329,6 +343,7 @@ export async function submit(
   payer: PublicKey,
   instructions: TransactionInstruction[],
   signers: Signer[],
+  opts: { resend?: boolean } = {},
 ): Promise<string | null> {
   const ixs = instructions.filter((ix) => !ix.programId.equals(ComputeBudgetProgram.programId));
   const limit = instructions.find((ix) => ix.programId.equals(ComputeBudgetProgram.programId) && ix.data[0] === 2);
@@ -357,7 +372,10 @@ export async function submit(
     return null;
   }
 
-  // An expired blockhash means the transaction never landed, so it is rebuilt and sent again.
+  // When the confirmation gives up on block height, the transaction may still have landed (a dropped
+  // websocket looks the same). Its status decides: landed means done, failed means fail, absent
+  // means it can no longer land (its blockhash expired), and only then is it rebuilt and resent.
+  // Swaps and deposits pass `resend: false`: they stop and name the signature instead.
   let attempt = { tx, blockhash, lastValidBlockHeight };
   for (let n = 1; ; n++) {
     const needed = new Set(keysToSign(attempt.tx.message));
@@ -369,16 +387,31 @@ export async function submit(
         "confirmed",
       );
       if (res.value.err) throw new Error(`${label} failed (${signature}): ${JSON.stringify(res.value.err)}`);
-      console.log(`  ${label}\n    ${signature}\n    ${explorer(ctx, "tx", signature)}`);
-      return signature;
     } catch (e) {
-      if (!(e instanceof TransactionExpiredBlockheightExceededError) || n >= 3) throw e;
-      console.log(`  ${label}: blockhash expired before confirmation (${signature}), sending again`);
-      const fresh = await ctx.conn.getLatestBlockhash("confirmed");
-      const m = new TransactionMessage({ payerKey: payer, recentBlockhash: fresh.blockhash, instructions: all }).compileToV0Message();
-      attempt = { tx: new VersionedTransaction(m), ...fresh };
+      if (!(e instanceof TransactionExpiredBlockheightExceededError)) throw e;
+      const { value } = await ctx.conn.getSignatureStatuses([signature], { searchTransactionHistory: true });
+      const decision = afterExpiry(value[0] ?? null);
+      if (decision === "failed") throw new Error(`${label} failed (${signature}): ${JSON.stringify(value[0]?.err)}`);
+      if (decision === "resend") {
+        if (opts.resend === false || n >= 3) {
+          throw new Error(`${label}: not confirmed before its blockhash expired (${signature}); check the signature, rerun if absent`);
+        }
+        console.log(`  ${label}: not found after its blockhash expired (${signature}), sending again`);
+        const fresh = await ctx.conn.getLatestBlockhash("confirmed");
+        const m = new TransactionMessage({ payerKey: payer, recentBlockhash: fresh.blockhash, instructions: all }).compileToV0Message();
+        attempt = { tx: new VersionedTransaction(m), ...fresh };
+        continue;
+      }
     }
+    console.log(`  ${label}\n    ${signature}\n    ${explorer(ctx, "tx", signature)}`);
+    return signature;
   }
+}
+
+/** What to do with a signature whose confirmation hit the block height limit. */
+export function afterExpiry(status: { err: unknown } | null): "confirmed" | "failed" | "resend" {
+  if (status === null) return "resend";
+  return status.err ? "failed" : "confirmed";
 }
 
 function keysToSign(message: VersionedTransaction["message"]): string[] {

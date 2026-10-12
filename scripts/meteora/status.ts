@@ -18,7 +18,7 @@ const USAGE = "npx tsx status.ts --cluster devnet|local [--pool <dbc pool>] [--v
 const PARTNER_MIGRATION_FEE_MASK = 0b100;
 
 run(SCRIPT, async () => {
-  const ctx = await start(SCRIPT, USAGE, { values: ["pool", "vault", "treasury", "elote-pool"], flags: [] });
+  const ctx = await start(SCRIPT, USAGE, { values: ["pool", "vault", "treasury", "elote-pool"], flags: [] }, false);
   const book = readBook(ctx.cluster);
   const pick = (flag: string, fallback?: string) => {
     const v = ctx.args.values[flag] ?? fallback;

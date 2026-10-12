@@ -7,12 +7,17 @@ import os from "node:os";
 import path from "node:path";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { describeCurve, progressBps, r1FromFlags, sharesFor } from "../curve.ts";
+import { Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { DYNAMIC_FEE_SHARING_PROGRAM_ID } from "@meteora-ag/dynamic-fee-sharing-sdk";
+import { describeCurve, progressBps, r1FromFlags, r1Overrides, sharesFor } from "../curve.ts";
+import { partnerMigrationFeeProblems, vaultProblems } from "../vault.ts";
 import {
   COMMON,
   GENESIS,
   R1,
+  TOKEN_PROGRAM,
   UsageError,
+  afterExpiry,
   assertClusterGenesis,
   buildR1Curve,
   fmt,
@@ -53,9 +58,10 @@ describe("R1 curve (Step 0 numbers)", () => {
 
   test("curve and migration split", () => {
     assert.equal(fmt(d.baseOnCurve), "1,965.497038");
-    assert.equal(fmt(d.migrationBase), "1,534.502961");
-    assert.equal(d.migrationFee, 402_807_028n);
-    assert.equal(d.migrationQuote, 1_611_228_109n);
+    assert.equal(fmt(d.migrationBase), "1,534.502962");
+    // Program rounding (quote to DAMM v2 rounds up): the partner fee is 402.807027, as paid in the e2e.
+    assert.equal(d.migrationFee, 402_807_027n);
+    assert.equal(d.migrationQuote, 1_611_228_110n);
     assert.equal(d.migrationFee + d.migrationQuote, d.threshold);
   });
 
@@ -80,6 +86,16 @@ describe("R1 curve (Step 0 numbers)", () => {
     assert.throws(() => r1FromFlags({ "price-start": "1.05", "price-end": "1.00" }), UsageError);
     assert.throws(() => r1FromFlags({ supply: "12.5" }), UsageError);
     assert.throws(() => r1FromFlags({ "price-start": "abc" }), UsageError);
+  });
+
+  test("overrides of the R1 preset are named; equal values written differently are not", () => {
+    assert.deepEqual(r1Overrides(R1), []);
+    assert.deepEqual(r1Overrides(r1FromFlags({ "price-start": "1.0", supply: "3500" })), []);
+    const o = r1Overrides(r1FromFlags({ "price-end": "1.10", "fee-bps": "50", "migration-fee-percent": "10", "migrated-fee-bps": "25" }));
+    assert.equal(o.length, 4);
+    assert.match(o.join(" "), /--price-end 1\.10 \(R1 1\.05\)/);
+    assert.match(o.join(" "), /--fee-bps 50 \(R1 100\)/);
+    assert.match(r1Overrides(r1FromFlags({ supply: "4000" }))[0], /--supply 4000 \(R1 3500\)/);
   });
 });
 
@@ -159,6 +175,64 @@ describe("keys", () => {
     assert.throws(() => readKeypair("treasury", bad), (e: Error) => /64 bytes/.test(e.message) && !e.message.includes("7,7"));
     assert.throws(() => readKeypair("treasury", path.join(dir, "missing.json")), /not found/);
     fs.rmSync(dir, { recursive: true });
+  });
+});
+
+describe("sending", () => {
+  test("every writer simulates unless --send is given; --dry-run stays accepted", () => {
+    assert.ok(COMMON.flags.includes("send") && COMMON.flags.includes("dry-run"));
+    assert.equal(parseArgs(["--cluster", "devnet"], { values: [], flags: [] }).flags.has("send"), false);
+    assert.equal(parseArgs(["--cluster", "devnet", "--send"], { values: [], flags: [] }).flags.has("send"), true);
+  });
+
+  test("after a block height expiry: landed means done, failed means fail, absent means resend", () => {
+    assert.equal(afterExpiry(null), "resend");
+    assert.equal(afterExpiry({ err: null }), "confirmed");
+    assert.equal(afterExpiry({ err: { InstructionError: [0, { Custom: 1 }] } }), "failed");
+  });
+});
+
+describe("fee vault checks", () => {
+  const token = Keypair.generate().publicKey;
+  const admin = Keypair.generate().publicKey;
+  const treasury = Keypair.generate().publicKey;
+  const vault = Keypair.generate().publicKey.toBase58();
+  const dfs = DYNAMIC_FEE_SHARING_PROGRAM_ID.toBase58();
+  const empty = { address: PublicKey.default, share: 0 };
+  const good = { tokenMint: token, feeVaultType: 1, users: [{ address: treasury, share: 8000 }, { address: admin, share: 2000 }, empty, empty, empty] };
+
+  test("the R1 vault passes", () => {
+    assert.deepEqual(vaultProblems(vault, dfs, good, { token, admin, treasury }), []);
+    assert.deepEqual(vaultProblems(vault, dfs, good, { token, admin }), []);
+  });
+
+  test("wrong owner, token, type, users or shares are refused, naming both addresses", () => {
+    const other = Keypair.generate().publicKey;
+    assert.match(vaultProblems(vault, TOKEN_PROGRAM.toBase58(), good, { token, admin }).join(), /not the Dynamic Fee Sharing program/);
+    assert.match(vaultProblems(vault, dfs, good, { token: other, admin }).join(), new RegExp(`holds ${token.toBase58()}, the quote token is ${other.toBase58()}`));
+    assert.match(vaultProblems(vault, dfs, { ...good, feeVaultType: 0 }, { token, admin }).join(), /not a PDA vault/);
+    assert.match(vaultProblems(vault, dfs, good, { token, admin: other }).join(), /does not give the admin/);
+    assert.match(vaultProblems(vault, dfs, good, { token, admin, treasury: other }).join(), new RegExp(`pays ${treasury.toBase58()}, not the treasury ${other.toBase58()}`));
+    const split = { ...good, users: [{ address: treasury, share: 5000 }, { address: admin, share: 5000 }] };
+    assert.ok(vaultProblems(vault, dfs, split, { token, admin }).length >= 2);
+  });
+
+  test("the migration fee guard wants flag 0 (partner) and the vault as sender", () => {
+    const disc = [1, 2, 3, 4, 5, 6, 7, 8];
+    const v = Keypair.generate().publicKey;
+    const ix = (flag: number, sender: PublicKey) => {
+      const data = Buffer.alloc(12 + 9);
+      data.writeUInt32LE(9, 8);
+      Buffer.from(disc).copy(data, 12);
+      data[20] = flag;
+      const keys = Array.from({ length: 16 }, (_, i) => ({ pubkey: i === 12 ? sender : Keypair.generate().publicKey, isSigner: false, isWritable: false }));
+      return new TransactionInstruction({ programId: DYNAMIC_FEE_SHARING_PROGRAM_ID, keys, data });
+    };
+    assert.deepEqual(partnerMigrationFeeProblems([ix(0, v)], v, disc), []);
+    assert.match(partnerMigrationFeeProblems([ix(1, v)], v, disc).join(), /flag is 1, not 0/);
+    assert.match(partnerMigrationFeeProblems([ix(0, Keypair.generate().publicKey)], v, disc).join(), /not the vault/);
+    assert.match(partnerMigrationFeeProblems([ix(0, v)], v, [9, 9, 9, 9, 9, 9, 9, 9]).join(), /not DBC withdraw_migration_fee/);
+    assert.match(partnerMigrationFeeProblems([], v, disc).join(), /no Dynamic Fee Sharing instruction/);
   });
 });
 

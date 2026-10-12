@@ -9,11 +9,12 @@
 // DAMM v2 needs no migration metadata account (that step exists only for DAMM v1).
 //
 //   cd scripts/meteora && npx tsx dbc-migrate.ts --cluster devnet|local [--pool <address>]
-//        [--keypair <payer.json>] [--dry-run [--as <address>]]
+//        [--keypair <payer.json>] [--as <address>] [--send]
 //
 // --pool     the DBC pool (default: the address book)
 // --keypair  any funded wallet pays (default ELOTE_ADMIN_KEYPAIR, .demo-keys/admin.json)
 //
+// Without --send every write is only simulated (accounts and compute units are printed).
 // Only addresses, signatures and explorer links are printed.
 //
 // Demo on Solana devnet with test assets. Not an offer of securities.
@@ -24,12 +25,13 @@ import {
   DynamicBondingCurveClient,
   deriveBaseKeyForLocker,
   deriveDammV2PoolAddress,
+  deriveDbcPoolAuthority,
   deriveEscrow,
 } from "@meteora-ag/dynamic-bonding-curve-sdk";
-import { accountExists, actor, addressFrom, explorer, fmt, readBook, result, run, signersOf, start, submit, waitFor, writeBook } from "./lib.ts";
+import { DRY_RUN_END, accountExists, actor, addressFrom, explorer, fmt, readBook, result, run, signersOf, start, submit, waitFor, writeBook } from "./lib.ts";
 
 const SCRIPT = "dbc-migrate";
-const USAGE = "npx tsx dbc-migrate.ts --cluster devnet|local [--pool <address>] [--keypair <payer.json>] [--dry-run [--as <address>]]";
+const USAGE = "npx tsx dbc-migrate.ts --cluster devnet|local [--pool <address>] [--keypair <payer.json>] [--as <address>] [--send]";
 
 run(SCRIPT, async () => {
   const ctx = await start(SCRIPT, USAGE, { values: ["pool"], flags: [] });
@@ -51,7 +53,12 @@ run(SCRIPT, async () => {
   console.log(`Quote:        ${fmt(BigInt(vp.poolState.quoteReserve.toString()))} / ${fmt(BigInt(config.migrationQuoteThreshold.toString()))} tMXN`);
   console.log(`DAMM config:  ${dammConfig.toBase58()} (migration fee option ${config.migrationFeeOption})`);
   console.log(`DAMM v2 pool: ${dammPool.toBase58()}`);
-  console.log(`Fee claimer:  ${config.feeClaimer.toBase58()} (receives the partner position)\n`);
+  console.log(`Fee claimer:  ${config.feeClaimer.toBase58()} (receives the partner position)`);
+  // The DBC pool authority pays the DAMM v2 pool's rent during migration and is refunded in the same
+  // transaction, so it needs a float of SOL (on devnet Meteora keeps one there).
+  const poolAuthority = deriveDbcPoolAuthority();
+  const authorityLamports = await ctx.conn.getBalance(poolAuthority, "confirmed");
+  console.log(`DBC pool authority ${poolAuthority.toBase58()}: ${(authorityLamports / 1e9).toFixed(4)} SOL${authorityLamports < 10_000_000 ? " (*** too little to pay the DAMM v2 pool's rent: the migration will fail)" : ""}\n`);
 
   if (vp.poolState.quoteReserve.lt(config.migrationQuoteThreshold)) {
     throw new Error("the curve has not reached the threshold yet: buy with dbc-swap.ts first");
@@ -84,8 +91,8 @@ run(SCRIPT, async () => {
       secondPositionNftKeypair,
     ]);
     if (ctx.dryRun) {
-      console.log("\nDry run: nothing was sent.");
       result({ dammPool: dammPool.toBase58(), dryRun: "yes" });
+      console.log(`\n${DRY_RUN_END}`);
       return;
     }
   }
@@ -101,7 +108,7 @@ run(SCRIPT, async () => {
   console.log(`   DBC pool migrated: ${after?.poolState.isMigrated === 1 ? "yes" : "no"}, migration progress ${after?.poolState.migrationProgress}`);
   if (positions.length === 0) throw new Error(`no DAMM v2 position owned by the fee claimer ${config.feeClaimer.toBase58()}`);
   for (const p of positions) {
-    console.log(`   partner position ${p.position.toBase58()} (NFT account ${p.positionNftAccount.toBase58()}), owned by the fee vault`);
+    console.log(`   partner position ${p.position.toBase58()} (position token account ${p.positionNftAccount.toBase58()}), owned by the fee vault`);
     console.log(`     permanently locked liquidity ${p.positionState.permanentLockedLiquidity.toString()}, unlocked ${p.positionState.unlockedLiquidity.toString()}`);
   }
   writeBook(ctx.cluster, { dammPool: dammPool.toBase58(), position: positions[0].position.toBase58() });

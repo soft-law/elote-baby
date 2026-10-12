@@ -5,13 +5,14 @@
 // the tMXN stays with the buyer.
 //
 //   cd scripts/meteora && npx tsx dbc-swap.ts --cluster devnet|local --amount <tMXN> [--sell <tELOTE>]
-//        [--pool <address>] [--slippage-bps 100] [--keypair <buyer.json>] [--dry-run [--as <address>]]
+//        [--pool <address>] [--slippage-bps 100] [--keypair <buyer.json>] [--as <address>] [--send]
 //
 // --amount        tMXN to spend on a buy (up to 6 decimals)
 // --sell          tELOTE to sell back instead of buying
 // --pool          the DBC pool (default: the address book, written by dbc-pool.ts)
 // --keypair       the buyer (default ELOTE_BUYER_KEYPAIR, .demo-keys/investor-a.json)
 //
+// Without --send every write is only simulated (accounts and compute units are printed).
 // Only addresses, signatures and explorer links are printed.
 //
 // Demo on Solana devnet with test assets. Not an offer of securities.
@@ -39,11 +40,12 @@ import {
   signersOf,
   start,
   submit,
+  DRY_RUN_END,
 } from "./lib.ts";
 
 const SCRIPT = "dbc-swap";
 const USAGE =
-  "npx tsx dbc-swap.ts --cluster devnet|local (--amount <tMXN> | --sell <tELOTE>) [--pool <address>] [--slippage-bps 100] [--keypair <buyer.json>] [--dry-run [--as <address>]]";
+  "npx tsx dbc-swap.ts --cluster devnet|local (--amount <tMXN> | --sell <tELOTE>) [--pool <address>] [--slippage-bps 100] [--keypair <buyer.json>] [--as <address>] [--send]";
 
 run(SCRIPT, async () => {
   const ctx = await start(SCRIPT, USAGE, { values: ["amount", "sell", "pool", "slippage-bps"], flags: [] });
@@ -110,8 +112,9 @@ run(SCRIPT, async () => {
       referralTokenAccount: null,
       poolState: ps,
     });
-    await submit(ctx, `${isSell ? "sell" : "buy"} tELOTE on DAMM v2 (swap)`, buyer.publicKey, tx.instructions, signersOf(buyer));
-    result({ graduated: "yes", dammPool: dammPool.toBase58() });
+    await submit(ctx, `${isSell ? "sell" : "buy"} tELOTE on DAMM v2 (swap)`, buyer.publicKey, tx.instructions, signersOf(buyer), { resend: false });
+    result({ graduated: "yes", dammPool: dammPool.toBase58(), ...(ctx.dryRun ? { dryRun: "yes" } : {}) });
+    if (ctx.dryRun) console.log(`\n${DRY_RUN_END}`);
     return;
   }
   if (before.reserve >= before.threshold) {
@@ -149,10 +152,10 @@ run(SCRIPT, async () => {
       ? { swapMode: SwapMode.ExactIn as const, amountIn: new BN(amountIn.toString()), minimumAmountOut: minOut }
       : { swapMode: SwapMode.PartialFill as const, amountIn: new BN(amountIn.toString()), minimumAmountOut: minOut }),
   });
-  await submit(ctx, isSell ? "sell tELOTE (swap2, exact in)" : "buy tELOTE (swap2, partial fill)", buyer.publicKey, tx.instructions, signersOf(buyer));
+  await submit(ctx, isSell ? "sell tELOTE (swap2, exact in)" : "buy tELOTE (swap2, partial fill)", buyer.publicKey, tx.instructions, signersOf(buyer), { resend: false });
   if (ctx.dryRun) {
-    console.log("\nDry run: nothing was sent.");
     result({ progressBps: before.bps.toString(), dryRun: "yes" });
+    console.log(`\n${DRY_RUN_END}`);
     return;
   }
   const after = await progress();

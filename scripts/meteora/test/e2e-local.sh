@@ -2,7 +2,8 @@
 # End-to-end run of the whole owner sequence on a local validator, with throwaway keys:
 # fee vault, DBC config, tELOTE pool, swaps to graduation, migration to DAMM v2, a DAMM v2 trade,
 # funding the vault from every source, the treasury's claim and its deposit into a local elote pool.
-# Every step runs twice to prove it resumes (the second run must skip and print the same addresses).
+# Steps 1 to 3 first run without --send (a dry run must print the address --send then creates); every
+# step runs twice with --send to prove it resumes (the second run must skip and print the same addresses).
 #
 # The validator clones from devnet: DBC, DAMM v2, Dynamic Fee Sharing, Token Metadata, elote_pool
 # (BGdJ...) and the DAMM v2 config for the Customizable migration fee option (A8gM...). On devnet the
@@ -68,47 +69,57 @@ R=$(step seed npx tsx test/seed-elote.ts --quote-token "$QUOTE" --admin "$WORK/k
 ELOTE=$(field "$R" elotePool)
 
 say "1. fee vault (twice)"
-R1=$(step fee-vault npx tsx fee-vault.ts --cluster local --quote-token "$QUOTE"); echo "$R1"
-R1b=$(step fee-vault-again npx tsx fee-vault.ts --cluster local --quote-token "$QUOTE"); echo "$R1b"
+D1=$(step fee-vault-dry npx tsx fee-vault.ts --cluster local --quote-token "$QUOTE"); echo "$D1"
+R1=$(step fee-vault npx tsx fee-vault.ts --cluster local --send --quote-token "$QUOTE"); echo "$R1"
+[ "$(field "$D1" vault)" = "$(field "$R1" vault)" ] || { echo "the dry run showed another vault than --send created"; exit 1; }
+R1b=$(step fee-vault-again npx tsx fee-vault.ts --cluster local --send --quote-token "$QUOTE"); echo "$R1b"
 [ "$(field "$R1" vault)" = "$(field "$R1b" vault)" ] || { echo "fee-vault rerun gave another vault"; exit 1; }
 
 say "2. DBC config (twice)"
-R2=$(step dbc-config npx tsx dbc-config.ts --cluster local --quote-token "$QUOTE"); echo "$R2"
-R2b=$(step dbc-config-again npx tsx dbc-config.ts --cluster local --quote-token "$QUOTE"); echo "$R2b"
+D2=$(step dbc-config-dry npx tsx dbc-config.ts --cluster local --quote-token "$QUOTE"); echo "$D2"
+R2=$(step dbc-config npx tsx dbc-config.ts --cluster local --send --quote-token "$QUOTE"); echo "$R2"
+[ "$(field "$D2" config)" = "$(field "$R2" config)" ] || { echo "the dry run showed another config than --send created"; exit 1; }
+R2b=$(step dbc-config-again npx tsx dbc-config.ts --cluster local --send --quote-token "$QUOTE"); echo "$R2b"
 [ "$(field "$R2" threshold)" = "2014035137" ] || { echo "unexpected threshold"; exit 1; }
 [ "$(field "$R2" config)" = "$(field "$R2b" config)" ] || { echo "dbc-config rerun gave another config"; exit 1; }
 
 say "3. tELOTE pool (twice)"
-R3=$(step dbc-pool npx tsx dbc-pool.ts --cluster local); echo "$R3"
-R3b=$(step dbc-pool-again npx tsx dbc-pool.ts --cluster local); echo "$R3b"
+D3=$(step dbc-pool-dry npx tsx dbc-pool.ts --cluster local); echo "$D3"
+R3=$(step dbc-pool npx tsx dbc-pool.ts --cluster local --send); echo "$R3"
+[ "$(field "$D3" pool)" = "$(field "$R3" pool)" ] || { echo "the dry run showed another pool than --send created"; exit 1; }
+R3b=$(step dbc-pool-again npx tsx dbc-pool.ts --cluster local --send); echo "$R3b"
 [ "$(field "$R3" pool)" = "$(field "$R3b" pool)" ] || { echo "dbc-pool rerun gave another pool"; exit 1; }
 
 say "4. swaps: buy 500, sell 100, buy 2,100 (partial fill stops at the threshold)"
-step buy-500 npx tsx dbc-swap.ts --cluster local --amount 500
-step sell-100 npx tsx dbc-swap.ts --cluster local --sell 100
-R4=$(step buy-2100 npx tsx dbc-swap.ts --cluster local --amount 2100); echo "$R4"
+step buy-500 npx tsx dbc-swap.ts --cluster local --send --amount 500
+step sell-100 npx tsx dbc-swap.ts --cluster local --send --sell 100
+R4=$(step buy-2100 npx tsx dbc-swap.ts --cluster local --send --amount 2100); echo "$R4"
 [ "$(field "$R4" progressBps)" = "10000" ] || { echo "the curve did not reach the threshold"; exit 1; }
 
 say "5. migration to DAMM v2 (twice)"
-R5=$(step dbc-migrate npx tsx dbc-migrate.ts --cluster local); echo "$R5"
-R5b=$(step dbc-migrate-again npx tsx dbc-migrate.ts --cluster local); echo "$R5b"
+step dbc-migrate-dry npx tsx dbc-migrate.ts --cluster local
+R5=$(step dbc-migrate npx tsx dbc-migrate.ts --cluster local --send); echo "$R5"
+R5b=$(step dbc-migrate-again npx tsx dbc-migrate.ts --cluster local --send); echo "$R5b"
 grep -q "b. migrateToDammV2: done already, skipped" "$LOG" || { echo "migration rerun did not skip"; exit 1; }
 
 say "a trade on DAMM v2, so the vault's position earns fees"
-step damm-buy npx tsx dbc-swap.ts --cluster local --amount 300
+step damm-buy npx tsx dbc-swap.ts --cluster local --send --amount 300
 
 say "6. fund the vault (twice)"
-R6=$(step fund-vault npx tsx fund-vault.ts --cluster local); echo "$R6"
-R6b=$(step fund-vault-again npx tsx fund-vault.ts --cluster local); echo "$R6b"
+step fund-vault-dry npx tsx fund-vault.ts --cluster local
+R6=$(step fund-vault npx tsx fund-vault.ts --cluster local --send); echo "$R6"
+R6b=$(step fund-vault-again npx tsx fund-vault.ts --cluster local --send); echo "$R6b"
 [ "$(field "$R6" funded)" = "$(field "$R6b" funded)" ] || { echo "fund-vault rerun moved more"; exit 1; }
 
 say "7. treasury claim and deposit (twice)"
-R7=$(step treasury-deposit npx tsx treasury-deposit.ts --cluster local --elote-pool "$ELOTE"); echo "$R7"
-R7b=$(step treasury-deposit-again npx tsx treasury-deposit.ts --cluster local --elote-pool "$ELOTE"); echo "$R7b"
+step treasury-deposit-dry npx tsx treasury-deposit.ts --cluster local --elote-pool "$ELOTE"
+R7=$(step treasury-deposit npx tsx treasury-deposit.ts --cluster local --send --elote-pool "$ELOTE"); echo "$R7"
+R7b=$(step treasury-deposit-again npx tsx treasury-deposit.ts --cluster local --send --elote-pool "$ELOTE"); echo "$R7b"
 [ "$(field "$R7" shares)" != "" ] && [ "$(field "$R7" shares)" != "0" ] || { echo "no shares received"; exit 1; }
 
 say "8. status"
 R8=$(step status npx tsx status.ts --cluster local --elote-pool "$ELOTE"); echo "$R8"
 grep -A30 -- "-- status:" "$LOG" | sed -n '1,30p'
 
+[ "$(grep -c "^Dry run: rerun with --send$" "$LOG")" -ge 6 ] || { echo "a dry run did not end with the --send hint"; exit 1; }
 say "E2E PASS (log $LOG)"

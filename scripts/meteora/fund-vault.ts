@@ -10,11 +10,12 @@
 //   d. DAMM v2 position fees        fundByClaimDammV2Fee (after graduation; run again later for more)
 //
 //   cd scripts/meteora && npx tsx fund-vault.ts --cluster devnet|local [--vault <address>]
-//        [--pool <dbc pool>] [--keypair <treasury.json>] [--dry-run [--as <address>]]
+//        [--pool <dbc pool>] [--keypair <treasury.json>] [--as <address>] [--send]
 //
 // --keypair  a user of the vault signs (the program checks it): default ELOTE_TREASURY_KEYPAIR,
 //            .demo-keys/treasury.json; the admin works too
 //
+// Without --send every write is only simulated (accounts and compute units are printed).
 // Only addresses, signatures and explorer links are printed.
 //
 // Demo on Solana devnet with test assets. Not an offer of securities.
@@ -23,14 +24,16 @@ import { CpAmm, getUnClaimLpFee } from "@meteora-ag/cp-amm-sdk";
 import {
   DAMM_V2_MIGRATION_FEE_ADDRESS,
   DynamicBondingCurveClient,
+  DynamicBondingCurveIdl,
   deriveDammV2PoolAddress,
 } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { DynamicFeeSharingClient, deriveTokenVaultAddress } from "@meteora-ag/dynamic-fee-sharing-sdk";
 import type { Transaction } from "@solana/web3.js";
-import { type Ctx, UsageError, actor, addressFrom, fmt, readBook, result, run, signersOf, start, submit, tokenBalance } from "./lib.ts";
+import { partnerMigrationFeeProblems } from "./vault.ts";
+import { type Ctx, DRY_RUN_END, UsageError, actor, addressFrom, fmt, readBook, result, run, signersOf, start, submit, tokenBalance } from "./lib.ts";
 
 const SCRIPT = "fund-vault";
-const USAGE = "npx tsx fund-vault.ts --cluster devnet|local [--vault <address>] [--pool <dbc pool>] [--keypair <treasury.json>] [--dry-run [--as <address>]]";
+const USAGE = "npx tsx fund-vault.ts --cluster devnet|local [--vault <address>] [--pool <dbc pool>] [--keypair <treasury.json>] [--as <address>] [--send]";
 const PARTNER_MIGRATION_FEE_MASK = 0b100; // dynamic-bonding-curve state/virtual_pool.rs
 
 run(SCRIPT, async () => {
@@ -70,6 +73,9 @@ run(SCRIPT, async () => {
   // a. trading fees
   if (ps.partnerQuoteFee.gt(new BN(0)) || ps.partnerBaseFee.gt(new BN(0))) {
     console.log(`a. DBC partner trading fees: ${fmt(ps.partnerQuoteFee)} tMXN unclaimed`);
+    // feeClaimer here only names the owner of the token-A (tELOTE) fee account: base-side fees go to
+    // the signer's tELOTE account, not the vault. Under collectFeeMode QuoteToken they are zero; the
+    // tMXN side goes to the vault's token account (the instruction's token_b, checked by the program).
     await step("a. fund from the DBC partner trading fees", () =>
       dfs.fundByClaimDbcPartnerTradingFee({ signer: signer.publicKey, feeClaimer: signer.publicKey, feeVault: vault, poolConfig: ps.config, virtualPool: pool }),
     );
@@ -79,8 +85,8 @@ run(SCRIPT, async () => {
   if (!migrated) console.log("b. DBC migration fee: the curve has not graduated yet, skipped");
   else if ((ps.migrationFeeWithdrawStatus & PARTNER_MIGRATION_FEE_MASK) !== 0) console.log("b. DBC migration fee: withdrawn already, skipped");
   else {
-    await step("b. fund from the DBC partner migration fee", () =>
-      dfs.fundByWithdrawDbcMigrationFee({
+    await step("b. fund from the DBC partner migration fee", async () => {
+      const tx = await dfs.fundByWithdrawDbcMigrationFee({
         signer: signer.publicKey,
         isPartner: true,
         feeVault: vault,
@@ -91,8 +97,14 @@ run(SCRIPT, async () => {
         // the program checks the fee claimer itself, so the check is satisfied with a copy of the
         // pool state whose creator field reads as the vault. Nothing else reads that field here.
         virtualPoolState: { ...vp, poolState: { ...ps, creator: vault } },
-      }),
-    );
+      });
+      // Because the SDK check above is bypassed, check what was built: partner flag, vault as sender.
+      const disc = DynamicBondingCurveIdl.instructions.find((i) => i.name === "withdraw_migration_fee")?.discriminator;
+      if (!disc) throw new Error("withdraw_migration_fee is missing from the DBC IDL");
+      const problems = partnerMigrationFeeProblems(tx.instructions, vault, disc);
+      if (problems.length) throw new Error(`refusing the migration fee transaction: ${problems.join("; ")}`);
+      return tx;
+    });
   }
 
   // c. surplus
@@ -116,8 +128,8 @@ run(SCRIPT, async () => {
   const after = await dfs.getFeeBreakdown(vault);
   console.log(`\nVault funded in total: ${fmt(after.totalFundedFee)} tMXN; claimed ${fmt(after.totalClaimedFee)}; unclaimed ${fmt(after.totalUnclaimedFee)}`);
   for (const u of after.userFees) console.log(`  ${u.address.toBase58()}: claimable ${fmt(u.feeUnclaimed)} tMXN (claimed ${fmt(u.feeClaimed)})`);
-  if (ctx.dryRun) console.log("\nDry run: nothing was sent.");
-  result({ funded: after.totalFundedFee.toString(), unclaimed: after.totalUnclaimedFee.toString() });
+  result({ funded: after.totalFundedFee.toString(), unclaimed: after.totalUnclaimedFee.toString(), ...(ctx.dryRun ? { dryRun: "yes" } : {}) });
+  if (ctx.dryRun) console.log(`\n${DRY_RUN_END}`);
 });
 
 async function fundFromDamm(
@@ -145,6 +157,8 @@ async function fundFromDamm(
     await step("d. fund from the DAMM v2 position fees", () =>
       dfs.fundByClaimDammV2Fee({
         signer,
+        // owner only names the owner of the token-A (tELOTE) fee account; the DAMM v2 pool collects
+        // its fee in tMXN only (migrated collectFeeMode QuoteToken), so nothing goes there.
         owner: signer,
         feeVault: vault,
         dammV2Pool: dammPool,
