@@ -56,8 +56,6 @@ export function App() {
   );
 }
 
-
-
 function Header({ t, lang, setLang }: { t: Copy; lang: Lang; setLang: (l: Lang) => void }) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
@@ -199,7 +197,6 @@ function PoolSection({ t }: { t: Copy }) {
   const repaid = 6200;
   return (
     <section id="pool" aria-labelledby="pool-title" className="mx-auto grid max-w-[1200px] grid-cols-1 gap-6 px-4 py-14 md:px-8 md:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-start lg:gap-x-16 lg:gap-y-10">
-      {/* One message, across the full width so it reads as one line of thought, not a column. */}
       <h2 id="pool-title" className="m-0 max-w-[26ch] text-[30px] font-bold leading-[1.12] tracking-[-0.02em] md:text-[40px] lg:col-span-2 lg:max-w-none">
         {p.title}
       </h2>
@@ -259,7 +256,7 @@ function Audiences({ t }: { t: Copy }) {
         icons={[StepDeposit, StepGrow, StepRedeem]}
         headIcon={HeadInvest}
         panel="border-[1.5px] border-line bg-white"
-        card="bg-mist"
+        rule="border-line"
         chip="bg-teal-50"
       />
       <AudienceRow
@@ -269,7 +266,7 @@ function Audiences({ t }: { t: Copy }) {
         icons={[StepSign, StepDraw, StepRepay]}
         headIcon={HeadBorrow}
         panel="bg-corn-100"
-        card="bg-white"
+        rule="border-corn-300"
         chip="bg-white"
       />
     </section>
@@ -285,7 +282,7 @@ function AudienceRow({
   icons,
   headIcon: Head,
   panel,
-  card,
+  rule,
   chip,
 }: {
   id: string;
@@ -294,7 +291,7 @@ function AudienceRow({
   icons: IconC[];
   headIcon: IconC;
   panel: string;
-  card: string;
+  rule: string;
   chip: string;
 }) {
   return (
@@ -305,11 +302,11 @@ function AudienceRow({
         </span>
         <h2 className="m-0 text-[26px] font-bold leading-[1.15] md:text-[34px]">{title}</h2>
       </div>
-      <ul className="m-0 grid list-none grid-cols-1 gap-3 p-0 md:grid-cols-3 md:gap-4">
+      <ol className={`steps m-0 grid list-none grid-cols-1 p-0 md:grid-cols-3 ${rule}`}>
         {cards.map((c, i) => {
           const Icon = icons[i];
           return (
-            <li key={c.title} className={`flex gap-3.5 rounded-[18px] p-4 md:flex-col md:gap-3 md:p-5 ${card}`}>
+            <li key={c.title} className="flex gap-3.5 md:flex-col md:gap-3">
               <Icon size={48} className="flex-none" />
               <div className="flex flex-col gap-1">
                 <h3 className="m-0 text-[19px] font-semibold leading-tight md:text-[21px]">{c.title}</h3>
@@ -318,7 +315,7 @@ function AudienceRow({
             </li>
           );
         })}
-      </ul>
+      </ol>
     </div>
   );
 }

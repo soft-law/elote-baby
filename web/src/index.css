@@ -125,6 +125,25 @@
   .btn-ghost:hover {
     background: rgb(106 225 231 / 0.14);
   }
+  /* Steps split by hairlines; the list's border-color class sets the rule color. */
+  .steps > li + li {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1.5px solid;
+    border-color: inherit;
+  }
+  @media (min-width: 48rem) {
+    .steps > li + li {
+      margin-top: 0;
+      padding: 0 0 0 24px;
+      border-top: 0;
+      border-left: 1.5px solid;
+      border-color: inherit;
+    }
+    .steps > li:not(:last-child) {
+      padding-right: 24px;
+    }
+  }
 }
 
 /* Loading placeholders: a soft sweep, only for readers who have not asked for reduced motion. */
@@ -145,8 +164,7 @@
   }
 }
 
-/* Motion is low: hover and press feedback, plus the app loading placeholders above and one loop, the agreement walkthrough's progress
-   fill (src/AgreementDemo.tsx), which is pausable, stops offscreen and is off under reduce. */
+/* Progress fill of the agreement walkthrough (src/AgreementDemo.tsx); the reduce block below stops it. */
 @keyframes demo-fill {
   from {
     transform: scaleX(0);

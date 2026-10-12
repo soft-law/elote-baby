@@ -1,9 +1,5 @@
-// Scripted ~30 s walkthrough of one credit line under its agreement: draft, sign, hash on chain,
-// draw, repay. Sample data only (no real names, signatures, hashes or explorer links).
-// One CSS keyframe fills the active progress segment; its animationend advances the step.
-// It starts after hydration, pauses offscreen and in hidden tabs, and never autoplays under
-// prefers-reduced-motion (the global reduce block also stops the keyframe). The step list is
-// the transcript: every step is a button, and choosing one pauses the walkthrough.
+// Walkthrough of one credit line with sample data. The fill's animationend advances the step; it pauses
+// offscreen, in hidden tabs and when a step is chosen, and never autoplays under reduced motion.
 import { useEffect, useRef, useState } from "react";
 import type { DemoCopy } from "./translations";
 
