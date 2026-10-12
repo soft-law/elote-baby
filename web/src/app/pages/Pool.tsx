@@ -1,80 +1,127 @@
 // Public pool page: the pool's figures and every credit line, read from Solana. No wallet needed.
+// Night hero band with the one headline figure (value per share), a strip of the other figures,
+// then the paper sheet with the credit lines.
 import type { ReactNode } from "react";
 import { Link } from "react-router";
-import { explorerAddressUrl, formatPerShare, truncateMiddle } from "../../pool/format";
+import { explorerAddressUrl, formatPerShare, formatReadTime, truncateMiddle } from "../../pool/format";
 import type { Copy, Lang } from "../../translations";
 import { Amount } from "../components/Amount";
 import { EmptyState } from "../components/EmptyState";
 import { LinesTable } from "../components/LinesTable";
 import { Loader } from "../components/Loader";
-import { SectionHead } from "../components/SectionHead";
-import { SkeletonGrid, SkeletonRows } from "../components/SkeletonCard";
-import { StatCard } from "../components/StatCard";
+import { Notice, RetryButton } from "../components/Notice";
+import { SkeletonRows } from "../components/SkeletonCard";
 import { useAppConfig } from "../configContext";
 import { dataState } from "../dataState";
 import { useLang } from "../lang";
 import { useLinesQuery, usePoolQuery, type PoolView } from "../queries";
-import { PageBody, PageHead } from "../Shell";
 
-/** Symbol shown after amounts; the section note says it is a test token. */
+/** Symbol shown after amounts; the note beside the figures says it is a test token. */
 const ASSET_SYMBOL = "tMXN";
 
 type PoolCopy = Copy["app"]["pool"];
 
-function Notice({ tone, role, children }: { tone: "warn" | "error"; role: "status" | "alert"; children: ReactNode }) {
-  const style = tone === "warn" ? "border-corn-300 bg-corn-100 text-ink" : "border-chili-700/30 bg-chili-50 text-chili-700";
+function IconExternal() {
   return (
-    <div
-      role={role}
-      className={`flex flex-col gap-3 rounded-[18px] border-[1.5px] px-4 py-3 text-[17px] leading-[1.5] sm:flex-row sm:items-center sm:justify-between ${style}`}
-    >
-      {children}
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+    </svg>
+  );
+}
+
+/** "The pool" with its last word glowing. */
+function Title({ p }: { p: PoolCopy }) {
+  const at = p.title.lastIndexOf(p.titleGlow);
+  if (at < 0) return <h1 id="pool-title" className="app-h1">{p.title}</h1>;
+  return (
+    <h1 id="pool-title" className="app-h1">
+      {p.title.slice(0, at)}
+      <span className="glow-word">{p.titleGlow}</span>
+      {p.title.slice(at + p.titleGlow.length)}
+    </h1>
+  );
+}
+
+function PoolAccount({ p }: { p: PoolCopy }) {
+  const { poolAddress, explorerCluster, rpcUrl } = useAppConfig();
+  return (
+    <div className="flex items-center justify-between gap-3 border-t border-night-line pt-2 md:flex-col md:items-end md:gap-1 md:border-0 md:pt-0 md:text-right">
+      <div className="flex flex-col md:items-end">
+        <span className="label text-fog-dim">{p.address}</span>
+        <span className="num text-[15px] text-white" title={poolAddress}>
+          {truncateMiddle(poolAddress)}
+        </span>
+      </div>
+      <a
+        href={explorerAddressUrl(poolAddress, explorerCluster, rpcUrl)}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex min-h-[44px] items-center gap-1.5 text-[15px] text-neon underline decoration-neon/40 underline-offset-4 hover:decoration-neon"
+      >
+        {p.viewAddress}
+        <span className="sr-only">{` (${p.newTab})`}</span>
+        <IconExternal />
+      </a>
     </div>
   );
 }
 
-function RetryButton({ label, onClick }: { label: string; onClick: () => void }) {
+/** The headline figure, the note and the read time. */
+function Headline({ pool, readAt, p, lang }: { pool: PoolView; readAt: number; p: PoolCopy; lang: Lang }) {
+  const noShares = pool.supply === 0n;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-[14px] border-[1.5px] border-teal-700 bg-white px-4 font-display text-[16px] font-semibold text-teal-700 hover:bg-teal-50"
-    >
-      {label}
-    </button>
+    <div className="flex flex-col">
+      <p className="label m-0 mt-6 mb-1.5 text-fog-dim md:mt-8 md:mb-2">{p.perShare}</p>
+      {noShares ? (
+        <p className="m-0 font-display text-[28px] font-semibold leading-tight text-white md:text-[36px]">{p.noShares}</p>
+      ) : (
+        <p className="m-0 flex flex-wrap items-baseline gap-x-2.5 md:gap-x-4">
+          <span className="num text-[64px] leading-none font-medium tracking-[-0.03em] text-white min-[400px]:text-[72px] md:text-[104px]">
+            {formatPerShare(pool.perShare, lang)}
+          </span>
+          <span className="label normal-case text-fog">{ASSET_SYMBOL}</span>
+        </p>
+      )}
+      <p className="m-0 mt-3 text-[15px] text-fog md:mt-4">
+        {p.statsNote}{" "}
+        <span className="num block text-[13px] text-fog-dim max-md:mt-1 md:inline">{p.readAt.replace("{time}", formatReadTime(readAt, lang))}</span>
+      </p>
+    </div>
   );
 }
 
-function PoolStats({ pool, t, lang }: { pool: PoolView; t: PoolCopy; lang: Lang }) {
+function Strip({ pool, p, lang }: { pool: PoolView; p: PoolCopy; lang: Lang }) {
   const amount = (units: bigint) => <Amount units={units} lang={lang} />;
-  const noShares = pool.supply === 0n;
-  const stats: Array<{ label: string; value: ReactNode; unit?: string; hint?: string; accent?: boolean }> = [
-    {
-      label: t.perShare,
-      value: noShares ? t.noShares : formatPerShare(pool.perShare, lang),
-      unit: noShares ? undefined : ASSET_SYMBOL,
-      hint: t.perShareHint,
-      accent: true,
-    },
-    { label: t.nav, value: amount(pool.nav), unit: ASSET_SYMBOL, hint: t.navHint },
-    { label: t.liquidity, value: amount(pool.vaultAmount), unit: ASSET_SYMBOL, hint: t.liquidityHint },
-    { label: t.outstanding, value: amount(pool.outstandingPrincipal), unit: ASSET_SYMBOL },
-    { label: t.interestCollected, value: amount(pool.interestCollected), unit: ASSET_SYMBOL },
-    { label: t.losses, value: amount(pool.writtenOff), unit: ASSET_SYMBOL },
-    { label: t.lines, value: new Intl.NumberFormat(lang === "es" ? "es-MX" : "en-US").format(pool.lineCount) },
+  const label = (full: string, short?: string) =>
+    short ? (
+      <>
+        <span className="md:hidden">{short}</span>
+        <span className="hidden md:inline">{full}</span>
+      </>
+    ) : (
+      full
+    );
+  const figures: Array<{ key: string; label: ReactNode; value: ReactNode }> = [
+    { key: "nav", label: label(p.nav), value: amount(pool.nav) },
+    { key: "liquidity", label: label(p.liquidity), value: amount(pool.vaultAmount) },
+    { key: "outstanding", label: label(p.outstanding, p.outstandingShort), value: amount(pool.outstandingPrincipal) },
+    { key: "interest", label: label(p.interestCollected, p.interestShort), value: amount(pool.interestCollected) },
+    { key: "losses", label: label(p.losses, p.lossesShort), value: amount(pool.writtenOff) },
+    { key: "lines", label: label(p.lines), value: new Intl.NumberFormat(lang === "es" ? "es-MX" : "en-US").format(pool.lineCount) },
   ];
   return (
-    <ul data-testid="pool-stats" className="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 lg:grid-cols-4">
-      {stats.map((s) => (
-        <li key={s.label}>
-          <StatCard label={s.label} value={s.value} unit={s.unit} hint={s.hint} tone={s.accent ? "accent" : "default"} />
-        </li>
+    <dl className="app-strip">
+      {figures.map((f) => (
+        <div key={f.key}>
+          <dt className="label">{f.label}</dt>
+          <dd className="num m-0">{f.value}</dd>
+        </div>
       ))}
-    </ul>
+    </dl>
   );
 }
 
-function PoolLines({ lineCount, t, lang }: { lineCount: bigint; t: PoolCopy; lang: Lang }) {
+function PoolLines({ lineCount, p, lang }: { lineCount: bigint; p: PoolCopy; lang: Lang }) {
   const { explorerCluster } = useAppConfig();
   const query = useLinesQuery(lineCount);
   const empty = lineCount === 0n;
@@ -83,84 +130,98 @@ function PoolLines({ lineCount, t, lang }: { lineCount: bigint; t: PoolCopy; lan
   const howHref = lang === "es" ? "/?lang=es#agreement-title" : "/#agreement-title";
 
   return (
-    <section aria-labelledby="pool-lines-title" aria-busy={state === "loading"} className="flex flex-col gap-5">
-      <SectionHead id="pool-lines-title" title={t.linesTitle} sub={t.linesSub} />
+    <section aria-labelledby="pool-lines-title" aria-busy={state === "loading"} className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 id="pool-lines-title" className="app-h2">
+          {p.linesTitle}
+        </h2>
+        <p className="m-0 text-[15px] text-ink-soft">{p.statsNote}</p>
+      </div>
       {empty ? (
         <EmptyState
-          title={t.empty.title}
-          body={t.empty.body}
+          title={p.empty.title}
+          body={p.empty.body}
           action={
-            <a
-              href={howHref}
-              className="inline-flex min-h-[44px] items-center font-display text-[17px] font-semibold text-teal-700 underline underline-offset-4"
-            >
-              {t.empty.link}
+            <a href={howHref} className="inline-flex min-h-[44px] items-center font-display text-[16px] font-semibold text-teal-700 underline underline-offset-4">
+              {p.empty.link}
             </a>
           }
         />
       ) : state === "loading" ? (
         <>
-          <Loader label={t.loading} className="sr-only" />
+          <Loader label={p.loading} className="sr-only" />
           <SkeletonRows count={Math.min(Number(lineCount), 5)} />
         </>
       ) : state === "unavailable" ? (
         <Notice tone="error" role="alert">
-          <span>{t.linesFailed}</span>
-          <RetryButton label={t.retry} onClick={() => void query.refetch()} />
+          <span>{p.linesFailed}</span>
+          <RetryButton label={p.retry} onClick={() => void query.refetch()} />
         </Notice>
       ) : (
         <>
           {state === "stale" ? (
             <Notice tone="warn" role="status">
-              <span>{t.stale}</span>
-              <RetryButton label={t.retry} onClick={() => void query.refetch()} />
+              <span>{p.stale}</span>
+              <RetryButton label={p.retry} onClick={() => void query.refetch()} />
             </Notice>
           ) : null}
-          <LinesTable rows={query.data ?? []} t={t} lang={lang} cluster={explorerCluster} />
+          <LinesTable rows={query.data ?? []} t={p} lang={lang} cluster={explorerCluster} youLabel={p.you} />
         </>
       )}
     </section>
   );
 }
 
+/** Night placeholders shaped like the headline figure and the strip. */
+function HeadlineSkeleton() {
+  return (
+    <div aria-hidden="true" data-skeleton="" className="mt-6 flex flex-col gap-3 md:mt-8">
+      <span className="app-skel-night skeleton h-3.5 w-40" />
+      <span className="app-skel-night skeleton h-16 w-56 md:h-24 md:w-80" />
+      <span className="app-skel-night skeleton h-3.5 w-64" />
+    </div>
+  );
+}
+
 export function PoolPage() {
   const { t, lang, to } = useLang();
   const p = t.app.pool;
-  const { poolAddress, explorerCluster, rpcUrl } = useAppConfig();
   const query = usePoolQuery();
   const state = dataState(query);
   const result = query.data;
+  const pool = result?.kind === "ok" ? result.pool : null;
+  // The read time on the chain's clock when the node returned it, else the browser's.
+  const readAt = query.dataUpdatedAt / 1000 + (pool?.chainClockOffset ?? 0);
 
-  let body: ReactNode;
+  let sheet: ReactNode;
   if (state === "loading") {
-    body = (
-      <section aria-busy="true" aria-label={p.statsTitle} className="flex flex-col gap-4" data-testid="pool-loading">
+    sheet = (
+      <>
         <Loader label={p.loading} className="sr-only" />
-        <SkeletonGrid count={7} />
         <SkeletonRows count={3} />
-      </section>
+      </>
     );
   } else if (!result) {
-    body = (
+    sheet = (
       <Notice tone="error" role="alert">
         <span>{p.loadFailed}</span>
         <RetryButton label={p.retry} onClick={() => void query.refetch()} />
       </Notice>
     );
   } else if (result.kind === "mismatch") {
-    body = (
+    sheet = (
       <div
         role="alert"
         data-testid="pool-mismatch"
         data-reason={result.reason}
-        className="flex flex-col gap-2 rounded-[18px] border-[1.5px] border-chili-700/30 bg-chili-50 px-5 py-4"
+        className="flex flex-col gap-2 rounded-[18px] border-2 border-chili-700 bg-chili-50 px-5 py-4"
       >
         <p className="m-0 font-display text-[20px] font-semibold text-chili-700">{p.mismatch.title}</p>
-        <p className="m-0 text-[17px] leading-[1.55] text-ink">{p.mismatch.body}</p>
+        <p className="m-0 text-[16px] leading-[1.55] text-ink">{p.mismatch.body}</p>
       </div>
     );
   } else {
-    body = (
+    sheet = (
       <>
         {result.pool.paused ? (
           <Notice tone="warn" role="status">
@@ -173,38 +234,45 @@ export function PoolPage() {
             <RetryButton label={p.retry} onClick={() => void query.refetch()} />
           </Notice>
         ) : null}
-        <section aria-labelledby="pool-stats-title" className="flex flex-col gap-5">
-          <SectionHead id="pool-stats-title" title={p.statsTitle} sub={p.statsNote} />
-          <PoolStats pool={result.pool} t={p} lang={lang} />
-        </section>
-        <PoolLines lineCount={result.pool.lineCount} t={p} lang={lang} />
+        <PoolLines lineCount={result.pool.lineCount} p={p} lang={lang} />
       </>
     );
   }
 
   return (
-    <PageBody>
-      <PageHead title={p.title} sub={p.sub} />
-      <p className="m-0 flex flex-wrap items-center gap-x-3 text-[16px] text-ink-soft">
-        <span className="label">{p.address}</span>
-        <a
-          href={explorerAddressUrl(poolAddress, explorerCluster, rpcUrl)}
-          target="_blank"
-          rel="noreferrer"
-          title={poolAddress}
-          className="num inline-flex min-h-[44px] items-center text-teal-700 underline decoration-teal-700/40 underline-offset-4 hover:decoration-teal-700"
-        >
-          {truncateMiddle(poolAddress, 6, 6)}
-          <span className="sr-only">{` (${p.viewAddress}, ${p.newTab})`}</span>
-        </a>
-        <Link
-          to={to("/launch")}
-          className="inline-flex min-h-[44px] items-center text-teal-700 underline decoration-teal-700/40 underline-offset-4 hover:decoration-teal-700 sm:ml-auto"
-        >
-          {p.launchLink}
-        </Link>
-      </p>
-      {body}
-    </PageBody>
+    <div className="flex flex-1 flex-col" aria-busy={state === "loading"} data-testid={state === "loading" ? "pool-loading" : undefined}>
+      <section aria-labelledby="pool-title" className="app-wrap app-band">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+          <Title p={p} />
+          <Link
+            to={to("/launch")}
+            className="inline-flex min-h-[44px] items-center text-[15px] text-neon underline decoration-neon/40 underline-offset-4 hover:decoration-neon"
+          >
+            {p.launchLink}
+          </Link>
+        </div>
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:gap-10">
+          {state === "loading" ? <HeadlineSkeleton /> : pool ? <Headline pool={pool} readAt={readAt} p={p} lang={lang} /> : <div />}
+          <PoolAccount p={p} />
+        </div>
+      </section>
+      {pool ? (
+        <section aria-label={p.statsTitle} className="app-wrap pb-[var(--density-section-pad)]" data-testid="pool-stats">
+          <p className="sr-only">
+            {p.perShare}: {pool.supply === 0n ? p.noShares : `${formatPerShare(pool.perShare, lang)} ${ASSET_SYMBOL}`}
+          </p>
+          <Strip pool={pool} p={p} lang={lang} />
+        </section>
+      ) : state === "loading" ? (
+        <div aria-hidden="true" data-skeleton="" className="app-wrap grid grid-cols-2 gap-3 pb-[var(--density-section-pad)] lg:grid-cols-6">
+          {Array.from({ length: 6 }, (_, i) => (
+            <span key={i} className="app-skel-night skeleton h-12" />
+          ))}
+        </div>
+      ) : null}
+      <div className="app-sheet on-paper flex-1">
+        <div className="app-wrap flex flex-col gap-6">{sheet}</div>
+      </div>
+    </div>
   );
 }

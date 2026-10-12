@@ -396,6 +396,18 @@ describe("pool page", () => {
     await page.unmount();
   });
 
+  test("night hero: the glowing title, the read time and the six-figure strip", async () => {
+    const f = await fixture({ lineCount: 0 });
+    serve(f);
+    const page = await mountPage(f);
+    await page.until(() => page.host.querySelector('[data-testid="pool-stats"]') !== null, "stats");
+    expect(page.host.querySelector("h1")!.textContent).toBe(en.title);
+    expect(page.host.querySelector("h1 .glow-word")!.textContent).toBe(en.titleGlow);
+    expect(page.text()).toMatch(/Read \w{3} \d{1,2}, \d{4}/);
+    expect(page.host.querySelectorAll('[data-testid="pool-stats"] dl > div').length).toBe(6);
+    await page.unmount();
+  });
+
   test("a line with an unknown status renders Unknown and the page holds", async () => {
     const f = await fixture();
     serve(f);

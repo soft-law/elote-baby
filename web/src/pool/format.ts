@@ -46,6 +46,17 @@ export function formatDate(unixSeconds: number | null, lang: Lang = "en"): strin
   );
 }
 
+/** When a read happened, as a date and a time of day in the reader's time zone. */
+export function formatReadTime(unixSeconds: number, lang: Lang = "en"): string {
+  return new Intl.DateTimeFormat(LOCALE[lang], {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(unixSeconds * 1000));
+}
+
 /**
  * A span of seconds in the largest whole unit that divides it: 2592000 gives "30 days", 7200
  * gives "2 hours". Plural forms and words come from Intl, so they follow the language.

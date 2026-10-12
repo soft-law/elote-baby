@@ -114,7 +114,14 @@ export type Copy = {
     header: { network: string; connect: string };
     pool: {
       title: string;
+      /** The word of the title that glows on night. */
+      titleGlow: string;
       sub: string;
+      readAt: string;
+      you: string;
+      outstandingShort: string;
+      interestShort: string;
+      lossesShort: string;
       address: string;
       viewAddress: string;
       newTab: string;
@@ -629,6 +636,12 @@ export const translations: Record<Lang, Copy> = {
       header: { network: "Devnet", connect: "Connect wallet" },
       pool: {
         title: "The pool",
+        titleGlow: "pool",
+        readAt: "Read {time}",
+        you: "You",
+        outstandingShort: "Lent out",
+        interestShort: "Interest",
+        lossesShort: "Losses",
         sub: "Value per share, liquidity and every credit line, read from Solana.",
         address: "Pool account",
         viewAddress: "View on Solana Explorer",
@@ -1211,6 +1224,12 @@ export const translations: Record<Lang, Copy> = {
       header: { network: "Devnet", connect: "Conectar wallet" },
       pool: {
         title: "El pool",
+        titleGlow: "pool",
+        readAt: "Leído el {time}",
+        you: "Tú",
+        outstandingShort: "Prestado",
+        interestShort: "Interés",
+        lossesShort: "Pérdidas",
         sub: "Valor por participación, liquidez y cada línea de crédito, leídos de Solana.",
         address: "Cuenta del pool",
         viewAddress: "Ver en Solana Explorer",

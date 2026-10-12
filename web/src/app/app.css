@@ -406,6 +406,7 @@
   .app-strip > * {
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
     gap: 4px;
     min-width: 0;
     padding: 12px 12px 12px 0;
