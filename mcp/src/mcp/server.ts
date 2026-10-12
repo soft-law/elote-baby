@@ -208,7 +208,7 @@ export function createAgreementsServer(tenant: string): McpServer {
         subsidyLapseRule: z.enum(SUBSIDY_LAPSE_RULES).optional().describe('0.2: what happens when the subsidy stops'),
         noticeDays: z.number().int().min(1).max(365).optional().describe('0.2: days of written notice before the subsidy stops'),
         supportDisclaimerAccepted: z.boolean().optional().describe('0.2: the acreditado acknowledges that the support does not alter their obligation'),
-        encrypted: z.boolean().default(true).describe('Store the signed file end-to-end encrypted for the parties (default true: the file carries personal data).'),
+        encrypted: z.boolean().default(true).describe('Review flag only: the server stores and serves the signed document in clear to any holder of the agreement id. With false the draft carries a review finding about personal data (default true).'),
       },
       annotations: { title: 'Draft a credit agreement (MX)', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
