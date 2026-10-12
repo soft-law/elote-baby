@@ -609,8 +609,8 @@ export const translations: Record<Lang, Copy> = {
       tags: ["share token", "one vault", "fixed interest", "anyone can pay", "worth more"],
     },
     agreement: {
-      title: "Programmable contracts",
-      body: "Auto-executable legal contracts. Each party signs the agreement with their own wallet, its hash opens the credit line on Solana, and the program carries out draws, repayments and write-offs by those terms.",
+      title: "Programmable Loan Contracts",
+      body: "Auto-executable legal contracts that enforce the repayment of the credit. Each party signs the agreement with their own wallet, its hash opens the credit line on Solana, and the program carries out draws, repayments and write-offs by those terms.",
       demo: {
         label: "How a credit line runs, with sample data",
         sample: "Sample data",
@@ -1228,8 +1228,8 @@ export const translations: Record<Lang, Copy> = {
       tags: ["token de participación", "una bóveda", "interés fijo", "cualquiera puede pagar", "valen más"],
     },
     agreement: {
-      title: "Contratos programables",
-      body: "Contratos legales autoejecutables. Cada parte firma el contrato con su propia wallet, su hash abre la línea de crédito en Solana y el programa ejecuta disposiciones, pagos y castigos según esos términos.",
+      title: "Contratos de préstamo programables",
+      body: "Contratos legales autoejecutables que hacen cumplir el pago del crédito. Cada parte firma el contrato con su propia wallet, su hash abre la línea de crédito en Solana y el programa ejecuta disposiciones, pagos y castigos según esos términos.",
       demo: {
         label: "Cómo funciona una línea de crédito, con datos de muestra",
         sample: "Datos de muestra",
