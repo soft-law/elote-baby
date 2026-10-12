@@ -82,6 +82,15 @@ describe("launch story timeline", () => {
     expect(railAt(TOTAL_MS).scale).toBe(0);
   });
 
+  test("rail and rim write into the frame loop's reused objects", () => {
+    const rail = railAt(0);
+    const rim = rimAt(0);
+    expect(railAt(BEAT_MS + 300, rail)).toBe(rail);
+    expect(rail.origin).toBe("center");
+    expect(rimAt(TOTAL_MS, rim)).toBe(rim);
+    expect(rim.main).toBe(RIM.main[1]);
+  });
+
   test("rise sums with the hover lift", () => {
     expect(cobOffset(0, 3, 0)).toBe(-3);
     expect(cobOffset(1, 3, 0.8)).toBeCloseTo(0.8, 6);

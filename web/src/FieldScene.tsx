@@ -4,7 +4,7 @@
 // `load` prop; never import it statically, or three + R3F land in the entry chunk.
 // Draw calls: kernels, husks (both instanced), ground, rail track, rail fill.
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Color,
   DirectionalLight,
@@ -44,6 +44,8 @@ import {
   riseAt,
   riseDelay,
   rimAt,
+  type RailState,
+  type RimState,
 } from "./shared/launch";
 
 /** Story controls on top of the shared scene props; the hero mark (CornScene) has none. */
@@ -163,6 +165,8 @@ function Field({ animate, active, start, paused, run, onBeat }: FieldProps) {
       plane: new Plane(new Vector3(0, 1, 0), -1.6),
       kernelLight: new Color(PALETTE.kernelLight),
       cream: new Color(PALETTE.cream),
+      rail: { scale: 0, origin: "left", flash: 0, track: 1 } as RailState,
+      rim: { main: 0, fill: 0 } as RimState,
     }),
     [],
   );
@@ -205,7 +209,7 @@ function Field({ animate, active, start, paused, run, onBeat }: FieldProps) {
 
     ground.current?.color.copy(GROUND).lerp(TEAL, groundMixAt(ms));
 
-    const rail = railAt(ms);
+    const rail = railAt(ms, tmp.rail);
     const f = fill.current;
     if (f) {
       f.visible = rail.scale > 0.002;
@@ -222,7 +226,7 @@ function Field({ animate, active, start, paused, run, onBeat }: FieldProps) {
       (t.material as MeshStandardMaterial).opacity = rail.track;
     }
 
-    const rim = rimAt(ms);
+    const rim = rimAt(ms, tmp.rim);
     if (rimMain.current) rimMain.current.intensity = rim.main;
     if (rimFill.current) rimFill.current.intensity = rim.fill;
   };
@@ -398,6 +402,8 @@ function Field({ animate, active, start, paused, run, onBeat }: FieldProps) {
 }
 
 export default function FieldScene({ animate, active, onReady, onError, start = false, paused = false, run = 0, onBeat }: FieldSceneProps) {
+  // The story starts only once the card is half on screen AND the first frame is up (onReady).
+  const [ready, setReady] = useState(false);
   const frameloop = animate && active && !paused ? "always" : "demand";
   return (
     <Canvas
@@ -409,13 +415,16 @@ export default function FieldScene({ animate, active, onReady, onError, start = 
         gl.setClearColor(PALETTE.night, 1);
         camera.lookAt(LOOK);
         gl.domElement.addEventListener("webglcontextlost", () => onError?.(), { once: true });
-        requestAnimationFrame(() => onReady?.());
+        requestAnimationFrame(() => {
+          setReady(true);
+          onReady?.();
+        });
       }}
       style={{ position: "absolute", inset: 0 }}
       aria-hidden
     >
       <fog attach="fog" args={[PALETTE.night, 30, 56]} />
-      <Field animate={animate} active={active} start={start} paused={paused} run={run} onBeat={onBeat} />
+      <Field animate={animate} active={active} start={start && ready} paused={paused} run={run} onBeat={onBeat} />
     </Canvas>
   );
 }

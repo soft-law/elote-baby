@@ -340,9 +340,9 @@ function PoolField({
   );
 }
 
-function Field({ term, value, mono, wide, tone }: { term: string; value: string; mono?: boolean; wide?: boolean; tone?: string }) {
+function Field({ term, value, mono, tone }: { term: string; value: string; mono?: boolean; tone?: string }) {
   return (
-    <div className={wide ? "col-span-2 sm:col-span-3" : undefined}>
+    <div>
       <dt className="text-[15px] leading-[1.4] text-ink-soft">{term}</dt>
       <dd className={`m-0 text-[18px] font-bold leading-[1.4] ${mono ? "num" : ""} ${tone ?? ""}`}>{value}</dd>
     </div>

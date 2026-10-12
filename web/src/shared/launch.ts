@@ -34,19 +34,23 @@ export interface RailState {
   track: number;
 }
 
-export function railAt(ms: number): RailState {
+/** Writes into `out` (pass a reused object from the frame loop; no allocation per frame). */
+export function railAt(ms: number, out: RailState = { scale: 0, origin: "left", flash: 0, track: 1 }): RailState {
   if (ms < BEAT_MS) {
     // Beat 1: constant-rate fill from the left (linear: it is a progress).
-    return { scale: tween(ms, 1, 200, 1600), origin: "left", flash: 0, track: 1 };
+    out.scale = tween(ms, 1, 200, 1600);
+    out.origin = "left";
+    out.flash = 0;
+    out.track = 1;
+    return out;
   }
   const flashT = tween(ms, 2, 0, 180);
   const flash = flashT >= 1 ? 0 : 1 - easeOutCubic(flashT);
-  return {
-    scale: 1 - easeInCubic(tween(ms, 2, 200, 700)),
-    origin: "center",
-    flash: ms < BEAT_MS * 2 ? flash : 0,
-    track: 1 - easeIn(tween(ms, 2, 800, 400)),
-  };
+  out.scale = 1 - easeInCubic(tween(ms, 2, 200, 700));
+  out.origin = "center";
+  out.flash = ms < BEAT_MS * 2 ? flash : 0;
+  out.track = 1 - easeIn(tween(ms, 2, 800, 400));
+  return out;
 }
 
 /** Teal mix on the ground: 0 → 0.55 in beat 2, then back to 0.35 in beat 3. */
@@ -91,7 +95,14 @@ export function glowTweening(ms: number, rows: number): boolean {
 
 /** Neon rim intensities: 3 → 4.2 and 1.2 → 1.8 in beat 4. */
 export const RIM = { main: [3, 4.2], fill: [1.2, 1.8] } as const;
-export function rimAt(ms: number): { main: number; fill: number } {
+export interface RimState {
+  main: number;
+  fill: number;
+}
+/** Writes into `out` (pass a reused object from the frame loop; no allocation per frame). */
+export function rimAt(ms: number, out: RimState = { main: 0, fill: 0 }): RimState {
   const k = easeOutCubic(tween(ms, 4, 0, 1200));
-  return { main: RIM.main[0] + (RIM.main[1] - RIM.main[0]) * k, fill: RIM.fill[0] + (RIM.fill[1] - RIM.fill[0]) * k };
+  out.main = RIM.main[0] + (RIM.main[1] - RIM.main[0]) * k;
+  out.fill = RIM.fill[0] + (RIM.fill[1] - RIM.fill[0]) * k;
+  return out;
 }
