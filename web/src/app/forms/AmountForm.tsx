@@ -235,7 +235,7 @@ export function AmountForm(props: AmountFormProps) {
           </div>
         ) : null}
 
-        <div className="sticky bottom-0 -mx-5 mt-auto bg-white/95 px-5 pt-2 pb-4 md:static md:mx-0 md:bg-transparent md:p-0">
+        <div className="sticky bottom-[var(--fixed-stack-h,0px)] -mx-5 mt-auto bg-white/95 px-5 pt-2 pb-4 md:static md:mx-0 md:bg-transparent md:p-0">
           {pending ? (
             <p id={pendingNoteId} data-testid={`${name}-pending-note`} className="m-0 mb-2 text-[15px] leading-[1.5] text-ink-soft">
               {t.app.tx.pendingNote}

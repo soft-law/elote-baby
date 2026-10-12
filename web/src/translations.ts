@@ -98,9 +98,20 @@ export type Copy = {
   };
   app: {
     meta: { title: string };
-    nav: { label: string; home: string; pool: string; invest: string; borrow: string; backToSite: string };
+    nav: {
+      label: string;
+      pool: string;
+      invest: string;
+      borrow: string;
+      backToSite: string;
+      poolLink: string;
+      /** Tab sub-lines from live data. {n} is the formatted figure. */
+      lineOne: string;
+      lineMany: string;
+      sharesUnit: string;
+      toRepay: string;
+    };
     header: { network: string; connect: string };
-    home: { title: string; sub: string; invest: Card; borrow: Card; poolLink: string; connectPrompt: string };
     pool: {
       title: string;
       sub: string;
@@ -603,16 +614,19 @@ export const translations: Record<Lang, Copy> = {
     },
     app: {
       meta: { title: `App | ${BRAND}` },
-      nav: { label: "App", home: "Start", pool: "Pool", invest: "Invest", borrow: "Borrow", backToSite: `Back to ${BRAND}` },
-      header: { network: "Devnet", connect: "Connect wallet" },
-      home: {
-        title: "What would you like to do?",
-        sub: "Choose a role. You can switch at any time.",
-        invest: { title: "I invest", body: "Deposit tMXN, a test token, and receive pool shares." },
-        borrow: { title: "I borrow", body: "Draw and repay a credit line opened for your wallet." },
+      nav: {
+        label: "Sections",
+        pool: "Pool",
+        invest: "Invest",
+        borrow: "Borrow",
+        backToSite: `Back to ${BRAND}`,
         poolLink: "See the pool",
-        connectPrompt: "Connect a wallet to start.",
+        lineOne: "{n} line",
+        lineMany: "{n} lines",
+        sharesUnit: "shares",
+        toRepay: "{n} to repay",
       },
+      header: { network: "Devnet", connect: "Connect wallet" },
       pool: {
         title: "The pool",
         sub: "Value per share, liquidity and every credit line, read from Solana.",
@@ -974,7 +988,7 @@ export const translations: Record<Lang, Copy> = {
         },
       },
       newTab: "opens in a new tab",
-      notFound: { title: "Page not found", body: "This address does not match any page of the app.", home: "Go to the start" },
+      notFound: { title: "Page not found", body: "This address does not match any page of the app.", home: "Go to the pool" },
       error: { title: "Something went wrong", body: "This page could not load. Try again.", retry: "Try again" },
       config: {
         title: "The app is not available right now",
@@ -1182,16 +1196,19 @@ export const translations: Record<Lang, Copy> = {
     },
     app: {
       meta: { title: `App | ${BRAND}` },
-      nav: { label: "App", home: "Inicio", pool: "Pool", invest: "Invertir", borrow: "Pedir crédito", backToSite: `Volver a ${BRAND}` },
-      header: { network: "Devnet", connect: "Conectar wallet" },
-      home: {
-        title: "¿Qué quieres hacer?",
-        sub: "Elige un rol. Puedes cambiarlo cuando quieras.",
-        invest: { title: "Quiero invertir", body: "Deposita tMXN, un token de prueba, y recibe participaciones del pool." },
-        borrow: { title: "Quiero pedir crédito", body: "Retira el crédito de una línea abierta para tu wallet y págalo." },
+      nav: {
+        label: "Secciones",
+        pool: "Pool",
+        invest: "Invertir",
+        borrow: "Pedir crédito",
+        backToSite: `Volver a ${BRAND}`,
         poolLink: "Ver el pool",
-        connectPrompt: "Conecta una wallet para empezar.",
+        lineOne: "{n} línea",
+        lineMany: "{n} líneas",
+        sharesUnit: "participaciones",
+        toRepay: "{n} por pagar",
       },
+      header: { network: "Devnet", connect: "Conectar wallet" },
       pool: {
         title: "El pool",
         sub: "Valor por participación, liquidez y cada línea de crédito, leídos de Solana.",
@@ -1553,7 +1570,7 @@ export const translations: Record<Lang, Copy> = {
         },
       },
       newTab: "se abre en una pestaña nueva",
-      notFound: { title: "Página no encontrada", body: "Esta dirección no corresponde a ninguna página de la app.", home: "Ir al inicio" },
+      notFound: { title: "Página no encontrada", body: "Esta dirección no corresponde a ninguna página de la app.", home: "Ir al pool" },
       error: { title: "Algo salió mal", body: "No se pudo cargar esta página. Inténtalo de nuevo.", retry: "Reintentar" },
       config: {
         title: "La app no está disponible por ahora",

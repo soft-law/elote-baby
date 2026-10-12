@@ -9,7 +9,7 @@ export function NotFoundPage() {
     <PageBody>
       <PageHead title={n.title} sub={n.body} />
       <div>
-        <Link to={to("/")} className="btn btn-neon">
+        <Link to={to("/pool")} className="app-btn app-btn-teal">
           {n.home}
         </Link>
       </div>

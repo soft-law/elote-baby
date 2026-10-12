@@ -178,7 +178,7 @@ function Connected({ owner, t, lang }: { owner: NonNullable<ReturnType<typeof us
             body={b.empty.body}
             action={
               <Link to={to("/pool")} className="inline-flex min-h-[44px] items-center gap-2 font-display text-[17px] font-semibold text-teal-700 underline decoration-teal-700/40 underline-offset-4">
-                {t.app.home.poolLink}
+                {t.app.nav.poolLink}
               </Link>
             }
           />

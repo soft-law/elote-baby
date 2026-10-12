@@ -37,6 +37,46 @@
   --shadow-glow: 0 0 0 1px var(--color-neon), 0 0 18px rgb(106 225 231 / 0.3);
 }
 
+/* App tokens (Tokens.dc.html): spacing, density, targets and chrome heights. Plain :root so the
+   compact density can re-set them below 600 px and under [data-density="compact"]. */
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-14: 56px;
+
+  --density-card-pad: 24px;
+  --density-section-pad: 40px;
+  --density-card-gap: 16px;
+
+  --label-size: 13px;
+  --label-tracking: 0.08em;
+  --body-min: 15px;
+
+  --target-min: 44px;
+  --submit-height: 52px;
+  --header-height: 64px;
+  --bottom-bar-height: 56px;
+  --footer-height: 44px;
+}
+@media (max-width: 599px) {
+  :root {
+    --density-card-pad: 16px;
+    --density-section-pad: 24px;
+    --density-card-gap: 12px;
+  }
+}
+[data-density="compact"] {
+  --density-card-pad: 16px;
+  --density-section-pad: 28px;
+  --density-card-gap: 12px;
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;
@@ -70,6 +110,18 @@
   .on-night a:focus-visible,
   .on-night button:focus-visible {
     outline-color: var(--color-neon);
+  }
+  /* Paper surfaces inside the night app shell keep the teal ring. */
+  .on-paper a:focus-visible,
+  .on-paper button:focus-visible,
+  .on-paper summary:focus-visible {
+    outline: 3px solid var(--color-teal-700);
+    outline-offset: 3px;
+  }
+  /* The app page is night; paper only on content surfaces. */
+  html.app-night,
+  html.app-night body {
+    background: var(--color-night);
   }
 }
 

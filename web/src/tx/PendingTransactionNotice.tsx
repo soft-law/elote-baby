@@ -37,7 +37,7 @@ export function PendingTransactionNotice({ t, recovery }: { t: Copy; recovery?: 
     <aside
       role="status"
       aria-live="polite"
-      className="fixed right-4 bottom-4 left-4 z-30 flex flex-col gap-3 rounded-[18px] border-[1.5px] border-teal-700 bg-white p-4 text-ink shadow-[var(--shadow-soft)] sm:left-auto sm:w-[min(26rem,calc(100vw-2rem))]"
+      className="fixed right-4 bottom-[calc(var(--bottom-bar-offset,0px)+16px)] left-4 z-30 flex flex-col gap-3 rounded-[18px] border-[1.5px] border-teal-700 bg-white p-4 text-ink shadow-[var(--shadow-soft)] sm:left-auto sm:w-[min(26rem,calc(100vw-2rem))]"
     >
       {unavailable ? (
         <>

@@ -1,13 +1,19 @@
-// App layout: header (logo, devnet badge, language, wallet), page, footer. Frame also wraps the
-// configuration screen, which renders outside the wallet providers, so the wallet control comes
-// in through the `actions` slot.
+// App layout: one 64 px header row (lockup, devnet badge, language, wallet), the section tabs
+// (a tab bar from md, a fixed bottom bar below), the page and a one-line footer. Night is the page;
+// paper is only for content surfaces. Frame also wraps the configuration screen, which renders
+// outside the wallet and query providers, so it takes the wallet control and the tabs as slots
+// and calls no data hook itself.
 import { useEffect, type ReactNode } from "react";
-import { NavLink, Outlet } from "react-router";
-import { LangToggle, Logo, SiteFooter } from "../chrome";
+import { Outlet } from "react-router";
+import { formatAmount } from "../pool/format";
 import type { Copy, Lang } from "../translations";
 import { PendingTransactionNotice } from "../tx/PendingTransactionNotice";
 import { ConnectButton } from "../wallet/ConnectButton";
+import { useWallet } from "../wallet/useWallet";
+import { useBalancesQuery } from "./balances";
+import { AppFooter, AppHeader, BottomBar, TabBar, type AppTab } from "./chrome/AppChrome";
 import { useLang } from "./lang";
+import { useLinesQuery, usePoolQuery } from "./queries";
 import { ToastProvider } from "./toast/Toast";
 
 export function Frame({
@@ -15,14 +21,18 @@ export function Frame({
   lang,
   setLang,
   nav,
+  bottomNav,
   actions,
   children,
 }: {
   t: Copy;
   lang: Lang;
   setLang: (l: Lang) => void;
+  /** Section tab bar, shown from md. */
   nav?: ReactNode;
-  /** Header controls after the language toggle (the wallet button in the app). */
+  /** Section bottom bar and anything fixed above it, shown below md. */
+  bottomNav?: ReactNode;
+  /** Header controls after the language switch (the wallet control in the app). */
   actions?: ReactNode;
   children: ReactNode;
 }) {
@@ -30,78 +40,87 @@ export function Frame({
     document.documentElement.lang = t.meta.lang;
     document.title = t.app.meta.title;
   }, [t]);
+  useEffect(() => {
+    document.documentElement.classList.add("app-night");
+    return () => document.documentElement.classList.remove("app-night");
+  }, []);
 
   return (
-    <div className="flex min-h-[100dvh] flex-col">
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-[14px] focus:bg-white focus:px-4 focus:py-3 focus:text-ink"
-      >
+    <div className={`app-shell on-night flex min-h-[100dvh] flex-col ${bottomNav ? "max-md:pb-[calc(var(--bottom-bar-height)+env(safe-area-inset-bottom))]" : ""}`}>
+      <a href="#main" className="app-skip">
         {t.meta.skip}
       </a>
-      <header className="on-night bg-night text-white">
-        <div className="mx-auto flex min-h-[68px] max-w-[1200px] flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2 md:min-h-[80px] md:px-8">
-          <div className="flex items-center gap-3">
-            <a href="/" className="flex min-h-[44px] items-center">
-              <span className="md:hidden">
-                <Logo height={28} alt={t.app.nav.backToSite} />
-              </span>
-              <span className="hidden md:block">
-                <Logo height={40} alt={t.app.nav.backToSite} />
-              </span>
-            </a>
-            <span className="label rounded-full border-[1.5px] border-neon px-2.5 py-0.5 text-neon">{t.app.header.network}</span>
-          </div>
-          <div className="flex items-center gap-2 md:gap-3">
-            <LangToggle t={t} lang={lang} setLang={setLang} />
-            {actions}
-          </div>
-        </div>
-        {nav}
-      </header>
-      <main id="main" className="flex-1">
+      <AppHeader t={t} lang={lang} setLang={setLang} actions={actions} />
+      {nav}
+      <main id="main" tabIndex={-1} className="flex flex-1 flex-col outline-none">
         {children}
       </main>
-      <SiteFooter t={t} />
+      <AppFooter t={t} />
+      {bottomNav ? <div className="fixed inset-x-0 bottom-0 z-40 md:hidden">{bottomNav}</div> : null}
     </div>
   );
 }
 
-function AppNav({ t, to }: { t: Copy; to: ReturnType<typeof useLang>["to"] }) {
-  const links = [
-    { path: "/", label: t.app.nav.home, end: true },
-    { path: "/pool", label: t.app.nav.pool, end: false },
-    { path: "/invest", label: t.app.nav.invest, end: false },
-    { path: "/borrow", label: t.app.nav.borrow, end: false },
+function fill(template: string, n: string): string {
+  return template.replace("{n}", n);
+}
+
+/** The three sections with sub-lines from live reads. Not connected or still loading: no sub-line. */
+function useAppTabs(t: Copy, lang: Lang, to: ReturnType<typeof useLang>["to"]): AppTab[] {
+  const n = t.app.nav;
+  const { status, address } = useWallet();
+  const connected = status === "connected" && address !== null;
+  const owner = connected ? address : null;
+  const pool = usePoolQuery();
+  const lineCount = pool.data?.kind === "ok" ? pool.data.pool.lineCount : undefined;
+  const balances = useBalancesQuery(owner);
+  const lines = useLinesQuery(connected ? lineCount : undefined);
+  const count = new Intl.NumberFormat(lang === "es" ? "es-MX" : "en-US");
+
+  const poolSub = lineCount === undefined ? null : fill(lineCount === 1n ? n.lineOne : n.lineMany, count.format(lineCount));
+
+  let investSub: string | null = null;
+  let investShort: string | null = null;
+  if (owner && balances.data && balances.data.owner === owner) {
+    const figure = formatAmount(balances.data.shares, lang, 2);
+    investSub = `${figure} ${n.sharesUnit}`;
+    // The bottom bar column is narrow: a long sub-line shows the figure, the words stay spoken.
+    investShort = investSub.length > 15 ? figure : investSub;
+  }
+
+  let borrowSub: string | null = null;
+  if (owner && lines.data && lineCount !== undefined) {
+    const toRepay = lines.data.filter(
+      (r) => r.view.readable && r.view.borrower === owner && (r.view.status === "active" || r.view.status === "inCollection"),
+    ).length;
+    borrowSub = fill(n.toRepay, count.format(toRepay));
+  }
+
+  return [
+    { to: to("/pool"), label: n.pool, sub: poolSub },
+    { to: to("/invest"), label: n.invest, sub: investSub, subShort: investShort },
+    { to: to("/borrow"), label: n.borrow, sub: borrowSub },
   ];
-  return (
-    <nav aria-label={t.app.nav.label} className="border-t border-night-line/60">
-      <ul className="m-0 mx-auto flex max-w-[1200px] list-none gap-1 overflow-x-auto px-2 py-1 md:px-6">
-        {links.map((l) => (
-          <li key={l.path}>
-            <NavLink
-              to={to(l.path)}
-              end={l.end}
-              className={({ isActive }) =>
-                `inline-flex min-h-[44px] items-center whitespace-nowrap rounded-[10px] px-3.5 text-[17px] no-underline transition-colors hover:bg-white/10 ${
-                  isActive ? "font-bold text-neon" : "text-[#DDE6E6] hover:text-white"
-                }`
-              }
-            >
-              {l.label}
-            </NavLink>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
+}
+
+export function SectionNav({ placement }: { placement: "top" | "bottom" }) {
+  const { t, lang, to } = useLang();
+  const tabs = useAppTabs(t, lang, to);
+  return placement === "top" ? <TabBar tabs={tabs} label={t.app.nav.label} /> : <BottomBar tabs={tabs} label={t.app.nav.label} />;
 }
 
 /** Layout route: every app page renders inside it. */
 export function Shell() {
-  const { lang, t, setLang, to } = useLang();
+  const { lang, t, setLang } = useLang();
   return (
-    <Frame t={t} lang={lang} setLang={setLang} nav={<AppNav t={t} to={to} />} actions={<ConnectButton t={t} />}>
+    <Frame
+      t={t}
+      lang={lang}
+      setLang={setLang}
+      nav={<SectionNav placement="top" />}
+      bottomNav={<SectionNav placement="bottom" />}
+      actions={<ConnectButton t={t} />}
+    >
       <ToastProvider t={t}>
         <Outlet />
       </ToastProvider>
@@ -110,16 +129,21 @@ export function Shell() {
   );
 }
 
-/** Title block shared by the app pages. */
+/** Title block of a paper page section: an app-scale heading and one line under it. */
 export function PageHead({ title, sub }: { title: string; sub: string }) {
   return (
-    <div className="flex flex-col gap-3">
-      <h1 className="m-0 text-[32px] font-bold leading-[1.1] tracking-[-0.02em] md:text-[44px]">{title}</h1>
-      <p className="m-0 max-w-[52ch] text-[18px] leading-[1.6] text-ink-soft md:text-[20px]">{sub}</p>
+    <div className="flex flex-col gap-2">
+      <h1 className="m-0 font-display text-[26px] font-semibold leading-[1.15] tracking-[-0.01em] text-ink md:text-[28px]">{title}</h1>
+      <p className="m-0 max-w-[60ch] text-[17px] leading-[1.55] text-ink-soft">{sub}</p>
     </div>
   );
 }
 
+/** A page on one paper sheet under the night chrome. */
 export function PageBody({ children }: { children: ReactNode }) {
-  return <div className="mx-auto flex max-w-[1200px] flex-col gap-8 px-4 py-10 md:px-8 md:py-14">{children}</div>;
+  return (
+    <div className="app-sheet on-paper mt-4 flex-1 md:mt-6">
+      <div className="app-wrap flex flex-col gap-8">{children}</div>
+    </div>
+  );
 }

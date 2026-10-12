@@ -42,7 +42,7 @@ export function ConfigView({
         <div role="alert" className="flex flex-col gap-6">
           <PageHead title={c.title} sub={c.body} />
           <div>
-            <a href={lang === "es" ? "/?lang=es" : "/"} className="btn btn-neon">
+            <a href={lang === "es" ? "/?lang=es" : "/"} className="app-btn app-btn-teal">
               {c.back}
             </a>
           </div>

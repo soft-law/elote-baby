@@ -53,6 +53,11 @@ const IconLogout = () => (
     <path d="M10 8l-4 4 4 4M6 12h9" />
   </Svg>
 );
+const IconChevron = () => (
+  <Svg size={14}>
+    <path d="M6 9l6 6 6-6" />
+  </Svg>
+);
 const IconAlert = () => (
   <Svg>
     <path d="M12 4l9 16H3z" />
@@ -60,8 +65,6 @@ const IconAlert = () => (
   </Svg>
 );
 
-const triggerBase =
-  "inline-flex min-h-[44px] items-center gap-2 rounded-[12px] border-[1.5px] px-3.5 font-display text-[15px] font-semibold transition-colors";
 const itemBase =
   "flex min-h-[44px] w-full items-center gap-3 rounded-[12px] px-3 text-left font-display text-[16px] font-semibold text-ink hover:bg-mist focus-visible:outline-teal-700";
 
@@ -154,12 +157,10 @@ export function ConnectButton({ t }: { t: Copy }) {
   const hasAccount = status === "connected" || status === "wrong-chain";
   const label =
     status === "connecting" ? w.connecting : hasAccount && address ? truncateMiddle(address) : t.app.header.connect;
-  const tone =
-    status === "wrong-chain"
-      ? "border-chili-700 bg-chili-50 text-chili-700"
-      : hasAccount
-        ? "border-neon text-neon hover:bg-neon/15"
-        : "border-neon bg-neon text-on-neon hover:bg-neon-hover";
+  // Connected: the address chip; its dot turns corn on the wrong network. Absent: the neon button.
+  const triggerClass = hasAccount
+    ? `app-chip ${status === "wrong-chain" ? "border-corn-300" : ""}`
+    : "app-btn app-btn-neon max-md:px-2.5 max-md:text-[14px] disabled:cursor-wait disabled:opacity-80";
 
   return (
     <div ref={rootRef} className="relative">
@@ -172,10 +173,26 @@ export function ConnectButton({ t }: { t: Copy }) {
         aria-busy={status === "connecting"}
         disabled={status === "connecting"}
         onClick={() => (open ? close(false) : setOpen(true))}
-        className={`${triggerBase} ${tone} disabled:cursor-wait disabled:opacity-80`}
+        className={triggerClass}
       >
-        {status === "wrong-chain" ? <IconAlert /> : <IconWallet />}
+        {hasAccount ? (
+          <span aria-hidden="true" className={`app-dot ${status === "wrong-chain" ? "app-dot-warn" : ""}`} />
+        ) : (
+          <span className="hidden md:inline-flex">
+            <IconWallet />
+          </span>
+        )}
         <span className={hasAccount ? "num" : undefined}>{label}</span>
+        {status === "wrong-chain" ? (
+          <span className="hidden text-corn-300 md:inline-flex">
+            <IconAlert />
+          </span>
+        ) : null}
+        {hasAccount ? (
+          <span className="hidden md:inline-flex">
+            <IconChevron />
+          </span>
+        ) : null}
         {hasAccount ? <span className="sr-only">, {w.menu}</span> : null}
       </button>
 
@@ -186,7 +203,7 @@ export function ConnectButton({ t }: { t: Copy }) {
           role="group"
           aria-label={hasAccount ? w.menu : w.choose}
           style={offset === null ? { visibility: "hidden" } : { left: offset }}
-          className="absolute top-full z-40 mt-2 flex w-[min(320px,calc(100vw-2rem))] flex-col gap-1 rounded-[18px] border border-line bg-white p-2 text-ink shadow-[var(--shadow-soft)]"
+          className="on-paper absolute top-full z-50 mt-2 flex w-[min(320px,calc(100vw-2rem))] flex-col gap-1 rounded-[18px] border border-line bg-white p-2 text-ink shadow-[var(--shadow-soft)]"
         >
           {hasAccount && address ? (
             <>

@@ -16,7 +16,7 @@ export function RouteError() {
       <div role="alert" className="flex flex-col gap-6">
         <PageHead title={e.title} sub={e.body} />
         <div>
-          <button type="button" className="btn btn-neon" onClick={() => window.location.reload()}>
+          <button type="button" className="app-btn app-btn-teal" onClick={() => window.location.reload()}>
             {e.retry}
           </button>
         </div>
