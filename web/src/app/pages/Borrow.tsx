@@ -24,13 +24,20 @@ import { PageBody, PageHead } from "../Shell";
 /** Seconds between refreshes of the clock used for due dates and late interest estimates. */
 export const NOW_TICK_MS = 30_000;
 
-/** Unix seconds, refreshed every NOW_TICK_MS while the page is open. */
-export function useNow(tickMs: number = NOW_TICK_MS): number {
-  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+/**
+ * Unix seconds on the chain's clock, refreshed every NOW_TICK_MS while the page is open: the
+ * browser clock plus `offsetSeconds` (chain minus browser, read with the pool). With no offset it
+ * is the browser clock, and the late interest stays an estimate (the form says so either way).
+ */
+export function useNow(tickMs: number = NOW_TICK_MS, offsetSeconds: number = 0): number {
+  const read = () => Math.floor(Date.now() / 1000 + offsetSeconds);
+  const [now, setNow] = useState(read);
   useEffect(() => {
-    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), tickMs);
+    const tick = () => setNow(Math.floor(Date.now() / 1000 + offsetSeconds));
+    tick();
+    const id = setInterval(tick, tickMs);
     return () => clearInterval(id);
-  }, [tickMs]);
+  }, [tickMs, offsetSeconds]);
   return now;
 }
 
@@ -96,11 +103,12 @@ function Connected({ owner, t, lang }: { owner: NonNullable<ReturnType<typeof us
   const b = t.app.borrow;
   const { explorerCluster } = useAppConfig();
   const { to } = useLang();
-  const now = useNow();
   const poolQuery = usePoolQuery();
   const balancesQuery = useBalancesQuery(owner);
   const result = poolQuery.data;
   const pool = result?.kind === "ok" ? result.pool : null;
+  // The program judges late interest by the chain's clock; the browser clock may drift from it.
+  const now = useNow(NOW_TICK_MS, pool?.chainClockOffset ?? 0);
   const linesQuery = useLinesQuery(pool?.lineCount);
   const poolState = dataState(poolQuery);
   const linesState = dataState(linesQuery);

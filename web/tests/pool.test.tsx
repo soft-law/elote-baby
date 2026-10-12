@@ -19,7 +19,7 @@ import { ConfigContext } from "../src/app/configContext";
 import { dataState } from "../src/app/dataState";
 import { PoolPage } from "../src/app/pages/Pool";
 import { createQueryClient } from "../src/app/providers";
-import { ACCOUNTS_PER_REQUEST, PoolAccountsMissingError, linesQueryKey, poolQueryKey, readLines, readPool, type PoolView } from "../src/app/queries";
+import { ACCOUNTS_PER_REQUEST, PoolAccountsMissingError, SYSVAR_CLOCK_ADDRESS, clockUnixTimestamp, linesQueryKey, poolQueryKey, readLines, readPool, type PoolView } from "../src/app/queries";
 import { formatAmount, formatPerShare } from "../src/pool/format";
 import { nav, perShare } from "../src/pool/math";
 import { createRpc } from "../src/tx/rpc";
@@ -165,13 +165,13 @@ function serve(f: Fixture, opts: { delayMs?: number; fail?: () => boolean } = {}
 }
 
 describe("readPool", () => {
-  test("one request for pool, vault and share token; derived figures match pool/math", async () => {
+  test("one request for pool, vault, share token and chain clock; derived figures match pool/math", async () => {
     const f = await fixture();
     serve(f);
     const result = await readPool(createRpc(RPC_URL), f.config);
     expect(rpcServer.count("getMultipleAccounts")).toBe(1);
     expect(rpcServer.calls.length).toBe(1);
-    expect(rpcServer.calls[0]!.params[0]).toEqual([f.accounts.pool, f.accounts.vault, f.accounts.shareMint]);
+    expect(rpcServer.calls[0]!.params[0]).toEqual([f.accounts.pool, f.accounts.vault, f.accounts.shareMint, SYSVAR_CLOCK_ADDRESS]);
     if (result.kind !== "ok") throw new Error(`expected ok, got ${result.reason}`);
     const pool: PoolView = result.pool;
     expect(pool.vaultAmount).toBe(VAULT);
@@ -187,6 +187,20 @@ describe("readPool", () => {
     expect(pool.paused).toBe(false);
     expect(pool.slot).toBe(321n);
     expect(pool.assetMint).toBe(f.config.assetMint);
+    // No clock account in this fixture: no offset, the browser clock is used.
+    expect(pool.chainClockOffset).toBeNull();
+  });
+
+  test("the Clock sysvar gives the chain clock offset; a malformed one is ignored", () => {
+    const sysvar = "Sysvar1111111111111111111111111111111111111" as Address;
+    const data = new Uint8Array(40);
+    new DataView(data.buffer).setBigInt64(32, 1_800_000_000n, true);
+    const account = (programAddress: Address, bytes: Uint8Array) =>
+      ({ exists: true, address: SYSVAR_CLOCK_ADDRESS, programAddress, data: bytes, executable: false, lamports: 1n, space: BigInt(bytes.length) }) as unknown as Parameters<typeof clockUnixTimestamp>[0];
+    expect(clockUnixTimestamp(account(sysvar, data))).toBe(1_800_000_000);
+    expect(clockUnixTimestamp(account(sysvar, data.slice(0, 39)))).toBeNull();
+    expect(clockUnixTimestamp(account(TOKEN_PROGRAM_ADDRESS, data))).toBeNull();
+    expect(clockUnixTimestamp(undefined)).toBeNull();
   });
 
   test("a pool holding another test token is a configuration mismatch", async () => {

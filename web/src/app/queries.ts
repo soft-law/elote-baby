@@ -52,6 +52,12 @@ export type PoolView = {
   graceSeconds: number;
   /** Slot the read was served at. */
   slot: bigint;
+  /**
+   * Chain clock minus the browser clock, in seconds, from the Clock sysvar read with the pool (the
+   * clock the program's late interest uses). Null when the node did not return it: callers then
+   * use the browser clock.
+   */
+  chainClockOffset: number | null;
 };
 
 /** Why the configured pool cannot be shown. A configuration problem, never retried. */
@@ -89,15 +95,36 @@ async function fetchRaw(rpc: EloteRpc, addresses: Address[], abortSignal?: Abort
   return { slot: context.slot, accounts };
 }
 
-/** Reads the pool, its vault and its share token in one request and checks them against the config. */
+/** The Clock sysvar: what `Clock::get()` returns to the program. */
+export const SYSVAR_CLOCK_ADDRESS = "SysvarC1ock11111111111111111111111111111111" as Address;
+const SYSVAR_PROGRAM_ADDRESS = "Sysvar1111111111111111111111111111111111111" as Address;
+/** slot u64, epoch_start_timestamp i64, epoch u64, leader_schedule_epoch u64, unix_timestamp i64. */
+const CLOCK_UNIX_TIMESTAMP_OFFSET = 32;
+
+/** Unix seconds of the chain clock from the Clock sysvar account, or null when it is not readable. */
+export function clockUnixTimestamp(account: MaybeEncodedAccount | undefined): number | null {
+  if (!account?.exists || account.programAddress !== SYSVAR_PROGRAM_ADDRESS) return null;
+  const data = account.data;
+  if (data.length < CLOCK_UNIX_TIMESTAMP_OFFSET + 8) return null;
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const seconds = Number(view.getBigInt64(CLOCK_UNIX_TIMESTAMP_OFFSET, true));
+  return Number.isSafeInteger(seconds) && seconds > 0 ? seconds : null;
+}
+
+/**
+ * Reads the pool, its vault, its share token and the chain clock in one request and checks the
+ * pool accounts against the config.
+ */
 export async function readPool(
   rpc: EloteRpc,
   config: Pick<AppConfig, "poolAddress" | "assetMint">,
   abortSignal?: AbortSignal,
 ): Promise<PoolReadResult> {
   const derived = await derivePoolAccounts(config.poolAddress);
-  const { slot, accounts } = await fetchRaw(rpc, [derived.pool, derived.vault, derived.shareMint], abortSignal);
-  const [poolAccount, vaultAccount, mintAccount] = accounts;
+  const { slot, accounts } = await fetchRaw(rpc, [derived.pool, derived.vault, derived.shareMint, SYSVAR_CLOCK_ADDRESS], abortSignal);
+  const [poolAccount, vaultAccount, mintAccount, clockAccount] = accounts;
+  const chainNow = clockUnixTimestamp(clockAccount);
+  const chainClockOffset = chainNow === null ? null : chainNow - Date.now() / 1000;
 
   if (!poolAccount?.exists) return { kind: "mismatch", reason: "poolMissing" };
   if (poolAccount.programAddress !== ELOTE_POOL_PROGRAM_ADDRESS || !startsWith(poolAccount.data, POOL_DISCRIMINATOR)) {
@@ -153,6 +180,7 @@ export async function readPool(
       paused: pool.paused,
       graceSeconds: poolGraceSeconds(pool.reserved),
       slot,
+      chainClockOffset,
     },
   };
 }

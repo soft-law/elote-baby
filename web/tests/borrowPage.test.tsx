@@ -10,7 +10,7 @@ import {
   type CreditLineArgs,
 } from "@elote/pool-client";
 import { AccountState, TOKEN_PROGRAM_ADDRESS, getMintEncoder, getTokenEncoder } from "@solana-program/token";
-import { generateKeyPairSigner, getBase64Decoder, none, some, type Address } from "@solana/kit";
+import { generateKeyPairSigner, getBase64Decoder, getBase64Encoder, none, some, type Address } from "@solana/kit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { act, type ReactNode } from "react";
@@ -19,6 +19,10 @@ import { MemoryRouter } from "react-router";
 import type { AppConfig } from "../src/app/config";
 import { ConfigContext } from "../src/app/configContext";
 import { BorrowPage } from "../src/app/pages/Borrow";
+import { SYSVAR_CLOCK_ADDRESS } from "../src/app/queries";
+import { derivePoolAccounts } from "../src/app/config";
+import { decodeLineView } from "../src/pool/line";
+import { repayFigures } from "../src/pool/schedule";
 import { ToastProvider } from "../src/app/toast/Toast";
 import { ataOf } from "../src/tx/ops";
 import { RpcProvider } from "../src/tx/RpcProvider";
@@ -80,6 +84,8 @@ function scheduleBytes(interval: number, installments: number, lateBps: number, 
 }
 
 type Fixture = { config: AppConfig; owner: Address; other: Address; chain: Map<string, RpcAccount | null> };
+
+const testPoolAccounts = (f: Fixture) => derivePoolAccounts(f.config.poolAddress);
 
 type LineSpec = { args: Partial<CreditLineArgs>; statusByte?: number; raw?: Uint8Array };
 
@@ -342,6 +348,48 @@ describe("borrow page", () => {
 
     // Nothing renders as NaN or undefined anywhere.
     expect(page.text()).not.toMatch(/NaN|undefined|null/);
+  });
+
+  test("late interest follows the chain clock read with the pool, not the browser clock", async () => {
+    const v2 = { version: 2, status: LineStatus.Active, drawnAt: BigInt(NOW - 100 * DAY), reserved: scheduleBytes(30 * DAY, 6, 2_400, 2) };
+    const f = await fixture({ lines: (owner) => [{ args: { ...v2, borrower: owner } }] });
+    // The cluster's clock runs 10 minutes ahead of this browser.
+    const chainNow = NOW + 600;
+    const clock = new Uint8Array(40);
+    new DataView(clock.buffer).setBigInt64(32, BigInt(chainNow), true);
+    f.chain.set(SYSVAR_CLOCK_ADDRESS, rpcAccount(clock, "Sysvar1111111111111111111111111111111111111" as Address, 1_169_280));
+    serve(f);
+    serveAgreements();
+    const page = await mount(f.config, wallet(f.owner));
+    await page.until(() => page.card(0)?.querySelector('[data-testid="repay-due-now"]') != null, "repayment form");
+
+    const [pda] = await findLinePda({ pool: (await testPoolAccounts(f)).pool, lineId: 0n });
+    const view = decodeLineView(getBase64Encoder().encode(f.chain.get(pda)!.data[0]));
+    if (!view.readable) throw new Error("fixture line unreadable");
+    const byChain = repayFigures(view, 3 * DAY, BigInt(chainNow)).dueNow;
+    const byBrowser = repayFigures(view, 3 * DAY, BigInt(NOW)).dueNow;
+    expect(byChain).not.toBe(byBrowser);
+    expect(page.card(0)!.querySelector('[data-testid="repay-due-now"]')!.getAttribute("data-amount")).toBe(byChain.toString());
+    // One request still reads the pool accounts and the clock together.
+    expect((rpcServer.calls.find((c) => c.method === "getMultipleAccounts")!.params[0] as string[]).at(-1)).toBe(SYSVAR_CLOCK_ADDRESS);
+  });
+
+  test("without the chain clock the estimate uses the browser clock", async () => {
+    const v2 = { version: 2, status: LineStatus.Active, drawnAt: BigInt(NOW - 100 * DAY), reserved: scheduleBytes(30 * DAY, 6, 2_400, 2) };
+    const f = await fixture({ lines: (owner) => [{ args: { ...v2, borrower: owner } }] });
+    serve(f);
+    serveAgreements();
+    const page = await mount(f.config, wallet(f.owner));
+    await page.until(() => page.card(0)?.querySelector('[data-testid="repay-due-now"]') != null, "repayment form");
+    const [pda] = await findLinePda({ pool: (await testPoolAccounts(f)).pool, lineId: 0n });
+    const view = decodeLineView(getBase64Encoder().encode(f.chain.get(pda)!.data[0]));
+    if (!view.readable) throw new Error("fixture line unreadable");
+    const shown = BigInt(page.card(0)!.querySelector('[data-testid="repay-due-now"]')!.getAttribute("data-amount")!);
+    // Browser time at render is NOW or a second or two later; never 10 minutes ahead.
+    const low = repayFigures(view, 3 * DAY, BigInt(NOW)).dueNow;
+    const high = repayFigures(view, 3 * DAY, BigInt(NOW + 5)).dueNow;
+    expect(shown >= low && shown <= high).toBe(true);
+    expect(page.card(0)!.querySelector('[data-testid="repay-estimate"]')!.textContent).toBe(en.app.borrow.repay.estimate);
   });
 
   test("v1 line: no schedule section at all", async () => {
