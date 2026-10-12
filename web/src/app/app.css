@@ -1,5 +1,11 @@
 /* App chrome and surfaces from the Claude Design canvas (shared stylesheet of the artboards).
    Loaded by the app entry only, so the landing never sees these rules. Tokens live in index.css. */
+/* The app page is night from the first paint, before any script runs. */
+html,
+body {
+  background: var(--color-night);
+}
+
 @layer components {
   /* ---- shell ---------------------------------------------------------------------------- */
   .app-shell {
@@ -105,7 +111,7 @@
     border: 0;
     background: transparent;
     min-width: var(--target-min);
-    height: 42px;
+    min-height: var(--target-min);
     padding: 0 8px;
     font-family: var(--font-mono);
     font-size: 13px;
