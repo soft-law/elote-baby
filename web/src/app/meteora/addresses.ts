@@ -18,6 +18,14 @@ export const PRESET_PROGRAMS = {
 
 /** Filled by the owner after the devnet launch. Null = the preset is not launched on this cluster. */
 export const PRESET: Partial<Record<ExplorerCluster, PresetAddresses | null>> = {
-  devnet: null,
+  // Launched 2026-10-12 (sitting 1): fee vault, config and tELOTE pool created on devnet.
+  devnet: {
+    dbcConfig: "4o1BnhCfXANHucdsS8iEhqkX2hG9XH4VLXQfDArMo9Xk" as Address,
+    dbcPool: "Gs1rHiCU97DoCBJDKoAKFo13AGk2pi6F6Q21ZKeY3L8N" as Address,
+    baseMint: "DYtABv8u8WxK9eyQAjn76xTzdMucfbxqHu1NL5P1QLsG" as Address,
+    feeVault: "AKnMbcf34KBAiHxuH1RzZMP9J75bBrGKwYE8Cod95dmK" as Address,
+    treasury: "6XUwKz4ccBLaCLuFGddjvPmZ6BBzSbXau7rQbVdEMBXp" as Address,
+    dammPool: null,
+  },
   localnet: null,
 };
